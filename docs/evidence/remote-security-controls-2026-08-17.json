@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-08-17T14:55:01.6803563-05:00",
+  "observedAt": "2026-08-17T15:01:07-05:00",
   "repository": "NouraldinFarge/SiteWipe",
   "repositoryUrl": "https://github.com/NouraldinFarge/SiteWipe",
   "visibility": "private",
@@ -51,7 +51,7 @@
     "filename": "PRIVACY.md",
     "truncated": false,
     "contentMatchesLocal": true,
-    "contentSha256": "17DDF43B04B79A383BCE35A4FE34B85A5C7E58CBD739AC75DAB48CBFCD457C5C",
+    "contentSha256": "6749C053F37D8B65123AB220F1018B7EF98BFDCCF89EAB5D45E861B901388571",
     "characters": 12008
   },
   "review": {
