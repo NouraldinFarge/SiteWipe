@@ -5,6 +5,11 @@
   "demoDurationSeconds": 0,
   "screenshots": [],
   "demo": null,
+  "artifact": {
+    "version": "1.11.21",
+    "runtimeZip": "sitewipe-private-rc-1.11.21.zip",
+    "sha256": null
+  },
   "storeAssets": {
     "icon128": "src/assets/icons/icon128.png",
     "screenshots1280x800": [],
@@ -18,5 +23,5 @@
     "Do not substitute static file renders or mock results for browser evidence.",
     "Use the owner-approved SiteWipe identity and bind final media to the exact installed artifact."
   ],
-  "reviewerApproval": false
+  "reviewRequirement": "current_head_github_approval"
 }

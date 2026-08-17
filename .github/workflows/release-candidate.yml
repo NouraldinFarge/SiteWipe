@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
   id-token: write
   attestations: write
 
@@ -41,6 +42,8 @@ jobs:
           npm run verify:release-candidate
       - name: Require every recorded publication gate for the rebuilt bytes
         run: npm run check:publication-gates
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Attest exact ZIP artifacts
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:

@@ -54,7 +54,7 @@ Final evidence belongs at `docs/evidence/performance-results.json` and should us
   "artifact": {},
   "fixtures": [],
   "limitations": [],
-  "reviewerApproval": false
+  "reviewRequirement": "current_head_github_approval"
 }
 ```
 

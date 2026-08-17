@@ -121,6 +121,8 @@ test('release evidence remains bound to tested bytes and approval runs after reb
   assert.match(bump, /browser\.status = 'pending'/);
   assert.match(bump, /performance\.status = 'pending'/);
   assert.match(bump, /accessibility\.status = 'pending_installed_validation'/);
+  assert.match(bump, /media\.status = 'pending'/);
+  assert.match(bump, /media\.artifact = \{ version: nextVersion/);
   assert.match(bump, /dependencyInventory\.lockfileSha256 = sha256/);
   assert.match(bump, /runtimeSbom: `\$\{artifactBase\}\.runtime-sbom\.cdx\.json`/);
   assert.match(bump, /unsignedProvenanceInput: `\$\{artifactBase\}\.unsigned-provenance-input\.json`/);
@@ -133,6 +135,8 @@ test('release evidence remains bound to tested bytes and approval runs after reb
   assert.match(publicationGate, /requiredChecksVerified/);
   assert.match(publicationGate, /hostedPrivacyPolicyUrl/);
   assert.match(publicationGate, /releaseEnvironmentVerified/);
+  assert.match(publicationGate, /verifyLiveIndependentGitHubReview/);
+  assert.match(publicationGate, /requireExactArtifactEvidence\('Media evidence'/);
   assert.match(publicationGate, /findRetiredBypassSignals/);
   assert.match(publicationGate, /verifyLiveGitPublicationScope/);
   assert.match(publicationGate, /check-publication-scope\.mjs/);

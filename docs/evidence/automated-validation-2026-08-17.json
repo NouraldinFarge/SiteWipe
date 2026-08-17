@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "local_automated_checks_passed",
-  "validatedAt": "2026-08-17T14:23:59.1581093-05:00",
+  "validatedAt": "2026-08-17T14:48:41.1641176-05:00",
   "releaseState": "Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.",
   "environment": {
     "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
@@ -23,20 +23,20 @@
     "format": "passed",
     "versionContract": {
       "status": "passed",
-      "version": "1.11.19",
+      "version": "1.11.21",
       "runtimeFiles": 50,
-      "runtimeFingerprintSha256": "6F92E929AD220603179EBB66EAE9AA95BCF52725F5F4AAC7A16B53824736E0B4",
-      "releaseInputFiles": 183,
-      "releaseInputFingerprintSha256": "C208F93A31FEBD0AE90B07B34B16A8A4FBEC913C679E0BFB562DE56B12BB4ACA"
+      "runtimeFingerprintSha256": "C95C96A9C8D28AEB6FF11783FD6A4B70C94596C697647C9D53321A29D0570ACE",
+      "releaseInputFiles": 185,
+      "releaseInputFingerprintSha256": "EA5CFC6869442A28DB430FD4EC61C068554FDAC5F74D6431B1E94B2B17CF217B"
     },
-    "syntaxModules": 99,
+    "syntaxModules": 101,
     "typeCheck": "passed",
     "eslint": "passed",
     "htmlValidation": "passed",
     "cssValidation": "passed",
     "manifest": {
       "status": "passed",
-      "version": "1.11.19",
+      "version": "1.11.21",
       "descriptionCharacters": 128,
       "descriptionMaximum": 132,
       "requiredNamedPermissions": 10,
@@ -50,13 +50,13 @@
     },
     "repositorySecretAndPrivatePathScan": {
       "status": "passed",
-      "repositoryFiles": 206
+      "repositoryFiles": 208
     },
     "gitPublicationScope": {
       "status": "passed",
-      "trackedFiles": 206,
-      "gitVisibleFiles": 206,
-      "sourceClosureFiles": 206,
+      "trackedFiles": 208,
+      "gitVisibleFiles": 208,
+      "sourceClosureFiles": 208,
       "exactPathEquality": true,
       "candidateRootIsGitRoot": true,
       "parentContainerIsGitRepository": false,
@@ -69,7 +69,7 @@
       "status": "passed",
       "runtimeDependencies": 0,
       "lockedDevelopmentGraph": 406,
-      "lockfileSha256": "B90AAE7CE370DDBD8DE2967604778E5C8F51645F9BAA78A2E9A9CF17C449B0BF",
+      "lockfileSha256": "8570C1F128C472FEDE8CCFC6970866B312C04B571E3CE0354DBAD87C20112C04",
       "metadataExceptionsResolved": 1
     },
     "projectLicense": {
@@ -94,9 +94,9 @@
     },
     "legacyReleaseSelfTest": "passed",
     "nodeTests": {
-      "tests": 238,
+      "tests": 245,
       "suites": 0,
-      "passed": 238,
+      "passed": 245,
       "failed": 0,
       "cancelled": 0,
       "skipped": 0,
@@ -121,10 +121,10 @@
       "lines": 80
     },
     "all": {
-      "statements": 87.16,
-      "branches": 64.76,
-      "functions": 86.8,
-      "lines": 87.16
+      "statements": 87.21,
+      "branches": 64.68,
+      "functions": 87.19,
+      "lines": 87.21
     },
     "shared": {
       "statements": 98.99,
@@ -156,7 +156,13 @@
       "functions": 100,
       "lines": 96.35
     },
-    "interpretation": "Coverage is a navigation aid, not a safety score. Real service-worker message/event-boundary tests now cover running-job persistence failure before mutation, stale-job maintenance, malformed permission-recovery state, extension-local reset, update migration, and side-panel routing. Installed-browser evidence remains required, and page-scrub, progress-overlay, adapter, and residual service-worker branches remain lower-coverage risk areas."
+    "githubReview": {
+      "statements": 93.65,
+      "branches": 62.19,
+      "functions": 100,
+      "lines": 93.65
+    },
+    "interpretation": "Coverage is a navigation aid, not a safety score. Real service-worker message/event-boundary tests cover running-job persistence failure before mutation, stale-job maintenance, malformed permission-recovery state, extension-local reset, update migration, and side-panel routing. The live GitHub review verifier is exercised through Git-head, paginated-review, permission, self/stale/draft/dismissed/changes-requested, and malformed/unavailable-data paths. Installed-browser evidence remains required, and page-scrub, progress-overlay, adapter, and residual service-worker branches remain lower-coverage risk areas."
   },
   "dependencyInstall": {
     "command": "npm ci --ignore-scripts",
@@ -177,7 +183,7 @@
     "knownVulnerabilities": 0,
     "runtimeDependencies": 0,
     "lockedDevelopmentGraph": 406,
-    "lockfileSha256": "B90AAE7CE370DDBD8DE2967604778E5C8F51645F9BAA78A2E9A9CF17C449B0BF"
+    "lockfileSha256": "8570C1F128C472FEDE8CCFC6970866B312C04B571E3CE0354DBAD87C20112C04"
   },
   "scopeAndPrivacyEvidence": {
     "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
@@ -198,7 +204,7 @@
   "gitInitialization": {
     "status": "private_staging_created_initial_push_verified",
     "branch": "agent/fix-private-codeql",
-    "commitCountAtStableSourceHead": 10,
+    "commitCountAtStableSourceHead": 12,
     "remoteCount": 1,
     "tagCount": 0,
     "parentContainerIsGitRepository": false,
@@ -216,7 +222,7 @@
       "browser-profiles/",
       ".pnpm-store/"
     ],
-    "note": "The truthful initial commit and private staging push were verified byte-for-byte at the Git commit level. Candidate 1.11.19 stable-source commit b374eef7d57d68371a4d20ae931465b6a5b9d7ba passed exact-head hosted checks with matching local/hosted packages and zero retained CodeQL SARIF results. Public visibility remains unauthorized."
+    "note": "The truthful initial commit and private staging push were verified byte-for-byte at the Git commit level. Candidate 1.11.19 stable-source commit b374eef7d57d68371a4d20ae931465b6a5b9d7ba remains the latest completed hosted-validation baseline. Candidate 1.11.21 has complete local validation and awaits its exact-head private CI and CodeQL runs. Public visibility remains unauthorized."
   },
   "remoteWorkflowObservation": {
     "repositoryVisibility": "PRIVATE",
@@ -283,7 +289,7 @@
         "sarifResults": 0
       }
     },
-    "latestStableSourceExactHeadValidation": {
+    "previousStableSourceExactHeadValidation": {
       "version": "1.11.19",
       "commitSha": "b374eef7d57d68371a4d20ae931465b6a5b9d7ba",
       "ci": {
@@ -309,29 +315,40 @@
         "sarifSha256": "D9167E2CB718A35B6718BA4BD39B42FCD34E3051DA7BF57E9FF54D753ADAB8FA",
         "sarifResults": 0
       }
+    },
+    "currentCandidateHostedValidation": {
+      "version": "1.11.21",
+      "status": "pending_after_stable_source_push",
+      "commitSha": null,
+      "ci": {
+        "status": "pending"
+      },
+      "codeql": {
+        "status": "pending"
+      }
     }
   },
   "artifacts": {
     "status": "local_reproducible_build_passed",
-    "runtimeZip": "sitewipe-private-rc-1.11.19.zip",
-    "runtimeZipSha256": "965446F1ACD5083B9C7A6FF3C46F1A5354622336FE3C23B3E554D9C5706E3157",
+    "runtimeZip": "sitewipe-private-rc-1.11.21.zip",
+    "runtimeZipSha256": "3A411859B8AAD73F2FE34C86D5DAB794BA9BAC800024C0DB1CC98D5E82A0E8CA",
     "runtimeZipBytes": 219702,
     "runtimeFiles": 50,
-    "sourceZip": "sitewipe-private-rc-1.11.19-source.zip",
+    "sourceZip": "sitewipe-private-rc-1.11.21-source.zip",
     "sourceZipSha256": "Recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
-    "sourceFiles": 206,
+    "sourceFiles": 208,
     "sourcePackageEquivalence": "exact",
     "checksumFilesVerified": 7,
     "consecutiveBuildOutputsCompared": 2,
     "byteIdenticalAcrossConsecutiveBuilds": true,
-    "runtimeSbom": "sitewipe-private-rc-1.11.19.runtime-sbom.cdx.json",
-    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.19.unsigned-provenance-input.json",
+    "runtimeSbom": "sitewipe-private-rc-1.11.21.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.21.unsigned-provenance-input.json",
     "remoteAttestation": "pending"
   },
   "publicationGate": {
     "command": "npm run check:publication-gates",
     "publicationRecommendation": "blocked",
-    "blockerCount": 18,
+    "blockerCount": 20,
     "originalBlockerCount": 24,
     "closedOriginalBlockers": [
       "The complete-review bypass consent defect was removed in source; no owner approval record was fabricated.",
@@ -344,13 +361,14 @@
       "exact-artifact Chrome and Brave evidence",
       "exact-artifact performance and installed accessibility evidence",
       "authentic approved screenshots and demo",
+      "current-head approval from a distinct write-capable GitHub reviewer",
       "public-only branch, vulnerability-reporting, and release-environment controls"
     ]
   },
   "limitations": [
     "No installed Chrome or Brave assertion was executed for this artifact at the time this record was written.",
     "No browser performance benchmark or installed accessibility run was executed.",
-    "Candidate 1.11.19 stable-source commit b374eef7d57d68371a4d20ae931465b6a5b9d7ba passed exact-head hosted CI with byte-identical local/hosted runtime and source ZIPs; CodeQL passed and the retained SARIF contained zero results. Evidence-only follow-up heads remain subject to the same hosted workflows without changing runtime bytes.",
+    "Candidate 1.11.19 stable-source commit b374eef7d57d68371a4d20ae931465b6a5b9d7ba passed exact-head hosted CI with byte-identical local/hosted runtime and source ZIPs; CodeQL passed and the retained SARIF contained zero results. Candidate 1.11.21 has complete local validation and awaits exact-head hosted CI, artifact-parity, and retained-SARIF evidence.",
     "Selected GitHub-owned Actions, full-SHA enforcement, dependency alerts, automated security fixes, and the public privacy-policy Gist are verified. Attestation remains unverified; branch protection, private vulnerability reporting, and a protected release environment are unavailable on the current private personal-repository plan and are staged for the authorized post-public control pass.",
     "The SiteWipe identity, MIT project license, first-party publication rights, asset rights, private-material exclusions, AI-assistance disclosure, and private staging destination are owner-confirmed. Material exact-name marketplace, repository, and domain collisions remain; direct trademark/legal review, renewed exact public-version approval, media, remote controls, and final publication decisions remain open.",
     "A local unsigned provenance input is not a GitHub artifact attestation.",

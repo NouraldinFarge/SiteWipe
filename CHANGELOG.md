@@ -6,6 +6,19 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.21 — private release-candidate work — 2026-08-17
+
+### Live-review boundary validation
+
+- Exercise the exact Git-head lookup, paginated pull-request review parsing, collaborator-permission lookup, and malformed/unavailable API rejection path used by the independent-review publication gate.
+
+## 1.11.20 — private release-candidate work — 2026-08-17
+
+### Independent-review and media-evidence integrity
+
+- Require a live, current-head GitHub approval from a reviewer who is distinct from the maintainer and pull-request author and who has write-capable repository permission; stale, draft, dismissed, changes-requested, malformed, self, and read-only reviews fail closed.
+- Bind screenshots, demo metadata, and derived showcase assets to the exact runtime ZIP, and reset that media evidence on every version transaction.
+
 ## 1.11.19 — private release-candidate work — 2026-08-17
 
 ### Release-input finalization

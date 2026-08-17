@@ -58,13 +58,15 @@ for (const [path, expected] of [
 const browser = await json('docs/evidence/browser-validation.json');
 const performance = await json('docs/evidence/performance-results.json');
 const accessibility = await json('docs/evidence/accessibility-results.json');
+const media = await json('docs/evidence/media-inventory.json');
 const validationEvidence = await resolveCurrentValidationEvidence(projectRoot);
 const automated = await json(validationEvidence.relativePath);
 const expectedRuntimeZip = `${artifactBase}.zip`;
 for (const [label, artifact] of [
   ['browser evidence', browser.artifact],
   ['performance evidence', performance.artifact],
-  ['accessibility evidence', accessibility.artifact]
+  ['accessibility evidence', accessibility.artifact],
+  ['media evidence', media.artifact]
 ]) {
   requireValue(artifact?.version === version, `${label} version does not match ${version}`);
   requireValue(artifact?.runtimeZip === expectedRuntimeZip, `${label} runtime ZIP name is stale`);
@@ -124,6 +126,7 @@ if (requireArtifact) {
       digest,
       evidenceRequiresHash(accessibility)
     );
+    validateOptionalEvidenceHash('media evidence', media.artifact?.sha256, digest, evidenceRequiresHash(media));
     requireValue(automated.artifacts?.runtimeZipSha256 === digest, 'automated evidence artifact hash is stale');
     requireValue(
       automated.artifacts?.runtimeZipBytes === runtimeBytes.length,
@@ -158,7 +161,7 @@ function requireValue(value, message) {
 }
 
 function evidenceRequiresHash(evidence) {
-  return evidence?.reviewerApproval === true || ['passed', 'approved'].includes(evidence?.status);
+  return ['passed', 'approved'].includes(evidence?.status);
 }
 
 function validateOptionalEvidenceHash(label, recorded, actual, required) {

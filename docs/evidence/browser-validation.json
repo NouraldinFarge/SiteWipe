@@ -3,8 +3,8 @@
   "status": "pending",
   "attemptedAt": null,
   "artifact": {
-    "version": "1.11.19",
-    "runtimeZip": "sitewipe-private-rc-1.11.19.zip",
+    "version": "1.11.21",
+    "runtimeZip": "sitewipe-private-rc-1.11.21.zip",
     "sha256": null
   },
   "chrome": {
@@ -39,5 +39,5 @@
     "No browser version or extension artifact hash is approved until the matrix is actually run.",
     "Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion."
   ],
-  "reviewerApproval": false
+  "reviewRequirement": "current_head_github_approval"
 }

@@ -82,7 +82,8 @@ browser.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sh
 browser.chrome = emptyBrowserEvidence();
 browser.brave = emptyBrowserEvidence();
 browser.automationAttempt = null;
-browser.reviewerApproval = false;
+delete browser.reviewerApproval;
+browser.reviewRequirement = 'current_head_github_approval';
 queueJson('docs/evidence/browser-validation.json', browser);
 
 const performance = await json('docs/evidence/performance-results.json');
@@ -91,7 +92,8 @@ performance.measuredAt = null;
 performance.environment = {};
 performance.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sha256: null };
 performance.fixtures = [];
-performance.reviewerApproval = false;
+delete performance.reviewerApproval;
+performance.reviewRequirement = 'current_head_github_approval';
 queueJson('docs/evidence/performance-results.json', performance);
 
 const accessibility = await json('docs/evidence/accessibility-results.json');
@@ -102,8 +104,27 @@ accessibility.installedChecks = Object.fromEntries(
 accessibility.browserVersions = {};
 accessibility.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sha256: null };
 delete accessibility.artifactSha256;
-accessibility.reviewerApproval = false;
+delete accessibility.reviewerApproval;
+accessibility.reviewRequirement = 'current_head_github_approval';
 queueJson('docs/evidence/accessibility-results.json', accessibility);
+
+const media = await json('docs/evidence/media-inventory.json');
+media.status = 'pending';
+media.authenticScreenshotCount = 0;
+media.demoDurationSeconds = 0;
+media.screenshots = [];
+media.demo = null;
+media.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sha256: null };
+media.storeAssets = {
+  ...media.storeAssets,
+  screenshots1280x800: [],
+  promotionalTile440x280: null,
+  marquee1400x560: null,
+  githubSocialPreview: null
+};
+delete media.reviewerApproval;
+media.reviewRequirement = 'current_head_github_approval';
+queueJson('docs/evidence/media-inventory.json', media);
 
 const validationEvidence = await resolveCurrentValidationEvidence(projectRoot);
 const automated = await json(validationEvidence.relativePath);

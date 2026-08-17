@@ -25,7 +25,7 @@ For every runtime change, first add an `Unreleased` changelog entry and perform 
 npm run version:bump -- patch
 ```
 
-The command accepts `minor`, `major`, or an explicit forward-only `x.y.z` in place of `patch`. It stages every version/document/evidence change, refreshes the dependency-inventory lockfile hash, writes a recovery journal, promotes the complete set, and records separate reviewed fingerprints for the runtime and every stable release input. The stable-input contract covers source, scripts, CI, tests, documentation, configuration, assets, lockfile, and third-party material. Mutable post-build evidence and owner-approval JSON are explicitly excluded to prevent circular invalidation. An interrupted uncommitted transaction rolls back on the next run; a committed transaction finishes cleanup. The bump also resets browser, performance, and installed-accessibility results to pending for the new artifact. Do not update version copies or evidence bindings individually.
+The command accepts `minor`, `major`, or an explicit forward-only `x.y.z` in place of `patch`. It stages every version/document/evidence change, refreshes the dependency-inventory lockfile hash, writes a recovery journal, promotes the complete set, and records separate reviewed fingerprints for the runtime and every stable release input. The stable-input contract covers source, scripts, CI, tests, documentation, configuration, assets, lockfile, and third-party material. Mutable post-build evidence and owner-approval JSON are explicitly excluded to prevent circular invalidation. An interrupted uncommitted transaction rolls back on the next run; a committed transaction finishes cleanup. The bump also resets browser, performance, installed-accessibility, screenshot, demo, and derived-media results to pending for the new artifact. Do not update version copies or evidence bindings individually.
 
 Then validate and build:
 
@@ -41,6 +41,8 @@ npm run check:publication-gates
 ```
 
 The last command is expected to fail while any human, browser, media, or remote gate is open.
+
+The publication gate queries the designated GitHub pull request at evaluation time. It accepts only an open, non-draft pull request whose head is the exact local Git commit and whose latest decisive review includes an undismissed approval for that head from a write-capable account distinct from both the maintainer and pull-request author. A tracked boolean is not independent-review evidence. In the manual workflow, `GH_TOKEN` is scoped to read pull requests for this check.
 
 Normal builds never increment the version. They update only the active automated-validation artifact fields; they do not write browser, performance, or accessibility hashes because only an actual exact-artifact run may bind those human-reviewed records. Pending manual hashes may remain null, while any recorded/approved hash must match the current runtime ZIP. Both build and verification fail if the runtime or stable-input version transaction is missing or stale. This keeps repeated unchanged builds deterministic while ensuring release-input changes cannot retain an old version or inherit old installed-browser evidence.
 

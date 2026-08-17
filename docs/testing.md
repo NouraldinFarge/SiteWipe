@@ -33,7 +33,7 @@ npm run build:release-candidate
 npm run verify:release-candidate
 ```
 
-`npm run check:publication-gates` is deliberately separate and expected to fail until human and remote evidence exists. A failure there is an accurate release status, not a failing unit test.
+`npm run check:publication-gates` is deliberately separate and expected to fail until human and remote evidence exists. A failure there is an accurate release status, not a failing unit test. Its independent-review check reads the designated GitHub pull request live and rejects self-review, draft/stale heads, read-only reviewers, malformed review metadata, dismissed approvals, and later changes-requested decisions.
 
 ## Current automated result
 

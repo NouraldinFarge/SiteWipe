@@ -28,9 +28,9 @@
   },
   "browserVersions": {},
   "artifact": {
-    "version": "1.11.19",
-    "runtimeZip": "sitewipe-private-rc-1.11.19.zip",
+    "version": "1.11.21",
+    "runtimeZip": "sitewipe-private-rc-1.11.21.zip",
     "sha256": null
   },
-  "reviewerApproval": false
+  "reviewRequirement": "current_head_github_approval"
 }

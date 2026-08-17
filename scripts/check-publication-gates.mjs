@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verifyLiveIndependentGitHubReview } from './github-review.mjs';
 import { resolveCurrentValidationEvidence } from './validation-evidence.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -100,8 +101,7 @@ if (
   );
 }
 const browser = await optionalJson('docs/evidence/browser-validation.json');
-if (browser?.status !== 'passed' || browser?.reviewerApproval !== true)
-  blockers.push('The exact-artifact browser validation record is not reviewer-approved.');
+if (browser?.status !== 'passed') blockers.push('The exact-artifact browser validation record is incomplete.');
 if (browser?.chrome?.status !== 'passed')
   blockers.push('Disposable-profile Chrome integration evidence is incomplete.');
 if (browser?.brave?.status !== 'passed')
@@ -124,25 +124,23 @@ requireExactArtifactEvidence('Browser evidence', browser?.artifact, runtimeArtif
 const performance = await optionalJson('docs/evidence/performance-results.json');
 if (
   performance?.status !== 'passed' ||
-  performance?.reviewerApproval !== true ||
   !Array.isArray(performance?.fixtures) ||
   performance.fixtures.length === 0 ||
   !performance?.environment ||
   Object.keys(performance.environment).length === 0
 ) {
-  blockers.push('Measured, exact-artifact performance evidence is incomplete or not reviewer-approved.');
+  blockers.push('Measured, exact-artifact performance evidence is incomplete.');
 }
 requireExactArtifactEvidence('Performance evidence', performance?.artifact, runtimeArtifactSha256);
 const accessibility = await optionalJson('docs/evidence/accessibility-results.json');
 if (
   accessibility?.status !== 'passed' ||
-  accessibility?.reviewerApproval !== true ||
   !accessibility?.installedChecks ||
   Object.values(accessibility.installedChecks).some((value) => value !== 'passed') ||
   !accessibility?.browserVersions ||
   Object.keys(accessibility.browserVersions).length === 0
 ) {
-  blockers.push('Installed exact-artifact accessibility evidence is incomplete or not reviewer-approved.');
+  blockers.push('Installed exact-artifact accessibility evidence is incomplete.');
 }
 requireExactArtifactEvidence('Accessibility evidence', accessibility?.artifact, runtimeArtifactSha256);
 const automatedPointer = await resolveCurrentValidationEvidence(root).catch(() => null);
@@ -163,6 +161,7 @@ if (
   );
 }
 const media = await optionalJson('docs/evidence/media-inventory.json');
+requireExactArtifactEvidence('Media evidence', media?.artifact, runtimeArtifactSha256);
 if (
   !Number.isInteger(media?.authenticScreenshotCount) ||
   media.authenticScreenshotCount < 4 ||
@@ -171,8 +170,17 @@ if (
   blockers.push('Four to six authentic synthetic-data screenshots are not approved.');
 if (!Number.isFinite(media?.demoDurationSeconds) || media.demoDurationSeconds < 60 || media.demoDurationSeconds > 90)
   blockers.push('An authentic 60–90 second demo is not approved.');
-if (media?.status !== 'approved' || media?.reviewerApproval !== true)
-  blockers.push('Synthetic showcase and store media are not reviewer-approved.');
+if (media?.status !== 'approved') blockers.push('Synthetic showcase and store media are not approved.');
+for (const [label, evidence] of [
+  ['Browser', browser],
+  ['Performance', performance],
+  ['Accessibility', accessibility],
+  ['Media', media]
+]) {
+  if (evidence?.reviewRequirement !== 'current_head_github_approval') {
+    blockers.push(`${label} evidence does not require a current-head GitHub approval.`);
+  }
+}
 const remote = await optionalJson('docs/decisions/remote-publication.json');
 if (!remote?.ownerApproved || !remote?.repositoryUrl)
   blockers.push('The intended remote and first-publication approval are not recorded.');
@@ -185,6 +193,17 @@ if (!remote?.releaseEnvironmentVerified)
   blockers.push('The manually approved remote release environment is not verified.');
 if (!remote?.finalPublicationApproval)
   blockers.push('The owner has not given final approval for the first public push/release/store or portfolio use.');
+const independentReview = verifyLiveIndependentGitHubReview({
+  repositoryUrl: remote?.repositoryUrl,
+  pullRequestNumber: remote?.reviewPullRequestNumber,
+  maintainerHandle: remote?.maintainerHandle,
+  cwd: root
+});
+if (!independentReview.verified) {
+  blockers.push(
+    'A distinct write-capable reviewer has not approved the exact current Git head through the designated GitHub pull request.'
+  );
+}
 const optionsHtml = await readFile(resolve(root, 'src/options/options.html'), 'utf8');
 const retiredBypassFindings = await findRetiredBypassSignals(optionsHtml);
 if (retiredBypassFindings.length) {
