@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-08-17T13:48:40.9181708-05:00",
+  "observedAt": "2026-08-17T13:58:01.6578719-05:00",
   "repository": "NouraldinFarge/SiteWipe",
   "repositoryUrl": "https://github.com/NouraldinFarge/SiteWipe",
   "visibility": "private",
@@ -18,9 +18,24 @@
     "vulnerabilityAlertsEnabled": true,
     "automatedSecurityFixesEnabled": true
   },
+  "hostedCandidateChecks": {
+    "version": "1.11.16",
+    "commitSha": "72f289781d8dab01d3f8d1374696784c4e55eb6b",
+    "ciRunId": 32057110350,
+    "ciStatus": "passed",
+    "runtimeZipSha256": "BC408E201AB988598A40A6D69526EDFCE8588C0C363A388670C10DE204474FE0",
+    "sourceZipSha256": "11414974CEC3BD649684A001F7157DC9E9C142ED1DE0A5322D0F2168A57C03A3",
+    "localHostedArtifactParity": true,
+    "codeqlRunId": 32057110393,
+    "codeqlStatus": "passed",
+    "sarifArtifactId": 9296835910,
+    "sarifArtifactDigestSha256": "54238397645BE85DA30384C9FAC4919203BF7A862B77CA6E4A4E749720B5909F",
+    "sarifSha256": "743FD1A30E0467AE53F3EC9E37213E3966520ABE2E7623099C89D7D12C7752D3",
+    "sarifResults": 0
+  },
   "publicOnlyOrPlanLimitedControls": {
     "branchProtectionVerified": false,
-    "requiredChecksVerified": false,
+    "requiredBranchChecksEnforced": false,
     "privateVulnerabilityReportingVerified": false,
     "protectedReleaseEnvironmentVerified": false,
     "reason": "The current private personal repository and account tier do not expose these required controls. The owner authorized configuring them immediately after a separately authorized public visibility change."
@@ -34,7 +49,7 @@
     "filename": "PRIVACY.md",
     "truncated": false,
     "contentMatchesLocal": true,
-    "contentSha256": "04129EB29F2B7C6F314C9AAFD38AE952E35824BC53A23DB184F8E08F72CE8F3D",
+    "contentSha256": "17DDF43B04B79A383BCE35A4FE34B85A5C7E58CBD739AC75DAB48CBFCD457C5C",
     "characters": 12008
   },
   "review": {

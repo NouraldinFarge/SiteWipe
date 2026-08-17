@@ -6,6 +6,12 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.17 — private release-candidate work — 2026-08-17
+
+### Hosted-state invariants
+
+- Replaced transient current/pending hosted-check wording with per-head evidence rules and retained exact CI artifact-parity and zero-result CodeQL SARIF evidence for the checked commit.
+
 ## 1.11.16 — private release-candidate work — 2026-08-17
 
 ### Evidence-state accuracy

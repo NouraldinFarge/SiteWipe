@@ -1,6 +1,6 @@
 {
   "name": "sitewipe-private-release-candidate",
-  "version": "1.11.16",
+  "version": "1.11.17",
   "private": true,
   "license": "MIT",
   "description": "Private release candidate for guarded, target-scoped browser-data cleanup.",
