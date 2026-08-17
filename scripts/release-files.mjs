@@ -86,6 +86,21 @@ export const SOURCE_ARCHIVE_DIRECTORIES = Object.freeze(
   ['.github', 'assets', 'docs', 'scripts', 'src', 'tests', 'third_party'].sort()
 );
 
+export const LOCAL_GENERATED_DIRECTORIES = Object.freeze(
+  ['.pnpm-store', 'browser-profiles', 'coverage', 'dist', 'node_modules', 'playwright-report', 'test-results'].sort()
+);
+const localGeneratedDirectoryNames = new Set(
+  LOCAL_GENERATED_DIRECTORIES.map((directory) => directory.toLocaleLowerCase('en-US'))
+);
+
+export function isLocalGeneratedPath(path) {
+  return String(path)
+    .replaceAll('\\', '/')
+    .split('/')
+    .filter(Boolean)
+    .some((segment) => localGeneratedDirectoryNames.has(segment.toLocaleLowerCase('en-US')));
+}
+
 export const FORBIDDEN_PACKAGE_PATTERNS = Object.freeze([
   /(^|\/)\.git(\/|$)/i,
   /(^|\/)node_modules(\/|$)/i,

@@ -28,8 +28,8 @@
   },
   "browserVersions": {},
   "artifact": {
-    "version": "1.11.12",
-    "runtimeZip": "sitewipe-private-rc-1.11.12.zip",
+    "version": "1.11.16",
+    "runtimeZip": "sitewipe-private-rc-1.11.16.zip",
     "sha256": null
   },
   "reviewerApproval": false

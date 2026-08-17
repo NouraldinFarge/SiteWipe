@@ -2,7 +2,7 @@
 
 > **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
 
-This document supplements [`PRIVACY.md`](../PRIVACY.md) with implementation-level flows. It does not replace a future hosted privacy policy.
+This document supplements [`PRIVACY.md`](../PRIVACY.md) and its byte-matched public GitHub Gist with implementation-level flows. It is engineering documentation, not a separate privacy policy or a substitute for final store-dashboard disclosures.
 
 ## Runtime flow
 

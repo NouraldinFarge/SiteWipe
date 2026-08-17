@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 import { auditPublicationScope, parseGitIndexEntries, parseNullPaths } from './publication-scope.mjs';
+import { LOCAL_GENERATED_DIRECTORIES } from './release-files.mjs';
 import { collectSourceArchivePaths } from './source-archive.mjs';
 
 const execFile = promisify(execFileCallback);
@@ -117,15 +118,7 @@ function isInside(parent, child) {
 }
 
 async function findNestedGitMarkers(directory) {
-  const ignoredDirectories = new Set([
-    'node_modules',
-    'coverage',
-    'dist',
-    'test-results',
-    'playwright-report',
-    'browser-profiles',
-    '.pnpm-store'
-  ]);
+  const ignoredDirectories = new Set(LOCAL_GENERATED_DIRECTORIES);
   const markers = [];
   await visit(directory, true);
   return markers;

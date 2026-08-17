@@ -4,7 +4,13 @@ import { dirname, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { RUNTIME_FILES, SOURCE_ARCHIVE_ROOT_FILES } from '../../scripts/release-files.mjs';
+import {
+  isLocalGeneratedPath,
+  LOCAL_GENERATED_DIRECTORIES,
+  RUNTIME_FILES,
+  SOURCE_ARCHIVE_ROOT_FILES
+} from '../../scripts/release-files.mjs';
+import { resolveCurrentValidationEvidence } from '../../scripts/validation-evidence.mjs';
 import {
   assertSemanticVersion,
   computeReleaseInputFingerprint,
@@ -32,12 +38,19 @@ test('version helpers produce deliberate forward-only semantic versions and arti
 test('the version ledger fingerprints every allowlisted runtime file and all release paths enforce it', async () => {
   const pkg = await json('package.json');
   const state = await json('docs/evidence/version-state.json');
+  const automatedPath = (await resolveCurrentValidationEvidence(root)).relativePath;
+  const automated = await json(automatedPath);
   assert.equal(state.currentVersion, pkg.version);
   assert.equal(state.runtimeFileCount, RUNTIME_FILES.length);
   assert.equal(state.runtimeFingerprintSha256, await computeRuntimeFingerprint(root));
   const releaseInputFingerprint = await computeReleaseInputFingerprint(root);
   assert.equal(state.releaseInputFileCount, releaseInputFingerprint.fileCount);
   assert.equal(state.releaseInputFingerprintSha256, releaseInputFingerprint.sha256);
+  assert.equal(automated.artifacts.runtimeSbom, `sitewipe-private-rc-${pkg.version}.runtime-sbom.cdx.json`);
+  assert.equal(
+    automated.artifacts.unsignedProvenanceInput,
+    `sitewipe-private-rc-${pkg.version}.unsigned-provenance-input.json`
+  );
   assert.equal(pkg.scripts['version:bump'], 'node scripts/bump-version.mjs');
   assert.match(pkg.scripts.check, /npm run check:version/);
   assert.match(pkg.scripts.check, /npm run check:dependency-licenses/);
@@ -57,6 +70,26 @@ test('stable release-input versioning excludes only mutable evidence and approva
   assert.equal(isMutableReleaseRecord('scripts/build-release.mjs'), false);
   assert.equal(isMutableReleaseRecord('tests/release/versioning.test.mjs'), false);
   assert.equal(isMutableReleaseRecord('src/manifest.json'), false);
+});
+
+test('repository checks share the generated-output boundary', async () => {
+  for (const directory of [
+    'browser-profiles',
+    'coverage',
+    'dist',
+    'node_modules',
+    'playwright-report',
+    'test-results'
+  ]) {
+    assert.equal(LOCAL_GENERATED_DIRECTORIES.includes(directory), true, `${directory} is not centrally excluded`);
+    assert.equal(isLocalGeneratedPath(`C:\\work\\SiteWipe\\${directory}\\nested\\artifact.js`), true);
+    assert.equal(isLocalGeneratedPath(`/work/SiteWipe/${directory.toUpperCase()}/nested/artifact.js`), true);
+  }
+  assert.equal(isLocalGeneratedPath('src/background/cleanup.js'), false);
+  assert.match(await text('eslint.config.js'), /LOCAL_GENERATED_DIRECTORIES/);
+  assert.match(await text('scripts/check-syntax.mjs'), /isLocalGeneratedPath/);
+  assert.match(await text('scripts/check-docs.mjs'), /isLocalGeneratedPath/);
+  assert.match(await text('scripts/check-publication-scope.mjs'), /LOCAL_GENERATED_DIRECTORIES/);
 });
 
 test('the owner-selected MIT license is exact, package-aligned, and included in the source closure', async () => {
@@ -80,6 +113,7 @@ test('the owner-selected MIT license is exact, package-aligned, and included in 
 test('release evidence remains bound to tested bytes and approval runs after rebuild verification', async () => {
   const builder = await text('scripts/build-release.mjs');
   const bump = await text('scripts/bump-version.mjs');
+  const versionCheck = await text('scripts/check-version.mjs');
   const workflow = await text('.github/workflows/release-candidate.yml');
   const codeqlWorkflow = await text('.github/workflows/codeql.yml');
   const publicationGate = await text('scripts/check-publication-gates.mjs');
@@ -88,8 +122,12 @@ test('release evidence remains bound to tested bytes and approval runs after reb
   assert.match(bump, /performance\.status = 'pending'/);
   assert.match(bump, /accessibility\.status = 'pending_installed_validation'/);
   assert.match(bump, /dependencyInventory\.lockfileSha256 = sha256/);
+  assert.match(bump, /runtimeSbom: `\$\{artifactBase\}\.runtime-sbom\.cdx\.json`/);
+  assert.match(bump, /unsignedProvenanceInput: `\$\{artifactBase\}\.unsigned-provenance-input\.json`/);
   assert.match(bump, /resolveConfig\(readinessPath\)/);
   assert.match(bump, /await format\(readiness/);
+  assert.match(versionCheck, /automated evidence runtime SBOM name is stale/);
+  assert.match(versionCheck, /automated evidence unsigned provenance-input name is stale/);
   assert.match(publicationGate, /knownExactNameListings/);
   assert.match(publicationGate, /dependencyInventory\?\.lockfileSha256 !== sha256\(packageLock\)/);
   assert.match(publicationGate, /requiredChecksVerified/);

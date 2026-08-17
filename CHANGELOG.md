@@ -6,6 +6,31 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.16 — private release-candidate work — 2026-08-17
+
+### Evidence-state accuracy
+
+- Reconciled current-facing privacy, store, issue, reviewer, and private-remote records with the verified public policy Gist and repository controls while keeping current-head hosted validation, confidential reporting, installed evidence, independent review, and publication approval explicitly pending.
+
+## 1.11.15 — private release-candidate work — 2026-08-17
+
+### Generated-output isolation
+
+- Centralized repository-check exclusions for browser profiles and other local generated output so installed-browser evidence cannot alter lint, syntax, documentation, or publication-scope traversal.
+
+## 1.11.14 — private release-candidate work — 2026-08-17
+
+### Versioned evidence integrity
+
+- Made the version transaction reset the generated runtime-SBOM and unsigned-provenance filenames and made the version contract reject either stale reference.
+
+## 1.11.13 — private release-candidate work — 2026-08-17
+
+### Publication control and evidence preparation
+
+- Corrected the installed-browser matrix so it consistently requires the complete Standard/Expert per-run review and rejects the retired quick/bypass path.
+- Reconciled the public privacy-policy contact language and repository-control plan with the owner-authorized public Gist, selected Actions policy, full-SHA pinning, dependency alerts, automated security fixes, and staged post-public protections without implying visibility or release approval.
+
 ## 1.11.12 — private release-candidate work — 2026-08-17
 
 ### Cross-platform release hardening

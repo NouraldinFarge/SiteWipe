@@ -128,7 +128,9 @@ automated.artifacts = {
   sourcePackageEquivalence: 'pending',
   checksumFilesVerified: 0,
   consecutiveBuildOutputsCompared: 0,
-  byteIdenticalAcrossConsecutiveBuilds: false
+  byteIdenticalAcrossConsecutiveBuilds: false,
+  runtimeSbom: `${artifactBase}.runtime-sbom.cdx.json`,
+  unsignedProvenanceInput: `${artifactBase}.unsigned-provenance-input.json`
 };
 queueJson(validationEvidence.relativePath, automated);
 

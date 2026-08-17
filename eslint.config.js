@@ -1,9 +1,15 @@
 import js from '@eslint/js';
 import globals from 'globals';
 
+import { LOCAL_GENERATED_DIRECTORIES } from './scripts/release-files.mjs';
+
 export default [
   {
-    ignores: ['coverage/**', 'dist/**', 'node_modules/**', 'src/shared/public-suffix-data.js', 'third_party/**']
+    ignores: [
+      ...LOCAL_GENERATED_DIRECTORIES.map((directory) => `${directory}/**`),
+      'src/shared/public-suffix-data.js',
+      'third_party/**'
+    ]
   },
   js.configs.recommended,
   {

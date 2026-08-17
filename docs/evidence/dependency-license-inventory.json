@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "status": "technical_inventory_complete_owner_acknowledged",
   "inventoriedAt": "2026-08-17",
-  "lockfileSha256": "CA72331ED5D963683AC7487F08D153C3D275847F047C59D7321E47A241807105",
+  "lockfileSha256": "F7648DC3347371272A0830AAE0C1DFE715D444471E1D40FE8C5A45D2CB91621F",
   "runtimeDependencyCount": 0,
   "lockedDevelopmentGraphCount": 406,
   "licenseCounts": {

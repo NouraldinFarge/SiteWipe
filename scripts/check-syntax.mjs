@@ -3,11 +3,10 @@ import { readdir } from 'node:fs/promises';
 import { dirname, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { isLocalGeneratedPath } from './release-files.mjs';
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const files = (await discover(root))
-  .filter((path) => ['.js', '.mjs'].includes(extname(path)))
-  .filter((path) => !/[\\/](?:node_modules|coverage|dist|third_party)[\\/]/.test(path))
-  .sort();
+const files = (await discover(root)).filter((path) => ['.js', '.mjs'].includes(extname(path))).sort();
 
 for (const path of files) {
   const result = spawnSync(process.execPath, ['--check', path], {
@@ -26,8 +25,8 @@ async function discover(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const found = [];
   for (const entry of entries) {
-    if (['node_modules', 'coverage', 'dist', '.git'].includes(entry.name)) continue;
     const path = resolve(directory, entry.name);
+    if (entry.name === '.git' || entry.name === 'third_party' || isLocalGeneratedPath(path)) continue;
     if (entry.isDirectory()) found.push(...(await discover(path)));
     else if (entry.isFile()) found.push(path);
   }

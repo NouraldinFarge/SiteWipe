@@ -1,6 +1,6 @@
 # DRAFT — NOT APPROVED FOR PUBLICATION: Chrome Web Store listing
 
-All wording below is conditional on exact-artifact browser/accessibility/performance evidence, a hosted privacy policy/contact, retained MIT/provenance evidence, authentic approved media, accurate live dashboard disclosures, and final store-submission authorization.
+All wording below is conditional on exact-artifact browser/accessibility/performance evidence, final review of the hosted privacy policy and support/security routes, retained MIT/provenance evidence, authentic approved media, accurate live dashboard disclosures, and final store-submission authorization.
 
 ## Name
 
@@ -51,6 +51,6 @@ SiteWipe may locally process the entered/active-tab target, matching tab metadat
 
 Capture exactly five 1280×800 authentic screenshots from the final installed artifact using synthetic disposable-profile data: target entry, complete Standard review, elevated Expert review with safe synthetic file candidate, partial/unknown verification report, and recovery/privacy controls. Prepare one authentic 60–90 second demo. Do not composite nonexistent states, show personal data, or publish any asset before reviewer and owner approval. Verify current dashboard requirements before capture/upload.
 
-## Support/privacy placeholders
+## Support/privacy status
 
-Do not invent URLs or contacts. A stable hosted privacy-policy URL and maintained support/security route are publication blockers.
+The current public policy URL is `https://gist.github.com/NouraldinFarge/7e0a47ee03c1bcab6f9d82db625cb90b`; its `PRIVACY.md` content must be byte-matched again after the exact public version is approved. Gist comments are for non-sensitive questions only. Do not invent an email address or confidential route: GitHub Private Vulnerability Reporting and a maintained support/security route must be enabled, inspected, and approved before submission.

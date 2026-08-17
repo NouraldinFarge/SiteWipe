@@ -2,7 +2,7 @@
 
 > **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
 
-This policy describes the current local candidate under the owner-approved custom identity SiteWipe `1.11.12`. The owner selected MIT for the first-party project source and authorized a private staging repository, but this policy is not yet hosted at a stable public URL and must not be represented as a Chrome Web Store policy until the exact public version, installed evidence, live disclosures, and publication are separately approved.
+This policy describes the current local candidate under the owner-approved custom identity SiteWipe `1.11.16`. The owner selected MIT for the first-party project source and authorized a private staging repository. A public GitHub Gist hosts this policy to provide a stable disclosure and non-sensitive contact page. Hosting the policy does not approve this candidate for public release or store submission, and it must not be represented as a Chrome Web Store policy until the exact public version, installed evidence, live disclosures, and publication are separately approved.
 
 Last reviewed: 2026-08-17.
 
@@ -104,6 +104,8 @@ The extension cannot promise removal of server logs, account records, ISP/DNS/VP
 
 ## Contact and policy changes
 
-A maintained public privacy contact and hosted policy URL do not yet exist; this is a publication blocker. Before publication, the owner must provide a stable contact route and hosted copy, then review this policy against the exact signed artifact and store disclosure answers.
+For general privacy questions, use a non-sensitive comment on the public GitHub Gist that hosts this policy. Do not put browsing history, cookies, tokens, local paths, filenames, extension IDs, private-window activity, or vulnerability details in a Gist comment or public issue.
 
-Security-sensitive reports must follow [`SECURITY.md`](./SECURITY.md) and must not include unredacted browsing data in a public issue.
+Confidential security reports must use [GitHub Private Vulnerability Reporting](https://github.com/NouraldinFarge/SiteWipe/security/advisories/new) after that route has been enabled and independently verified during the separately authorized public-repository transition. Until the confidential route works, retain a sensitive report locally and notify the owner only through a private channel the owner explicitly supplies; do not guess an email address.
+
+The hosted policy must be reviewed again against the exact approved public artifact and store disclosure answers before any browser-store submission. Security-sensitive reports must also follow the repository's [security policy](https://github.com/NouraldinFarge/SiteWipe/blob/main/SECURITY.md).

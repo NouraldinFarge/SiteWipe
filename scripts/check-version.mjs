@@ -75,6 +75,14 @@ requireValue(
   automated.artifacts?.sourceZip === `${artifactBase}-source.zip`,
   'automated evidence source ZIP name is stale'
 );
+requireValue(
+  automated.artifacts?.runtimeSbom === `${artifactBase}.runtime-sbom.cdx.json`,
+  'automated evidence runtime SBOM name is stale'
+);
+requireValue(
+  automated.artifacts?.unsignedProvenanceInput === `${artifactBase}.unsigned-provenance-input.json`,
+  'automated evidence unsigned provenance-input name is stale'
+);
 
 const fingerprint = await computeRuntimeFingerprint();
 const releaseInputFingerprint = await computeReleaseInputFingerprint();

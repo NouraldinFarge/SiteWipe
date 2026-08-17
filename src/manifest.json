@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SiteWipe",
-  "version": "1.11.12",
+  "version": "1.11.16",
   "description": "Review browser-exposed data for one site, approve the scope, then clear it with local reports, recovery, and best-effort checks.",
   "minimum_chrome_version": "119",
   "incognito": "spanning",

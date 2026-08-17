@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-17T13:48:40.9181708-05:00",
+  "repository": "NouraldinFarge/SiteWipe",
+  "repositoryUrl": "https://github.com/NouraldinFarge/SiteWipe",
+  "visibility": "private",
+  "defaultBranch": "main",
+  "actions": {
+    "enabled": true,
+    "allowedActions": "selected",
+    "shaPinningRequired": true,
+    "githubOwnedAllowed": true,
+    "verifiedCreatorActionsAllowed": false,
+    "patternsAllowed": [],
+    "note": "Every checked-in workflow dependency is GitHub-owned and pinned to a full commit SHA. GitHub documents repository patterns as public-repository-only, so exact per-action patterns are staged for the immediate post-public control pass."
+  },
+  "dependencySecurity": {
+    "vulnerabilityAlertsEnabled": true,
+    "automatedSecurityFixesEnabled": true
+  },
+  "publicOnlyOrPlanLimitedControls": {
+    "branchProtectionVerified": false,
+    "requiredChecksVerified": false,
+    "privateVulnerabilityReportingVerified": false,
+    "protectedReleaseEnvironmentVerified": false,
+    "reason": "The current private personal repository and account tier do not expose these required controls. The owner authorized configuring them immediately after a separately authorized public visibility change."
+  },
+  "privacyPolicyGist": {
+    "id": "7e0a47ee03c1bcab6f9d82db625cb90b",
+    "url": "https://gist.github.com/NouraldinFarge/7e0a47ee03c1bcab6f9d82db625cb90b",
+    "owner": "NouraldinFarge",
+    "public": true,
+    "commentsEnabled": true,
+    "filename": "PRIVACY.md",
+    "truncated": false,
+    "contentMatchesLocal": true,
+    "contentSha256": "04129EB29F2B7C6F314C9AAFD38AE952E35824BC53A23DB184F8E08F72CE8F3D",
+    "characters": 12008
+  },
+  "review": {
+    "requestedReviewer": "NouraldinFarge",
+    "independentReviewerVerified": false,
+    "reason": "The requested account is the pull-request author and sole collaborator, so it cannot independently approve its own pull request."
+  },
+  "authorizationBoundary": {
+    "publicVisibilityAuthorized": false,
+    "mergeAuthorized": false,
+    "pagesAuthorized": false,
+    "tagsAuthorized": false,
+    "releasesAuthorized": false
+  }
+}

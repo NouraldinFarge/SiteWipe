@@ -2,6 +2,8 @@ import { lstat, readFile, readdir } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { isLocalGeneratedPath } from './release-files.mjs';
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const markdown = [...(await filesBelow(root, (path) => path.endsWith('.md')))].filter((path) => !ignored(path));
 const failures = [];
@@ -66,7 +68,7 @@ async function filesBelow(directory, predicate) {
 }
 
 function ignored(path) {
-  return /[\\/](?:node_modules|coverage|dist|\.git)(?:[\\/]|$)/i.test(path);
+  return isLocalGeneratedPath(path) || /[\\/]\.git(?:[\\/]|$)/i.test(path);
 }
 
 async function verifyRemoteDocumentationState() {
