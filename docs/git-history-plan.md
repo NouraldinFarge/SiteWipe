@@ -1,6 +1,6 @@
 # Honest Git history plan
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 Fact pattern when this plan was approved: local branch `main`, zero commits, zero remotes, zero tags, and all candidate paths untracked. The outer working container is not a repository and must never become part of this history. The owner separately authorized one truthful initial candidate commit and the first push to the named private staging repository; this document does not authorize later public or release actions.
 

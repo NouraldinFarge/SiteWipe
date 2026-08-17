@@ -1,6 +1,6 @@
 # Permission threat model
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 The manifest has no required host pattern. Read-only preflight does not request host access. Both Standard and Expert mode display a complete per-run review. Only its explicit final approval asks for missing target-specific `http` and `https` patterns and then submits the single-use detailed-review cleanup request. Chrome/Brave controls its own permission prompt, so the browser may require a second browser-controlled interaction; that prompt is not cleanup consent. Before a prompt can occur, SiteWipe stores a durable lease that classifies each requested pattern as pre-existing or temporary. Completion, failure, cancellation, expiry, restart recovery, maintenance, and extension-local reset attempt to release only temporary patterns. The lease is retained until strict browser queries prove those patterns absent; pre-existing patterns are always preserved. Browser policy or user choice can withhold access, in which case no cleanup request is sent.
 

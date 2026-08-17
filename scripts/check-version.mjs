@@ -44,12 +44,12 @@ requireValue(
 for (const [path, expected] of [
   ['README.md', `current candidate version \`${version}\``],
   ['PRIVACY.md', `SiteWipe \`${version}\``],
-  ['SECURITY.md', `private \`${version}\` candidate`],
+  ['SECURITY.md', `public-source \`${version}\` prerelease`],
   ['src/README.md', `Version \`${version}\``],
-  ['docs/architecture.md', `\`${version}\` remains a private candidate version`],
+  ['docs/architecture.md', `\`${version}\` remains a public-source prerelease version`],
   ['docs/threat-model.md', `SiteWipe \`${version}\` candidate`],
   ['docs/release-readiness.md', `v${version},`],
-  ['CHANGELOG.md', `## ${version} — private release-candidate work`],
+  ['CHANGELOG.md', `## ${version} — public-source prerelease work`],
   ['.github/ISSUE_TEMPLATE/bug.yml', `${version} / SHA-256`]
 ]) {
   requireValue((await text(path)).includes(expected), `${path} is missing current-version text: ${expected}`);

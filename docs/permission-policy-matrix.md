@@ -1,6 +1,6 @@
 # Permission and Chrome Web Store policy matrix
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 Last reviewed: 2026-08-17 against the manifest, runtime call sites, and the dated official-source ledger at [`docs/evidence/policy-source-ledger-2026-08-17.json`](./evidence/policy-source-ledger-2026-08-17.json). This is a technical policy review, not store approval. Dashboard wording and browser prompts must be rechecked at submission time.
 

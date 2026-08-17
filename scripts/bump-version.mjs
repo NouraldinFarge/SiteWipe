@@ -47,12 +47,12 @@ for (const [path, before, after] of [
   ],
   ['README.md', `current candidate version \`${previousVersion}\``, `current candidate version \`${nextVersion}\``],
   ['PRIVACY.md', `SiteWipe \`${previousVersion}\``, `SiteWipe \`${nextVersion}\``],
-  ['SECURITY.md', `private \`${previousVersion}\` candidate`, `private \`${nextVersion}\` candidate`],
+  ['SECURITY.md', `public-source \`${previousVersion}\` prerelease`, `public-source \`${nextVersion}\` prerelease`],
   ['src/README.md', `Version \`${previousVersion}\``, `Version \`${nextVersion}\``],
   [
     'docs/architecture.md',
-    `\`${previousVersion}\` remains a private candidate version`,
-    `\`${nextVersion}\` remains a private candidate version`
+    `\`${previousVersion}\` remains a public-source prerelease version`,
+    `\`${nextVersion}\` remains a public-source prerelease version`
   ],
   ['docs/threat-model.md', `SiteWipe \`${previousVersion}\` candidate`, `SiteWipe \`${nextVersion}\` candidate`],
   ['.github/ISSUE_TEMPLATE/bug.yml', `${previousVersion} / SHA-256`, `${nextVersion} / SHA-256`]
@@ -64,8 +64,8 @@ let readiness = await source('docs/release-readiness.md');
 readiness = replaceRequired(readiness, `v${previousVersion},`, `v${nextVersion},`, 'docs/release-readiness.md');
 readiness = replaceRequired(
   readiness,
-  `private \`${previousVersion}\``,
-  `private \`${nextVersion}\``,
+  `Public-source \`${previousVersion}\``,
+  `Public-source \`${nextVersion}\``,
   'docs/release-readiness.md'
 );
 const readinessPath = resolve(projectRoot, 'docs/release-readiness.md');
@@ -224,7 +224,7 @@ function promoteUnreleased(value, version, releaseDate) {
   if (nextHeading < 0) throw new Error('CHANGELOG.md is missing a prior version heading.');
   const notes = value.slice(notesStart, nextHeading).trim();
   if (!notes) throw new Error('Add at least one Unreleased changelog entry before bumping the version.');
-  return `${value.slice(0, markerAt)}${marker}\n\n## ${version} — private release-candidate work — ${releaseDate}\n\n${notes}\n${value.slice(nextHeading)}`;
+  return `${value.slice(0, markerAt)}${marker}\n\n## ${version} — public-source prerelease work — ${releaseDate}\n\n${notes}\n${value.slice(nextHeading)}`;
 }
 
 function localCalendarDate(value = new Date()) {

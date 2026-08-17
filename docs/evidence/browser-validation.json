@@ -3,8 +3,8 @@
   "status": "pending",
   "attemptedAt": null,
   "artifact": {
-    "version": "1.11.21",
-    "runtimeZip": "sitewipe-private-rc-1.11.21.zip",
+    "version": "1.11.29",
+    "runtimeZip": "sitewipe-private-rc-1.11.29.zip",
     "sha256": null
   },
   "chrome": {

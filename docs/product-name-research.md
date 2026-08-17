@@ -1,12 +1,12 @@
 # Product-name research
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 Owner decision: **2026-08-16**. Marketplace/repository/package/domain screen refreshed: **2026-08-17**. The owner explicitly selected **SiteWipe** as the custom product identity. No rename is authorized or required.
 
 The selection is not marketplace-unique. Two current Chrome Web Store listings and two Firefox listings use the exact name; one Chrome/Firefox pair appears to represent the same unrelated product. An exact-name public GitHub repository and the registered `sitewipe.com` domain were also observed. This creates user-confusion, search/discoverability, repository, domain, and possible store-review risk. The owner's selection is recorded accurately, but it is not represented as a trademark registration, legal clearance, non-infringement opinion, domain/handle approval, or guarantee of store acceptance.
 
-This remains a preliminary engineering and brand screen, not a legal clearance opinion. Search results, package names, repository names, domain registrations, and trademark records can change at any time. A broader trademark review in the intended countries and product classes remains advisable before public adoption.
+This remains a preliminary engineering and brand screen, not a legal clearance opinion. Search results, package names, repository names, domain registrations, and trademark records can change at any time. A broader trademark review in the intended countries and product classes remains advisable before store submission or wider promotion.
 
 ## Owner decision and exact-name collisions
 
@@ -56,11 +56,11 @@ The current machine-readable snapshot is in [`docs/evidence/name-research-2026-0
 
 Before the owner decision, **OriginSieve** was the strongest engineering-name candidate from this screen. That recommendation is retained as historical evidence and is superseded by the owner's explicit selection of **SiteWipe**.
 
-No rename is authorized. Before public adoption of the selected name, the remaining name-related work is to:
+No rename is authorized. Before store submission or wider promotion of the selected name, the remaining name-related work is to:
 
 1. perform direct international and relevant national trademark searches, including similar spellings, sounds, translations, related owners, and applicable software/security classes;
 2. decide whether the known marketplace-confusion risk is acceptable for the intended distribution channel;
-3. confirm domain and social-handle acquisition immediately before public adoption; and
+3. confirm domain and social-handle acquisition immediately before wider promotion; and
 4. approve the visual direction and public version.
 
 ## Source endpoints retained for review

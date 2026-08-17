@@ -1,8 +1,8 @@
 # Support
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-There is no public support channel or supported public release yet. Do not use this candidate on a primary browser profile or with irreplaceable data.
+The public issue tracker is available for privacy-safe, synthetic-data bug reports, but there is no supported public binary release or support SLA. Do not use this candidate on a primary browser profile or with irreplaceable data.
 
 ## Before asking for help
 
@@ -31,4 +31,4 @@ Do not share an unredacted report, browser profile, cookies, real history, real 
 
 ## Security issues
 
-Follow [`SECURITY.md`](./SECURITY.md). Do not post security-sensitive details publicly. A verified confidential intake route must be added before publication.
+Follow [`SECURITY.md`](./SECURITY.md). Do not post security-sensitive details publicly; use the enabled GitHub private vulnerability-reporting route.

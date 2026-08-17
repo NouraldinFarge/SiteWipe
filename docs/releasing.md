@@ -1,6 +1,6 @@
 # Release process
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 There is no approved public release process execution yet. These steps are designed to produce a reviewable candidate; they do not authorize publishing, pushing, tagging, creating a GitHub Release, portfolio use, or store submission.
 

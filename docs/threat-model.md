@@ -1,8 +1,8 @@
 # Threat model
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-Last reviewed: 2026-08-17. This model covers the reviewed local SiteWipe `1.11.21` candidate, not a future store-signed artifact or unrelated product using the same name.
+Last reviewed: 2026-08-17. This model covers the reviewed local SiteWipe `1.11.29` candidate, not a future store-signed artifact or unrelated product using the same name.
 
 ## Security goals
 

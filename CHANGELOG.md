@@ -1,10 +1,42 @@
 # Changelog
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-This log distinguishes private engineering candidates from public releases. No version listed here has been published as an approved public release.
+This log distinguishes public-source engineering candidates from supported binary and store releases. No version listed here represents an approved supported binary or store release.
 
 ## Unreleased
+
+## 1.11.29 — public-source prerelease work — 2026-08-17
+
+- Align the installed prerelease warning, icon metadata, active ADR status, and naming-risk guidance with the repository's public source visibility while retaining disposable-profile and release gates.
+
+## 1.11.28 — public-source prerelease work — 2026-08-17
+
+- Normalize the publication-gate implementation before sealing the release-input fingerprint.
+
+## 1.11.27 — public-source prerelease work — 2026-08-17
+
+- Clarify publication-gate output so public source visibility is never confused with supported binary, store, or professional-profile approval.
+
+## 1.11.26 — public-source prerelease work — 2026-08-17
+
+- Correct the generated SBOM and build-summary release-state labels from private staging to public-source prerelease.
+
+## 1.11.25 — public-source prerelease work — 2026-08-17
+
+- Align generated candidate metadata and notes with public source visibility while preserving the unsupported-binary and store-release gates.
+
+## 1.11.24 — public-source prerelease work — 2026-08-17
+
+- Normalize the public-source evidence and versioning documentation with the repository formatter before sealing the release-input fingerprint.
+
+## 1.11.23 — public-source prerelease work — 2026-08-17
+
+- Replace stale private-staging and unavailable-security-control language with the verified public repository, protected-branch, private-reporting, and prerelease boundaries.
+
+## 1.11.22 — public-source prerelease work — 2026-08-17
+
+- Reconcile public source visibility with the README, security/privacy/support guidance, release ledger, recruiter drafts, and verified GitHub controls without claiming a binary or store release.
 
 ## 1.11.21 — private release-candidate work — 2026-08-17
 

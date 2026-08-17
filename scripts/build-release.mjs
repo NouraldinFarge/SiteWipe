@@ -93,7 +93,7 @@ const sourceArchiveBytes = await readFile(sourceArchivePath);
 const sourceArchiveDigest = sha256(sourceArchiveBytes);
 const equivalence = {
   schema: 'sitewipe.source-package-equivalence.v1',
-  state: 'Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.',
+  state: 'Public-source prerelease candidate; binary, store, and professional-profile gates remain open.',
   artifact: `${base}.zip`,
   artifactSha256: zipDigest,
   manifestAtZipRoot: zipEntries.some((entry) => entry.path === 'manifest.json'),
@@ -121,7 +121,7 @@ const sbom = {
       name: manifest.name,
       version: manifest.version,
       properties: [
-        { name: 'sitewipe:release-state', value: 'private-release-candidate' },
+        { name: 'sitewipe:release-state', value: 'public-source-prerelease' },
         { name: 'sitewipe:runtime-dependencies', value: '0' }
       ]
     }
@@ -159,7 +159,7 @@ await writeFile(sbomPath, `${JSON.stringify(sbom, null, 2)}\n`, 'utf8');
 const releaseNotesPath = resolve(dist, `${base}.release-notes.md`);
 await writeFile(
   releaseNotesPath,
-  `# ${manifest.name} ${manifest.version} private release candidate\n\nStatus: **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**\n\nThis artifact is for disposable-profile validation only. It is not approved for publication, a public release, a portfolio, or the Chrome Web Store. Exact public-version approval, installed-browser evidence, authentic media, remote CI and repository controls, and final publication approval remain gates.\n\nThe owner selected MIT for SiteWipe's first-party source. Third-party material remains governed by its identified terms and notices.\n\nThe loadable ZIP places \`manifest.json\` at its root and contains only the explicit runtime allowlist. Verify it with \`npm run verify:release-candidate\`.\n`,
+  `# ${manifest.name} ${manifest.version} public-source prerelease\n\nStatus: **Public source; no supported binary or browser-store release.**\n\nThis artifact is for disposable-profile validation only. It is not approved as a supported binary, a portfolio download, or a Chrome Web Store submission. Exact-artifact installed-browser evidence, authentic media, independent review, and final binary/store approval remain gates.\n\nThe owner selected MIT for SiteWipe's first-party source. Third-party material remains governed by its identified terms and notices.\n\nThe loadable ZIP places \`manifest.json\` at its root and contains only the explicit runtime allowlist. Verify it with \`npm run verify:release-candidate\`.\n`,
   'utf8'
 );
 
@@ -222,7 +222,7 @@ await writeFile(
   `${JSON.stringify(
     {
       schema: 'sitewipe.current-private-release-candidate.v1',
-      state: 'Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.',
+      state: 'Public-source prerelease candidate; binary, store, and professional-profile gates remain open.',
       version: manifest.version,
       artifactBase: base,
       runtimeArtifact: `${base}.zip`,
@@ -246,7 +246,7 @@ await promoteCurrentRelease();
 console.log(
   JSON.stringify(
     {
-      status: 'private-release-candidate',
+      status: 'public-source-prerelease',
       artifact: resolve(currentDist, `${base}.zip`),
       bytes: zipBytes.length,
       sha256: zipDigest,

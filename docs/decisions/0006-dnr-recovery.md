@@ -1,6 +1,6 @@
 # ADR 0006: Persist request-shield recovery intent before mutation
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 - Status: Accepted
 - Date: 2026-08-16

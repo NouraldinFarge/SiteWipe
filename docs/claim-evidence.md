@@ -1,6 +1,6 @@
 # Claim-evidence registry
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 Last updated: 2026-08-17. “Automated pass” records the local source run only. The owner selected the SiteWipe identity with known marketplace collisions, selected MIT, and confirmed the recorded provenance. Public claims remain `pending` until the browser evidence, remote controls, exact public version, exact artifact, media, and publication action are separately approved.
 

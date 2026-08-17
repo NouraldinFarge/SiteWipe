@@ -8,7 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const markdown = [...(await filesBelow(root, (path) => path.endsWith('.md')))].filter((path) => !ignored(path));
 const failures = [];
 const exactStatus =
-  'Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.';
+  'Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.';
 const statusRequired = new Set([
   'README.md',
   'PRIVACY.md',

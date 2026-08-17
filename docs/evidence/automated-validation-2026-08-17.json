@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "status": "local_automated_checks_passed",
-  "validatedAt": "2026-08-17T14:48:41.1641176-05:00",
-  "releaseState": "Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.",
+  "validatedAt": "2026-08-17T16:19:08.7353583-05:00",
+  "releaseState": "Public-source prerelease candidate; binary, store, and professional-profile gates remain open.",
   "environment": {
     "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
     "osArchitecture": "64-bit",
@@ -23,11 +23,11 @@
     "format": "passed",
     "versionContract": {
       "status": "passed",
-      "version": "1.11.21",
+      "version": "1.11.29",
       "runtimeFiles": 50,
-      "runtimeFingerprintSha256": "C95C96A9C8D28AEB6FF11783FD6A4B70C94596C697647C9D53321A29D0570ACE",
+      "runtimeFingerprintSha256": "C17A99C1B448E740FA390C98222152D0BA626F09AD4A76FB61C57135E341E52B",
       "releaseInputFiles": 185,
-      "releaseInputFingerprintSha256": "EA5CFC6869442A28DB430FD4EC61C068554FDAC5F74D6431B1E94B2B17CF217B"
+      "releaseInputFingerprintSha256": "AD74C71AD18D02747F03DCAD033EE4C2A6EEABCB0242091A2A0036289FE4DBD6"
     },
     "syntaxModules": 101,
     "typeCheck": "passed",
@@ -36,7 +36,7 @@
     "cssValidation": "passed",
     "manifest": {
       "status": "passed",
-      "version": "1.11.21",
+      "version": "1.11.29",
       "descriptionCharacters": 128,
       "descriptionMaximum": 132,
       "requiredNamedPermissions": 10,
@@ -202,14 +202,14 @@
     "installedBraveRun": "pending"
   },
   "gitInitialization": {
-    "status": "private_staging_created_initial_push_verified",
+    "status": "public_source_repository_controls_verified",
     "branch": "agent/fix-private-codeql",
     "commitCountAtStableSourceHead": 12,
     "remoteCount": 1,
     "tagCount": 0,
     "parentContainerIsGitRepository": false,
     "repositoryUrl": "https://github.com/NouraldinFarge/SiteWipe",
-    "remoteVisibility": "PRIVATE",
+    "remoteVisibility": "PUBLIC",
     "defaultBranch": "main",
     "initialCommitSha": "29d0a6ea17701ab8892d36472d10120d9f61eb1b",
     "remoteMainSha": "29d0a6ea17701ab8892d36472d10120d9f61eb1b",
@@ -222,10 +222,10 @@
       "browser-profiles/",
       ".pnpm-store/"
     ],
-    "note": "The truthful initial commit and private staging push were verified byte-for-byte at the Git commit level. Candidate 1.11.21 stable-source commit adb346400a6750a9d3f5d4b04f547ce7a6826457 passed exact-head private CI and CodeQL with byte-identical local/hosted packages and zero retained SARIF results. Public visibility remains unauthorized."
+    "note": "The truthful initial commit and staging push were verified byte-for-byte at the Git commit level. The repository is now public with protected main, required CI/CodeQL checks, secret scanning, push protection, dependency security controls, private vulnerability reporting, and a protected release environment. Candidate 1.11.21 passed exact-head CI and CodeQL with byte-identical local/hosted packages and zero retained SARIF results; local candidate 1.11.29 requires fresh per-head hosted evidence."
   },
   "remoteWorkflowObservation": {
-    "repositoryVisibility": "PRIVATE",
+    "repositoryVisibility": "PUBLIC",
     "initialMainCi": {
       "status": "passed",
       "runId": 32045525083,
@@ -353,25 +353,25 @@
   },
   "artifacts": {
     "status": "local_reproducible_build_passed",
-    "runtimeZip": "sitewipe-private-rc-1.11.21.zip",
-    "runtimeZipSha256": "3A411859B8AAD73F2FE34C86D5DAB794BA9BAC800024C0DB1CC98D5E82A0E8CA",
-    "runtimeZipBytes": 219702,
+    "runtimeZip": "sitewipe-private-rc-1.11.29.zip",
+    "runtimeZipSha256": "376B0EFD42AA80A126E603A27BF66D84F6FCAEF44B834F82DE248362524C52F9",
+    "runtimeZipBytes": 219729,
     "runtimeFiles": 50,
-    "sourceZip": "sitewipe-private-rc-1.11.21-source.zip",
-    "sourceZipSha256": "Recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
+    "sourceZip": "sitewipe-private-rc-1.11.29-source.zip",
+    "sourceZipSha256": "759FF46B5873AB5AC86DE17462868DAB38EF5AE62FF3CD8E56B849B548066258",
     "sourceFiles": 208,
     "sourcePackageEquivalence": "exact",
     "checksumFilesVerified": 7,
     "consecutiveBuildOutputsCompared": 2,
     "byteIdenticalAcrossConsecutiveBuilds": true,
-    "runtimeSbom": "sitewipe-private-rc-1.11.21.runtime-sbom.cdx.json",
-    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.21.unsigned-provenance-input.json",
+    "runtimeSbom": "sitewipe-private-rc-1.11.29.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.29.unsigned-provenance-input.json",
     "remoteAttestation": "pending"
   },
   "publicationGate": {
     "command": "npm run check:publication-gates",
     "publicationRecommendation": "blocked",
-    "blockerCount": 20,
+    "blockerCount": 17,
     "originalBlockerCount": 24,
     "closedOriginalBlockers": [
       "The complete-review bypass consent defect was removed in source; no owner approval record was fabricated.",
@@ -380,20 +380,20 @@
       "The owner approved the Git author, named private staging repository, first truthful commit, and initial private push."
     ],
     "remainingClasses": [
-      "renewed exact public-version and final publication decisions",
+      "exact binary/store version and final release decisions",
       "exact-artifact Chrome and Brave evidence",
       "exact-artifact performance and installed accessibility evidence",
       "authentic approved screenshots and demo",
       "current-head approval from a distinct write-capable GitHub reviewer",
-      "public-only branch, vulnerability-reporting, and release-environment controls"
+      "GitHub artifact attestation and explicit professional-profile approval"
     ]
   },
   "limitations": [
     "No installed Chrome or Brave assertion was executed for this artifact at the time this record was written.",
     "No browser performance benchmark or installed accessibility run was executed.",
     "Candidate 1.11.21 stable-source commit adb346400a6750a9d3f5d4b04f547ce7a6826457 passed exact-head hosted CI with byte-identical local/hosted runtime and source ZIPs; hosted coverage matched the local record, CodeQL passed, and the retained SARIF contained zero results. The evidence-only follow-up head remains subject to the same workflows without changing runtime bytes.",
-    "Selected GitHub-owned Actions, full-SHA enforcement, dependency alerts, automated security fixes, and the public privacy-policy Gist are verified. Attestation remains unverified; branch protection, private vulnerability reporting, and a protected release environment are unavailable on the current private personal-repository plan and are staged for the authorized post-public control pass.",
-    "The SiteWipe identity, MIT project license, first-party publication rights, asset rights, private-material exclusions, AI-assistance disclosure, and private staging destination are owner-confirmed. Material exact-name marketplace, repository, and domain collisions remain; direct trademark/legal review, renewed exact public-version approval, media, remote controls, and final publication decisions remain open.",
+    "Selected GitHub-owned Actions, full-SHA enforcement, required checks, protected main, dependency alerts, automated security fixes, secret scanning, push protection, private vulnerability reporting, the protected release environment, and the public privacy-policy Gist are verified. Attestation remains unverified.",
+    "The SiteWipe identity, MIT project license, first-party publication rights, asset rights, private-material exclusions, AI-assistance disclosure, and public source destination are owner-confirmed. Material exact-name marketplace, repository, and domain collisions remain; direct trademark/legal review, exact binary/store version approval, media, independent review, and final release decisions remain open.",
     "A local unsigned provenance input is not a GitHub artifact attestation.",
     "Automated tests do not prove complete erasure or installed-browser behavior."
   ]

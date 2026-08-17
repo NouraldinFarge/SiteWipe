@@ -62,6 +62,6 @@
     "Technical inventory exists in docs/provenance.md and passed all local Git/source publication-scope, private-path, asset, notice, dependency-license, and package-closure controls.",
     "All 406 locked packages are development-only; the runtime ZIP contains no npm dependencies. One legacy missing lockfile license field is bound to the installed package's MIT declaration and exact license-text hash.",
     "The owner confirmed the exact provenance statement on 2026-08-17 and selected MIT for the first-party project source.",
-    "This approval does not convert Public Suffix List material or development dependencies into first-party work, provide trademark clearance, prove installed-browser behavior, or authorize public visibility."
+    "This approval does not convert Public Suffix List material or development dependencies into first-party work, provide trademark clearance, prove installed-browser behavior, or authorize a binary/store release. Public source visibility is recorded separately."
   ]
 }

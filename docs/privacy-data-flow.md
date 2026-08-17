@@ -1,6 +1,6 @@
 # Privacy data flow
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 This document supplements [`PRIVACY.md`](../PRIVACY.md) and its byte-matched public GitHub Gist with implementation-level flows. It is engineering documentation, not a separate privacy policy or a substitute for final store-dashboard disclosures.
 

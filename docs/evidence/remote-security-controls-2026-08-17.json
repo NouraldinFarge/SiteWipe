@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-08-17T15:01:07-05:00",
+  "observedAt": "2026-08-17T16:19:08.7353583-05:00",
   "repository": "NouraldinFarge/SiteWipe",
   "repositoryUrl": "https://github.com/NouraldinFarge/SiteWipe",
-  "visibility": "private",
+  "visibility": "public",
   "defaultBranch": "main",
   "actions": {
     "enabled": true,
@@ -12,7 +12,7 @@
     "githubOwnedAllowed": true,
     "verifiedCreatorActionsAllowed": false,
     "patternsAllowed": [],
-    "note": "Every checked-in workflow dependency is GitHub-owned and pinned to a full commit SHA. GitHub documents repository patterns as public-repository-only, so exact per-action patterns are staged for the immediate post-public control pass."
+    "note": "Every checked-in workflow dependency is GitHub-owned and pinned to a full commit SHA. Selected-actions policy allows GitHub-owned actions only; no wildcard pattern or verified-creator allowance is enabled."
   },
   "dependencySecurity": {
     "vulnerabilityAlertsEnabled": true,
@@ -35,12 +35,24 @@
     "sarifSha256": "C8C92262F0E592086F05F98A7ED5C25AEB9EBB0B2A2171A70B7DD319D5FE31C7",
     "sarifResults": 0
   },
-  "publicOnlyOrPlanLimitedControls": {
-    "branchProtectionVerified": false,
-    "requiredBranchChecksEnforced": false,
-    "privateVulnerabilityReportingVerified": false,
-    "protectedReleaseEnvironmentVerified": false,
-    "reason": "The current private personal repository and account tier do not expose these required controls. The owner authorized configuring them immediately after a separately authorized public visibility change."
+  "publicRepositoryControls": {
+    "branchProtectionVerified": true,
+    "requiredBranchChecksEnforced": true,
+    "requiredChecks": [
+      "Static, safety, tests, coverage, and package parity",
+      "Analyze JavaScript"
+    ],
+    "strictBranches": true,
+    "conversationResolutionRequired": true,
+    "linearHistoryRequired": true,
+    "adminEnforcement": true,
+    "forcePushesAllowed": false,
+    "branchDeletionAllowed": false,
+    "privateVulnerabilityReportingVerified": true,
+    "secretScanningEnabled": true,
+    "pushProtectionEnabled": true,
+    "protectedReleaseEnvironmentVerified": true,
+    "releaseEnvironment": "private-release-candidate"
   },
   "privacyPolicyGist": {
     "id": "7e0a47ee03c1bcab6f9d82db625cb90b",
@@ -51,8 +63,8 @@
     "filename": "PRIVACY.md",
     "truncated": false,
     "contentMatchesLocal": true,
-    "contentSha256": "6749C053F37D8B65123AB220F1018B7EF98BFDCCF89EAB5D45E861B901388571",
-    "characters": 12008
+    "contentSha256": "27A6DE5DD821F793F109A64A1D5FBE7479A3F0373FDAC21F151C20B11B3FD19A",
+    "characters": 11980
   },
   "review": {
     "requestedReviewer": "NouraldinFarge",
@@ -60,10 +72,11 @@
     "reason": "The requested account is the pull-request author and sole collaborator, so it cannot independently approve its own pull request."
   },
   "authorizationBoundary": {
-    "publicVisibilityAuthorized": false,
-    "mergeAuthorized": false,
+    "publicVisibilityAuthorized": true,
+    "mergeAuthorized": true,
     "pagesAuthorized": false,
     "tagsAuthorized": false,
-    "releasesAuthorized": false
+    "releasesAuthorized": false,
+    "note": "Broad permission to perform GitHub actions does not substitute for an exact-artifact binary, tag, store, or release approval; those readiness gates remain open."
   }
 }

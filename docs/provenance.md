@@ -1,6 +1,6 @@
 # Ownership and provenance audit
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 Status: **technical review passed; owner provenance confirmation and MIT decision recorded**. This inventory is evidence, not legal advice. Permission for SiteWipe's first-party source is stated in the root `LICENSE`; identified third-party material remains under its own terms.
 

@@ -1,12 +1,12 @@
-# Private remote, CI, and security plan
+# Repository publication, CI, and security plan
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-This plan does not grant authority by itself. The owner separately authorized creation of `NouraldinFarge/SiteWipe` as a private repository and its first truthful push on 2026-08-17. The owner later authorized the named repository security controls and a public privacy-policy Gist, including an immediate public-only control pass after a separately approved visibility change. Neither authorization permits public visibility, merging, tags, releases, Pages, Packages, store submission, professional-profile publication, secrets, or attestation.
+This file records the repository's transition from private staging to public source on 2026-08-17. Public visibility and the named repository security controls are complete. That source-publication action does not create a tag, binary release, Pages deployment, Package, store submission, professional-profile approval, secret, or attestation.
 
 ## Stage 1: owner-selected destination — completed
 
-The decision records identify `https://github.com/NouraldinFarge/SiteWipe`, maintainer `NouraldinFarge`, default branch `main`, the confirmed Git author identity, MIT, provenance approval, and first-upload authorization. Before the first push, the destination was verified private and empty. GitHub now recognizes the MIT license, and the remote remains private.
+The decision records identify `https://github.com/NouraldinFarge/SiteWipe`, maintainer `NouraldinFarge`, default branch `main`, the confirmed Git author identity, MIT, provenance approval, and first-upload authorization. Before the first push, the destination was verified private and empty. GitHub now recognizes the MIT license, and the source repository is public.
 
 ## Stage 2: first private upload — completed
 
@@ -21,9 +21,9 @@ Under the recorded first-private-upload authorization:
 
 Do not create a tag/release, change visibility, enable Pages, publish Packages, or upload release artifacts in this stage.
 
-Completion evidence records root commit `29d0a6ea17701ab8892d36472d10120d9f61eb1b`, exact local/remote `main` parity after the first push, one approved remote, and zero tags/releases. Later remediation work was pushed only to `agent/fix-private-codeql` and opened as draft PR 1; it did not alter public visibility or create a release surface.
+Completion evidence records root commit `29d0a6ea17701ab8892d36472d10120d9f61eb1b`, exact local/remote `main` parity after the first push, one approved remote, and zero tags/releases. Later remediation work was pushed only to `agent/fix-private-codeql` and opened as draft PR 1. The repository was then made public without creating a tag, binary, or release surface.
 
-## Stage 3: least-privilege repository controls — partially complete
+## Stage 3: least-privilege repository controls — verified for public source
 
 With separately authorized repository-setting access, verify and record:
 
@@ -45,20 +45,20 @@ With separately authorized repository-setting access, verify and record:
 - a protected manual release environment exists, has required reviewer(s), and exposes no unreviewed secrets to pull-request code;
 - the stable privacy-policy URL and security contact are recorded only after they are actually hosted and inspected.
 
-Live verification proves that `main` is the default branch, default workflow permissions are read-only, and every checked-in Action reference is pinned. The active dated evidence record binds exact-head CI, local/hosted artifact parity, CodeQL, private SARIF retention, and SARIF result counts to the commit actually checked; every later head resets that proof until its own hosted runs complete. The repository now uses the selected-Actions policy, requires full commit SHA references, allows GitHub-owned Actions while rejecting the verified-creator category, and has dependency alerts plus automated security fixes enabled. The current private account tier still rejects branch protection and rulesets unless the owner upgrades to GitHub Pro or makes the repository public; per-action patterns, private vulnerability reporting, and protected release environments also remain unavailable in the present private/free-plan state. The public policy Gist supplies only the hosted policy and non-sensitive contact surface, not the still-pending confidential reporting route.
+Live verification proves that `main` is the default branch, default workflow permissions are read-only, and every checked-in Action reference is pinned. The active dated evidence record binds exact-head CI, local/hosted artifact parity, CodeQL, retained SARIF, and SARIF result counts to the commit actually checked; every later head resets that proof until its own hosted runs complete. Selected Actions allow only GitHub-owned actions and require full commit SHA references. Branch protection requires the observed CI and CodeQL jobs, strict up-to-date branches, conversation resolution, linear history, and admin enforcement while disallowing force pushes and deletion. Dependency alerts, automated security fixes, secret scanning, push protection, private vulnerability reporting, and a protected release environment are enabled. The public policy Gist supplies the hosted policy and non-sensitive contact surface.
 
-The checked-in CODEOWNERS entry records the owner-confirmed maintainer and routes responsibility; it does not prove independent review. Until a second owner-approved account with write access exists, protection must not require an approving or CODEOWNER review that the sole pull-request author cannot supply. Required CI/CodeQL, current-branch, conversation-resolution, no-force-push, and no-deletion rules must be applied immediately after separately authorized public visibility makes them available.
+The checked-in CODEOWNERS entry records the owner-confirmed maintainer and routes responsibility; it does not prove independent review. Until a second owner-approved account with write access exists, protection does not require an approving or CODEOWNER review that the sole pull-request author cannot supply.
 
 ## Required checks proposed for protection
 
 Use the exact job names observed on the approved remote; intended local definitions cover formatting, version contract, syntax/types/lint/HTML/CSS, manifest, remote-code/secret/license/notices/assets/docs/action pins/package closure, legacy/unit/property tests, coverage, build/verification, and CodeQL. Never mark them verified from YAML inspection alone.
 
-Private staging may not have GitHub code-scanning ingestion enabled. In that state, the pinned CodeQL workflow must still run the complete analysis and retain its SARIF as a short-lived private Actions artifact, without claiming Security-tab ingestion. Its least-privilege token includes read-only Actions metadata because the CodeQL action resolves the current workflow run. When repository visibility and GitHub feature availability permit code-scanning ingestion, the same workflow uploads the SARIF and waits for processing; that remote result must be verified separately.
+The pinned CodeQL workflow runs the complete analysis, uploads results for the public repository, and retains SARIF evidence. Its least-privilege token includes read-only Actions metadata because the CodeQL action resolves the current workflow run. Every new head must produce its own successful result.
 
 ## Release path after later approvals
 
-The manual candidate workflow must check out an exact reviewed commit, install with scripts disabled, run all checks and coverage, build twice, verify byte identity and source/runtime parity, evaluate publication gates after rebuild, generate checksums/SBOM/provenance input, and create a GitHub artifact attestation only in the approved environment. A public tag/release, visibility change, store submission, and professional-surface edits each remain separate owner actions.
+The manual candidate workflow must check out an exact reviewed commit, install with scripts disabled, run all checks and coverage, build twice, verify byte identity and source/runtime parity, evaluate publication gates after rebuild, generate checksums/SBOM/provenance input, and create a GitHub artifact attestation only in the approved environment. A tag/release, binary upload, store submission, and professional-surface edit remain separate gated actions.
 
 ## Rollback
 
-If remote source or settings diverge, stop; preserve commit/workflow/settings evidence; return the repository to private if and only if separately authorized and technically possible; remove no history or evidence merely to hide a failure. A compromised credential or unexpected public exposure requires incident handling and owner coordination, not an automatic destructive cleanup.
+If remote source or settings diverge, stop and preserve commit, workflow, and settings evidence. Do not change visibility or remove history merely to hide a failure. A compromised credential or confirmed private-data exposure requires incident handling and owner coordination, not an automatic destructive cleanup.

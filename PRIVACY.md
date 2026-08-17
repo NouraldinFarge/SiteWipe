@@ -1,8 +1,8 @@
 # Privacy Policy
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-This policy describes the current local candidate under the owner-approved custom identity SiteWipe `1.11.21`. The owner selected MIT for the first-party project source and authorized a private staging repository. A public GitHub Gist hosts this policy to provide a stable disclosure and non-sensitive contact page. Hosting the policy does not approve this candidate for public release or store submission, and it must not be represented as a Chrome Web Store policy until the exact public version, installed evidence, live disclosures, and publication are separately approved.
+This policy describes the public-source prerelease under the owner-approved custom identity SiteWipe `1.11.29`. The first-party project source is MIT-licensed and publicly reviewable. A public GitHub Gist hosts this policy to provide a stable disclosure and non-sensitive contact page. Source availability and policy hosting do not approve a binary release or store submission, and this must not be represented as a Chrome Web Store policy until the exact artifact, installed evidence, live disclosures, and submission are separately approved.
 
 Last reviewed: 2026-08-17.
 

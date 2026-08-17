@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
-  <title id="title">Private candidate shield and clean-sweep icon</title>
+  <title id="title">Prerelease shield and clean-sweep icon</title>
   <desc id="description">A white boundary shield containing two clean-sweep bars on a rounded violet-to-cyan field.</desc>
   <defs>
     <linearGradient id="field" x1="42" y1="470" x2="470" y2="42" gradientUnits="userSpaceOnUse">

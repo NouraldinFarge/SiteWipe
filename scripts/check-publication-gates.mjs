@@ -40,7 +40,7 @@ if (
   );
 }
 if (identity?.approvedPublicVersion !== pkg?.version) {
-  blockers.push('The owner has not approved the exact package version as the public SiteWipe version.');
+  blockers.push('The owner has not approved the exact package version as a supported binary or store release.');
 }
 const license = await optionalJson('docs/decisions/license.json');
 const licenseBytes = await optionalBytes('LICENSE');
@@ -183,7 +183,7 @@ for (const [label, evidence] of [
 }
 const remote = await optionalJson('docs/decisions/remote-publication.json');
 if (!remote?.ownerApproved || !remote?.repositoryUrl)
-  blockers.push('The intended remote and first-publication approval are not recorded.');
+  blockers.push('The intended remote and public-source authorization are not recorded.');
 if (!remote?.branchProtectionVerified) blockers.push('Required remote branch checks and protection are not verified.');
 if (!remote?.requiredChecksVerified) blockers.push('The required remote CI and CodeQL checks are not verified.');
 if (!remote?.privateVulnerabilityReportingVerified)
@@ -192,7 +192,9 @@ if (!remote?.hostedPrivacyPolicyUrl) blockers.push('A stable hosted privacy-poli
 if (!remote?.releaseEnvironmentVerified)
   blockers.push('The manually approved remote release environment is not verified.');
 if (!remote?.finalPublicationApproval)
-  blockers.push('The owner has not given final approval for the first public push/release/store or portfolio use.');
+  blockers.push(
+    'The owner has not given exact-action approval for a binary release, store submission, or professional-profile promotion.'
+  );
 const independentReview = verifyLiveIndependentGitHubReview({
   repositoryUrl: remote?.repositoryUrl,
   pullRequestNumber: remote?.reviewPullRequestNumber,
@@ -213,7 +215,7 @@ if (retiredBypassFindings.length) {
 }
 
 const result = {
-  state: 'Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.',
+  state: 'Public-source prerelease candidate; binary, store, and professional-profile release gates remain enforced.',
   publicationRecommendation: blockers.length ? 'blocked' : 'owner-approved-for-publication',
   blockerCount: blockers.length,
   blockers

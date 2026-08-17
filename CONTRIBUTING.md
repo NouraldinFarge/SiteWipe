@@ -1,8 +1,8 @@
 # Contributing
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-External contribution intake is not open while the repository is a private release-candidate staging area and the security contact, maintenance commitment, installed-browser evidence, and final publication decision remain unresolved. The owner has selected SiteWipe, MIT licensing, and the intended private GitHub staging destination. These rules document the intended engineering standard and apply to every local change now.
+External code contribution intake is not open while the public-source prerelease still lacks installed-browser evidence, an established maintenance commitment, and binary/store release approval. Reproducible issue reports using synthetic data are welcome; suspected vulnerabilities must use the private reporting route in [`SECURITY.md`](SECURITY.md). These rules document the engineering standard for every local and proposed change.
 
 ## Setup
 

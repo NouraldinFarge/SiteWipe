@@ -1,6 +1,6 @@
-# DRAFT — NOT APPROVED FOR PUBLICATION: résumé, LinkedIn, and Indeed copy
+# DRAFT — NOT APPROVED FOR PROFESSIONAL PROFILES: résumé, LinkedIn, and Indeed copy
 
-These variants are conditional. Do not publish or paste them into any profile until the repository/artifact is intentionally public or the wording explicitly and accurately says private, every numerical/browser claim is bound to retained evidence, and the owner approves the exact destination text.
+The source repository is public, but these variants remain conditional. Do not paste them into a professional profile until every numerical/browser claim is bound to retained evidence and the exact destination text is approved. Public source does not make the extension a supported binary release.
 
 ## Résumé project entry
 
@@ -18,11 +18,11 @@ SiteWipe is a browser-extension safety engineering project focused on a deceptiv
 
 I designed the candidate around a locally bundled ICANN/PRIVATE Public Suffix List, a read-only impact preflight, mandatory Standard/Expert review, a context-bound single-use approval, per-adapter revalidation, interruption recovery, explicit verification uncertainty, and privacy-preserving local reports. The runtime is JavaScript/HTML/CSS with TypeScript-based JavaScript checking and a Node.js validation/release toolchain. Substantial AI-agent assistance is disclosed and treated as untrusted until checked by adversarial tests and review.
 
-Publication, installed-browser results, and links must be added only after the exact artifact and repository are genuinely approved and public.
+The source repository link may be used only with explicit public-source prerelease wording. Installed-browser results, binary/store availability, and release language must wait for exact-artifact evidence and approval.
 
 ## Indeed résumé project description
 
-Developed a private Manifest V3 browser-extension candidate for reviewed, target-scoped browser-data cleanup. Implemented Public Suffix List tenant isolation, single-use destructive authorization, browser-API scope guards, MV3 interruption recovery, report redaction/retention, explicit verification uncertainty, property tests, and deterministic release packaging. Production runtime uses JavaScript, HTML, and CSS; TypeScript is used for development-time checking.
+Developed a public-source Manifest V3 browser-extension prerelease for reviewed, target-scoped browser-data cleanup. Implemented Public Suffix List tenant isolation, single-use destructive authorization, browser-API scope guards, MV3 interruption recovery, report redaction/retention, explicit verification uncertainty, property tests, and deterministic release packaging. Production runtime uses JavaScript, HTML, and CSS; TypeScript is used for development-time checking. No supported binary or store listing is available.
 
 ## Short interview introduction
 
@@ -30,8 +30,8 @@ Developed a private Manifest V3 browser-extension candidate for reviewed, target
 
 ## Prohibited claims until evidence changes
 
-- “published,” “released,” “open source,” “available on Chrome/Brave,” or any store/user count;
+- “released,” “available on Chrome/Brave,” any supported binary/store listing, or any store/user count;
 - “built with React” or “TypeScript extension”;
 - “erases all traces,” “guaranteed clean,” “military-grade,” “anonymous,” or “zero data retained”;
 - current browser compatibility, accessibility compliance, measured speed, vulnerability-free status, legal clearance, uniqueness, or owner-approved provenance without exact retained evidence;
-- a test/coverage/artifact number copied from an older private candidate.
+- a test/coverage/artifact number copied from an older candidate.

@@ -1,6 +1,6 @@
 # Safety case
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 This is a structured argument for the current candidate's safeguards. It is not a certification, guarantee of complete deletion, or public-release approval.
 

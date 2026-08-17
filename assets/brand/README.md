@@ -1,6 +1,6 @@
 # Candidate icon source
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 `icon-source.svg` is the editable master for the current private-candidate icon. It uses only original geometric paths and project-selected solid/gradient colors; it embeds no font, photo, stock graphic, external URL, or third-party logo.
 
