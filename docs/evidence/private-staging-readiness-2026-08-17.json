@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "status": "private_staging_created_codeql_remediation_pending_pr",
-  "recordedAt": "2026-08-17T11:32:34-05:00",
+  "status": "private_staging_created_codeql_artifact_path_fix_pending",
+  "recordedAt": "2026-08-17T11:38:40-05:00",
   "candidate": {
     "name": "SiteWipe",
-    "version": "1.11.3",
-    "runtimeArtifact": "sitewipe-private-rc-1.11.3.zip",
-    "runtimeArtifactSha256": "50F1845D5868906428BF7F172C079970823465F2C9DFE21D53EBF98B595D91C1",
+    "version": "1.11.4",
+    "runtimeArtifact": "sitewipe-private-rc-1.11.4.zip",
+    "runtimeArtifactSha256": "AD544B2D5CCE7A8543D63382A631BC6F0AEFD2340E92983CC65BCB8597EBD103",
     "runtimeFiles": 50,
-    "sourceArtifact": "sitewipe-private-rc-1.11.3-source.zip",
+    "sourceArtifact": "sitewipe-private-rc-1.11.4-source.zip",
     "sourceFiles": 202
   },
   "ownerDecisions": {
@@ -59,8 +59,10 @@
     "ciRunId": 32045525083,
     "ciStatus": "passed",
     "codeqlRunId": 32045525091,
-    "codeqlStatus": "analysis_completed_ingestion_failed",
-    "codeqlRemediationVersion": "1.11.3"
+    "codeqlStatus": "analysis_passed_private_sarif_path_failed",
+    "codeqlRemediationPullRequest": 1,
+    "codeqlRemediationRunId": 32046217041,
+    "codeqlRemediationVersion": "1.11.4"
   },
   "publicationGate": {
     "recommendation": "blocked",
@@ -89,7 +91,7 @@
     ]
   },
   "notes": [
-    "The earlier audit-handoff record remains historical evidence for candidate 1.11.1; this record captures the later 1.11.3 licensing, provenance, private-staging, CI, and CodeQL-remediation state.",
+    "The earlier audit-handoff record remains historical evidence for candidate 1.11.1; this record captures the later 1.11.4 licensing, provenance, private-staging, CI, and CodeQL-remediation state.",
     "The source ZIP hash is intentionally recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
     "No installed-browser claim or public-publication approval is inferred from local automation or private staging authorization."
   ]

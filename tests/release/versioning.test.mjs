@@ -99,6 +99,9 @@ test('release evidence remains bound to tested bytes and approval runs after reb
   assert.match(codeqlWorkflow, /upload-database: false/);
   assert.match(codeqlWorkflow, /Retain private CodeQL SARIF evidence/);
   assert.match(codeqlWorkflow, /actions\/upload-artifact@[0-9a-f]{40}/);
+  assert.match(codeqlWorkflow, /output: codeql-results/);
+  assert.match(codeqlWorkflow, /path: codeql-results\/\*\.sarif/);
+  assert.doesNotMatch(codeqlWorkflow, /(?:output|path):\s+\.\.\//);
   assert.ok(
     workflow.indexOf('npm run verify:release-candidate') < workflow.indexOf('npm run check:publication-gates'),
     'publication gates must evaluate the rebuilt and verified bytes'

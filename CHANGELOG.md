@@ -6,6 +6,12 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.4 — private release-candidate work — 2026-08-17
+
+### Private CodeQL evidence path
+
+- Kept CodeQL SARIF inside the checked-out workspace so the pinned artifact uploader can retain it without accepting a forbidden parent-directory path.
+
 ## 1.11.3 — private release-candidate work — 2026-08-17
 
 ### Private remote verification

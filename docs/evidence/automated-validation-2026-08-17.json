@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "local_automated_checks_passed",
-  "validatedAt": "2026-08-17T11:32:34-05:00",
+  "validatedAt": "2026-08-17T11:38:40-05:00",
   "releaseState": "Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.",
   "environment": {
     "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
@@ -23,9 +23,9 @@
     "format": "passed",
     "versionContract": {
       "status": "passed",
-      "version": "1.11.3",
+      "version": "1.11.4",
       "runtimeFiles": 50,
-      "runtimeFingerprintSha256": "094057916363E5EFB1522FF9295F3937996398A7F9A87D620044F5E1703294E5"
+      "runtimeFingerprintSha256": "B87DEC3F6EE9D98089F16798113D8AD227472650D6ADCDCC938228AD039A7F58"
     },
     "syntaxModules": 96,
     "typeCheck": "passed",
@@ -34,7 +34,7 @@
     "cssValidation": "passed",
     "manifest": {
       "status": "passed",
-      "version": "1.11.3",
+      "version": "1.11.4",
       "descriptionCharacters": 128,
       "descriptionMaximum": 132,
       "requiredNamedPermissions": 10,
@@ -54,7 +54,7 @@
       "status": "passed",
       "runtimeDependencies": 0,
       "lockedDevelopmentGraph": 406,
-      "lockfileSha256": "BA0A8C01DE4AFEFD9A89E11198E297D1EAA76AF6A38FBCABBA26CCFC94077FC3",
+      "lockfileSha256": "28ECB1898A923D7A549BCA9C5CD5F65D7314F8EE654F18FB2605520C33B3E790",
       "metadataExceptionsResolved": 1
     },
     "projectLicense": {
@@ -156,7 +156,7 @@
     "knownVulnerabilities": 0,
     "runtimeDependencies": 0,
     "lockedDevelopmentGraph": 406,
-    "lockfileSha256": "BA0A8C01DE4AFEFD9A89E11198E297D1EAA76AF6A38FBCABBA26CCFC94077FC3"
+    "lockfileSha256": "28ECB1898A923D7A549BCA9C5CD5F65D7314F8EE654F18FB2605520C33B3E790"
   },
   "scopeAndPrivacyEvidence": {
     "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
@@ -177,7 +177,7 @@
   "gitInitialization": {
     "status": "private_staging_created_initial_push_verified",
     "branch": "agent/fix-private-codeql",
-    "commitCount": 1,
+    "commitCount": 2,
     "remoteCount": 1,
     "tagCount": 0,
     "parentContainerIsGitRepository": false,
@@ -207,24 +207,33 @@
       "commitSha": "29d0a6ea17701ab8892d36472d10120d9f61eb1b",
       "filesScanned": "96 JavaScript files and 3 GitHub Actions files",
       "failure": "GitHub code-scanning ingestion is disabled for the private repository and the original workflow lacked actions: read metadata permission.",
-      "remediationCandidate": "1.11.3 retains private SARIF evidence and uploads to code scanning only when repository visibility is public."
+      "remediationCandidate": "1.11.4 retains private SARIF evidence and uploads to code scanning only when repository visibility is public."
+    },
+    "codeqlRemediationPullRequest": {
+      "pullRequest": 1,
+      "testedCommitSha": "c2d6645fa9ef99c20910e2b57064d2f67f36d4ad",
+      "runId": 32046217041,
+      "analysisStatus": "passed",
+      "sarifArtifactStatus": "failed",
+      "failure": "The artifact action rejected a parent-directory pattern before upload.",
+      "nextCandidate": "1.11.4 writes and uploads SARIF from codeql-results inside the checked-out workspace."
     }
   },
   "artifacts": {
     "status": "local_reproducible_build_passed",
-    "runtimeZip": "sitewipe-private-rc-1.11.3.zip",
-    "runtimeZipSha256": "50F1845D5868906428BF7F172C079970823465F2C9DFE21D53EBF98B595D91C1",
+    "runtimeZip": "sitewipe-private-rc-1.11.4.zip",
+    "runtimeZipSha256": "AD544B2D5CCE7A8543D63382A631BC6F0AEFD2340E92983CC65BCB8597EBD103",
     "runtimeZipBytes": 219701,
     "runtimeFiles": 50,
-    "sourceZip": "sitewipe-private-rc-1.11.3-source.zip",
+    "sourceZip": "sitewipe-private-rc-1.11.4-source.zip",
     "sourceZipSha256": "Recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
     "sourceFiles": 202,
     "sourcePackageEquivalence": "exact",
     "checksumFilesVerified": 7,
     "consecutiveBuildOutputsCompared": 8,
     "byteIdenticalAcrossConsecutiveBuilds": true,
-    "runtimeSbom": "sitewipe-private-rc-1.11.3.runtime-sbom.cdx.json",
-    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.3.unsigned-provenance-input.json",
+    "runtimeSbom": "sitewipe-private-rc-1.11.4.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.4.unsigned-provenance-input.json",
     "remoteAttestation": "pending"
   },
   "publicationGate": {
@@ -249,7 +258,7 @@
   "limitations": [
     "No installed Chrome or Brave assertion was executed for this artifact at the time this record was written.",
     "No browser performance benchmark or installed accessibility run was executed.",
-    "The initial private GitHub CI run passed. Initial CodeQL analysis scanned the full declared JavaScript/workflow set, but GitHub rejected code-scanning ingestion because that private feature is disabled; the 1.11.3 private-SARIF remediation still requires a successful remote run.",
+    "The initial private GitHub CI run and the 1.11.3 remediation PR CI run passed. CodeQL analysis passed on the remediation PR; only the artifact path was rejected, and the 1.11.4 in-workspace SARIF path still requires a successful remote run.",
     "Attestation, branch protection, private vulnerability reporting, release environment, hosted privacy policy, and other remote repository controls remain unverified.",
     "The SiteWipe identity, MIT project license, first-party publication rights, asset rights, private-material exclusions, AI-assistance disclosure, and private staging destination are owner-confirmed. Material exact-name marketplace, repository, and domain collisions remain; direct trademark/legal review, renewed exact public-version approval, media, remote controls, and final publication decisions remain open.",
     "A local unsigned provenance input is not a GitHub artifact attestation.",
