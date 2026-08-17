@@ -46,6 +46,8 @@ for (const path of markdown) {
   }
 }
 
+await verifyRemoteDocumentationState();
+
 if (failures.length) {
   console.error(failures.map((failure) => `- ${failure}`).join('\n'));
   process.exit(1);
@@ -65,4 +67,44 @@ async function filesBelow(directory, predicate) {
 
 function ignored(path) {
   return /[\\/](?:node_modules|coverage|dist|\.git)(?:[\\/]|$)/i.test(path);
+}
+
+async function verifyRemoteDocumentationState() {
+  let remote;
+  try {
+    remote = JSON.parse(await readFile(resolve(root, 'docs/decisions/remote-publication.json'), 'utf8'));
+  } catch (error) {
+    failures.push(`docs/decisions/remote-publication.json: unreadable decision record (${error.message})`);
+    return;
+  }
+
+  const [security, codeowners, issues] = await Promise.all([
+    readFile(resolve(root, 'SECURITY.md'), 'utf8'),
+    readFile(resolve(root, '.github/CODEOWNERS'), 'utf8'),
+    readFile(resolve(root, 'docs/issue-register.md'), 'utf8')
+  ]);
+  const maintainer = String(remote?.maintainerHandle || '').trim();
+  const repositoryUrl = String(remote?.repositoryUrl || '').trim();
+
+  if (remote?.ownerApproved === true && maintainer) {
+    const ownerLines = new Set(codeowners.split(/\r?\n/).map((line) => line.trim()));
+    if (!ownerLines.has(`* @${maintainer}`))
+      failures.push(`.github/CODEOWNERS: missing owner-approved maintainer @${maintainer}`);
+  }
+
+  if (remote?.repositoryCreated === true) {
+    if (!repositoryUrl || !security.includes(repositoryUrl))
+      failures.push('SECURITY.md: created repository URL is missing');
+    if (/repository remote[^\n]*not yet been created/i.test(security))
+      failures.push('SECURITY.md: contradicts the recorded repository creation');
+  }
+
+  if (remote?.initialPushVerified === true && /Repository has no commits, remote/i.test(issues))
+    failures.push('docs/issue-register.md: contradicts the verified initial push');
+
+  const reportsUnavailable = security.includes('GitHub Private Vulnerability Reporting is not enabled');
+  if (remote?.privateVulnerabilityReportingVerified === true && reportsUnavailable)
+    failures.push('SECURITY.md: says private reporting is unavailable after verification');
+  if (remote?.privateVulnerabilityReportingVerified !== true && !reportsUnavailable)
+    failures.push('SECURITY.md: must disclose that private reporting is not enabled');
 }

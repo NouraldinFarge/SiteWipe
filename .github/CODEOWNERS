@@ -1,4 +1,4 @@
-# Publication blocker: the owner has not supplied or approved a GitHub handle.
-# Add a verified maintainer pattern such as `* @approved-handle` before enabling
-# required CODEOWNERS review. Do not invent an account or ownership claim.
-
+# Owner-confirmed maintainer handle. This maps responsibility only. Do not
+# require approving or CODEOWNER reviews until a second owner-approved,
+# write-capable reviewer exists; pull-request authors cannot self-approve.
+* @NouraldinFarge

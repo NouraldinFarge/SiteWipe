@@ -6,6 +6,19 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.8 — private release-candidate work — 2026-08-17
+
+### Repository governance
+
+- Prevented a sole-maintainer merge deadlock by separating CODEOWNERS responsibility routing from required independent approval. Required approving and CODEOWNER reviews remain deferred until a second owner-approved, write-capable reviewer exists.
+
+## 1.11.7 — private release-candidate work — 2026-08-17
+
+### Remote-state integrity
+
+- Reconciled the security policy, CODEOWNERS, issue register, owner packet, release-readiness ledger, and private-remote plan with the verified private repository, initial push, draft PR, hosted CI, and zero-finding CodeQL evidence.
+- Bound documentation validation to the owner-approved remote decision so repository creation, initial-push, maintainer, and confidential-reporting claims cannot silently contradict their authoritative record.
+
 ## 1.11.6 — private release-candidate work — 2026-08-17
 
 ### Release integrity

@@ -2,15 +2,15 @@
 
 > **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
 
-There is no supported public release yet. Security review currently applies to the private `1.11.6` candidate and its locally generated artifacts only.
+There is no supported public release yet. Security review currently applies to the private `1.11.8` candidate and its locally generated artifacts only.
 
 ## Reporting a vulnerability
 
 Do not disclose a suspected vulnerability, real browsing history, cookies, tokens, local paths, download filenames, extension IDs, or private-window activity in a public issue.
 
-The repository remote and private vulnerability-reporting channel have not yet been created. That missing confidential contact route is a publication blocker. Once the intended GitHub repository exists, the owner must enable GitHub Private Vulnerability Reporting and update this file with the exact verified route before issues are opened to the public.
+The [private GitHub staging repository](https://github.com/NouraldinFarge/SiteWipe) exists, and reviewed candidate commits have passing CI and CodeQL evidence. GitHub Private Vulnerability Reporting is not enabled, and no other confidential project contact has been approved. That missing confidential intake route remains a publication blocker. Before public issues are enabled, the owner must enable and verify GitHub Private Vulnerability Reporting, then update this file with the exact working route.
 
-Until then, report only through a private channel explicitly supplied by the project owner. If no such channel has been supplied, retain the report locally and notify the owner that confidential intake is unavailable; do not guess an email address.
+Until a verified route exists, report only through a private channel explicitly supplied by the project owner. If no such channel has been supplied, retain the report locally and notify the owner that confidential intake is unavailable; do not guess an email address or file a public issue.
 
 ## Useful report contents
 

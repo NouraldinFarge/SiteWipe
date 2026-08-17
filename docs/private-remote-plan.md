@@ -4,11 +4,11 @@
 
 This plan does not grant authority by itself. The owner separately authorized creation of `NouraldinFarge/SiteWipe` as a private repository and its first truthful push on 2026-08-17. No public visibility, tag, release, Pages site, Package, store submission, professional-profile publication, setting change, secret, or attestation is authorized by that approval.
 
-## Stage 1: owner-selected destination
+## Stage 1: owner-selected destination — completed
 
-The decision records identify `https://github.com/NouraldinFarge/SiteWipe`, maintainer `NouraldinFarge`, default branch `main`, the confirmed Git author identity, MIT, provenance approval, and first-upload authorization. Confirm at action time that the destination is private and empty before adding it as a remote.
+The decision records identify `https://github.com/NouraldinFarge/SiteWipe`, maintainer `NouraldinFarge`, default branch `main`, the confirmed Git author identity, MIT, provenance approval, and first-upload authorization. Before the first push, the destination was verified private and empty. GitHub now recognizes the MIT license, and the remote remains private.
 
-## Stage 2: first private upload
+## Stage 2: first private upload — completed
 
 Under the recorded first-private-upload authorization:
 
@@ -21,14 +21,17 @@ Under the recorded first-private-upload authorization:
 
 Do not create a tag/release, change visibility, enable Pages, publish Packages, or upload release artifacts in this stage.
 
-## Stage 3: least-privilege repository controls
+Completion evidence records root commit `29d0a6ea17701ab8892d36472d10120d9f61eb1b`, exact local/remote `main` parity after the first push, one approved remote, and zero tags/releases. Later remediation work was pushed only to `agent/fix-private-codeql` and opened as draft PR 1; it did not alter public visibility or create a release surface.
+
+## Stage 3: least-privilege repository controls — partially complete
 
 With separately authorized repository-setting access, verify and record:
 
 - default branch is `main`;
 - direct pushes are restricted after bootstrap;
-- pull requests and at least one approving review are required where account tier supports them;
-- stale approvals are dismissed after relevant changes;
+- pull requests are required where the account tier supports them;
+- at least one approving review and CODEOWNER approval are required only after a second owner-approved, write-capable reviewer exists, because a pull-request author cannot self-approve;
+- stale approvals are dismissed after relevant changes once independent review is enabled;
 - conversation resolution is required;
 - required status checks use the exact workflow job names that actually run;
 - branches must be current before merge;
@@ -41,6 +44,10 @@ With separately authorized repository-setting access, verify and record:
 - Dependabot/security alerts and dependency review are configured only after reviewing notification/privacy implications;
 - a protected manual release environment exists, has required reviewer(s), and exposes no unreviewed secrets to pull-request code;
 - the stable privacy-policy URL and security contact are recorded only after they are actually hosted and inspected.
+
+Read-only verification already proves that `main` is the default branch, default workflow permissions are read-only, every checked-in Action reference is pinned, exact-head CI and CodeQL pass, private SARIF retention works, and the remediated SARIF contains zero findings. The current private account tier rejects branch protection and rulesets unless the owner upgrades to GitHub Pro or makes the repository public. Private vulnerability reporting and dependency alerts are not enabled, the repository-level SHA-pinning requirement is off, all Actions are allowed, and no release environment or hosted policy exists. Those settings remain unchanged because the private-upload approval did not authorize repository-setting mutations.
+
+The checked-in CODEOWNERS entry records the owner-confirmed maintainer and routes responsibility; it does not prove independent review. Until a second owner-approved account with write access exists, protection must not require an approving or CODEOWNER review that the sole pull-request author cannot supply. Required CI/CodeQL, current-branch, conversation-resolution, no-force-push, and no-deletion rules remain independently applicable after settings authorization and feature availability are established.
 
 ## Required checks proposed for protection
 

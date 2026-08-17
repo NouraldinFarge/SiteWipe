@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "local_automated_checks_passed",
-  "validatedAt": "2026-08-17T16:50:57.660Z",
+  "validatedAt": "2026-08-17T17:12:31.3930712Z",
   "releaseState": "Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.",
   "environment": {
     "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
@@ -23,9 +23,10 @@
     "format": "passed",
     "versionContract": {
       "status": "passed",
-      "version": "1.11.6",
+      "version": "1.11.8",
       "runtimeFiles": 50,
-      "runtimeFingerprintSha256": "92215E0313A2B9D9345290BF508D065E3F55F384757BBC41799FF408D1A512B7"
+      "runtimeFingerprintSha256": "505803F497B740F35B55E590B212C45A790334790AF30C2ACACF5A5ADDAD94C7",
+      "releaseInputFingerprintSha256": "77565EC5BBA18A5F22C37C4EC3369788858F514E7E59E8F8429A4E2CD8657CA9"
     },
     "syntaxModules": 96,
     "typeCheck": "passed",
@@ -34,7 +35,7 @@
     "cssValidation": "passed",
     "manifest": {
       "status": "passed",
-      "version": "1.11.6",
+      "version": "1.11.8",
       "descriptionCharacters": 128,
       "descriptionMaximum": 132,
       "requiredNamedPermissions": 10,
@@ -54,7 +55,7 @@
       "status": "passed",
       "runtimeDependencies": 0,
       "lockedDevelopmentGraph": 406,
-      "lockfileSha256": "3059FB23ED54B7168EDD1D0B51E9FD538317DAC2BAC3060F3DD0F1981E918930",
+      "lockfileSha256": "7B5DCAC80F247EAC7D26D04B6450C7B6AD641DA474A5890D46C3A017AC2FAF18",
       "metadataExceptionsResolved": 1
     },
     "projectLicense": {
@@ -156,7 +157,7 @@
     "knownVulnerabilities": 0,
     "runtimeDependencies": 0,
     "lockedDevelopmentGraph": 406,
-    "lockfileSha256": "3059FB23ED54B7168EDD1D0B51E9FD538317DAC2BAC3060F3DD0F1981E918930"
+    "lockfileSha256": "7B5DCAC80F247EAC7D26D04B6450C7B6AD641DA474A5890D46C3A017AC2FAF18"
   },
   "scopeAndPrivacyEvidence": {
     "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
@@ -177,7 +178,7 @@
   "gitInitialization": {
     "status": "private_staging_created_initial_push_verified",
     "branch": "agent/fix-private-codeql",
-    "commitCount": 4,
+    "commitCount": 5,
     "remoteCount": 1,
     "tagCount": 0,
     "parentContainerIsGitRepository": false,
@@ -191,7 +192,7 @@
       "coverage/",
       "dist/"
     ],
-    "note": "The truthful initial commit and private staging push were verified byte-for-byte at the Git commit level. Candidate 1.11.6 is locally validated on the agent branch and awaits exact-head hosted checks. Public visibility remains unauthorized."
+    "note": "The truthful initial commit and private staging push were verified byte-for-byte at the Git commit level. Candidate 1.11.6 passed exact-head hosted checks; candidate 1.11.8 passed fresh local validation and requires fresh exact-head hosted validation after its private branch commit. Public visibility remains unauthorized."
   },
   "remoteWorkflowObservation": {
     "repositoryVisibility": "PRIVATE",
@@ -230,24 +231,44 @@
         "runtimeFindings": 0,
         "testOrSelfTestFindings": 5
       },
-      "nextCandidate": "1.11.6 replaces every reported URL-substring test assertion with an exact-value, complete-array, or parsed-host assertion and awaits exact-head hosted analysis."
+      "resolution": "Candidate 1.11.6 replaced every reported URL-substring test assertion with an exact-value, complete-array, or parsed-host assertion."
+    },
+    "exactHeadValidation": {
+      "version": "1.11.6",
+      "commitSha": "f05926dce4fd416b7a41bac0eca9d978cc0e5123",
+      "ci": {
+        "status": "passed",
+        "runId": 32047715064,
+        "runtimeZipSha256": "CE299F301B59F6416AF8E833872FC8157242D96B4090C4AD7D74DDFDF2CF7616",
+        "sourceZipSha256": "C2E543EA542D907CE958E6F3487611AD6A6D2E4635A8D571CF7E61D6C587AE66",
+        "sourcePackageEquivalence": "exact"
+      },
+      "codeql": {
+        "status": "passed",
+        "runId": 32047715059,
+        "sarifArtifactId": 9293555717,
+        "sarifArtifactName": "sitewipe-private-codeql-sarif-32047715059",
+        "sarifCompressedBytes": 73499,
+        "sarifSha256": "F7980BDE0C117F65B04E56432879C09BA0933A63DAF820A54E12B1EA6C61B90E",
+        "sarifResults": 0
+      }
     }
   },
   "artifacts": {
     "status": "local_reproducible_build_passed",
-    "runtimeZip": "sitewipe-private-rc-1.11.6.zip",
-    "runtimeZipSha256": "CE299F301B59F6416AF8E833872FC8157242D96B4090C4AD7D74DDFDF2CF7616",
+    "runtimeZip": "sitewipe-private-rc-1.11.8.zip",
+    "runtimeZipSha256": "A1FEF08C95C83624D869D0B4B7BDCFA205DFBC96E8A5D4F0DA1026048BDF3CD8",
     "runtimeZipBytes": 219701,
     "runtimeFiles": 50,
-    "sourceZip": "sitewipe-private-rc-1.11.6-source.zip",
+    "sourceZip": "sitewipe-private-rc-1.11.8-source.zip",
     "sourceZipSha256": "Recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
     "sourceFiles": 202,
     "sourcePackageEquivalence": "exact",
     "checksumFilesVerified": 7,
-    "consecutiveBuildOutputsCompared": 8,
+    "consecutiveBuildOutputsCompared": 2,
     "byteIdenticalAcrossConsecutiveBuilds": true,
-    "runtimeSbom": "sitewipe-private-rc-1.11.6.runtime-sbom.cdx.json",
-    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.6.unsigned-provenance-input.json",
+    "runtimeSbom": "sitewipe-private-rc-1.11.8.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.8.unsigned-provenance-input.json",
     "remoteAttestation": "pending"
   },
   "publicationGate": {
@@ -272,7 +293,7 @@
   "limitations": [
     "No installed Chrome or Brave assertion was executed for this artifact at the time this record was written.",
     "No browser performance benchmark or installed accessibility run was executed.",
-    "The initial private GitHub CI run and the 1.11.4 remediation PR CI run passed. The rerun of private CodeQL analysis and SARIF retention passed and reported five test-only substring assertions; candidate 1.11.6 remediates them locally and still requires exact-head hosted verification.",
+    "The initial private GitHub CI run and the CodeQL-remediation PR runs passed. Exact candidate 1.11.6 matched local/hosted package hashes and produced a retained zero-finding SARIF; candidate 1.11.8 requires fresh exact-head hosted verification after its local validation and commit.",
     "Attestation, branch protection, private vulnerability reporting, release environment, hosted privacy policy, and other remote repository controls remain unverified.",
     "The SiteWipe identity, MIT project license, first-party publication rights, asset rights, private-material exclusions, AI-assistance disclosure, and private staging destination are owner-confirmed. Material exact-name marketplace, repository, and domain collisions remain; direct trademark/legal review, renewed exact public-version approval, media, remote controls, and final publication decisions remain open.",
     "A local unsigned provenance input is not a GitHub artifact attestation.",
