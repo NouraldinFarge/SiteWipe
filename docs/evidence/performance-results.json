@@ -4,8 +4,8 @@
   "measuredAt": null,
   "environment": {},
   "artifact": {
-    "version": "1.11.17",
-    "runtimeZip": "sitewipe-private-rc-1.11.17.zip",
+    "version": "1.11.19",
+    "runtimeZip": "sitewipe-private-rc-1.11.19.zip",
     "sha256": null
   },
   "fixtures": [],

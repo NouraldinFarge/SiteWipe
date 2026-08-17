@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "local_automated_checks_passed",
-  "validatedAt": "2026-08-17T13:58:55.3994166-05:00",
+  "validatedAt": "2026-08-17T14:23:59.1581093-05:00",
   "releaseState": "Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.",
   "environment": {
     "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
@@ -23,11 +23,11 @@
     "format": "passed",
     "versionContract": {
       "status": "passed",
-      "version": "1.11.17",
+      "version": "1.11.19",
       "runtimeFiles": 50,
-      "runtimeFingerprintSha256": "22BBEA7805D32376BBC82124CEB66ACDAF439367F390BD9683E1E7F9709F1FD5",
+      "runtimeFingerprintSha256": "6F92E929AD220603179EBB66EAE9AA95BCF52725F5F4AAC7A16B53824736E0B4",
       "releaseInputFiles": 183,
-      "releaseInputFingerprintSha256": "190AB47915E8A78C3E7A705D908A18E0B8AA6732BF27B06D6D9BBBC92592DCA3"
+      "releaseInputFingerprintSha256": "C208F93A31FEBD0AE90B07B34B16A8A4FBEC913C679E0BFB562DE56B12BB4ACA"
     },
     "syntaxModules": 99,
     "typeCheck": "passed",
@@ -36,7 +36,7 @@
     "cssValidation": "passed",
     "manifest": {
       "status": "passed",
-      "version": "1.11.17",
+      "version": "1.11.19",
       "descriptionCharacters": 128,
       "descriptionMaximum": 132,
       "requiredNamedPermissions": 10,
@@ -69,7 +69,7 @@
       "status": "passed",
       "runtimeDependencies": 0,
       "lockedDevelopmentGraph": 406,
-      "lockfileSha256": "7A6EC5A9462EE05871D0551EE3F536EB9DD6F4FF62D5E1E97A368916007A96EE",
+      "lockfileSha256": "B90AAE7CE370DDBD8DE2967604778E5C8F51645F9BAA78A2E9A9CF17C449B0BF",
       "metadataExceptionsResolved": 1
     },
     "projectLicense": {
@@ -94,9 +94,9 @@
     },
     "legacyReleaseSelfTest": "passed",
     "nodeTests": {
-      "tests": 234,
+      "tests": 238,
       "suites": 0,
-      "passed": 234,
+      "passed": 238,
       "failed": 0,
       "cancelled": 0,
       "skipped": 0,
@@ -121,28 +121,28 @@
       "lines": 80
     },
     "all": {
-      "statements": 85.56,
-      "branches": 63.77,
-      "functions": 82.74,
-      "lines": 85.56
+      "statements": 87.16,
+      "branches": 64.76,
+      "functions": 86.8,
+      "lines": 87.16
     },
     "shared": {
-      "statements": 98.63,
-      "branches": 76.38,
-      "functions": 86.82,
-      "lines": 98.63
+      "statements": 98.99,
+      "branches": 77.5,
+      "functions": 93.79,
+      "lines": 98.99
     },
     "background": {
-      "statements": 63.78,
-      "branches": 55.17,
-      "functions": 78.44,
-      "lines": 63.78
+      "statements": 67.53,
+      "branches": 56.51,
+      "functions": 81.46,
+      "lines": 67.53
     },
     "serviceWorker": {
-      "statements": 47.85,
-      "branches": 28.63,
-      "functions": 68.88,
-      "lines": 47.85
+      "statements": 64.81,
+      "branches": 37.92,
+      "functions": 84.44,
+      "lines": 64.81
     },
     "cleanupAuthorization": {
       "statements": 100,
@@ -156,7 +156,7 @@
       "functions": 100,
       "lines": 96.35
     },
-    "interpretation": "Coverage is a navigation aid, not a safety score. The extracted authorization module is directly covered; low service-worker, page-scrub, progress-overlay, and adapter coverage remains a publication risk requiring installed/error-path evidence."
+    "interpretation": "Coverage is a navigation aid, not a safety score. Real service-worker message/event-boundary tests now cover running-job persistence failure before mutation, stale-job maintenance, malformed permission-recovery state, extension-local reset, update migration, and side-panel routing. Installed-browser evidence remains required, and page-scrub, progress-overlay, adapter, and residual service-worker branches remain lower-coverage risk areas."
   },
   "dependencyInstall": {
     "command": "npm ci --ignore-scripts",
@@ -177,7 +177,7 @@
     "knownVulnerabilities": 0,
     "runtimeDependencies": 0,
     "lockedDevelopmentGraph": 406,
-    "lockfileSha256": "7A6EC5A9462EE05871D0551EE3F536EB9DD6F4FF62D5E1E97A368916007A96EE"
+    "lockfileSha256": "B90AAE7CE370DDBD8DE2967604778E5C8F51645F9BAA78A2E9A9CF17C449B0BF"
   },
   "scopeAndPrivacyEvidence": {
     "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
@@ -313,19 +313,19 @@
   },
   "artifacts": {
     "status": "local_reproducible_build_passed",
-    "runtimeZip": "sitewipe-private-rc-1.11.17.zip",
-    "runtimeZipSha256": "2A5BBFFC7C38D62A85E17D9AC2DDA40FE60E8BE6A0BBB2F5D3FD873E84538A00",
-    "runtimeZipBytes": 219704,
+    "runtimeZip": "sitewipe-private-rc-1.11.19.zip",
+    "runtimeZipSha256": "965446F1ACD5083B9C7A6FF3C46F1A5354622336FE3C23B3E554D9C5706E3157",
+    "runtimeZipBytes": 219702,
     "runtimeFiles": 50,
-    "sourceZip": "sitewipe-private-rc-1.11.17-source.zip",
+    "sourceZip": "sitewipe-private-rc-1.11.19-source.zip",
     "sourceZipSha256": "Recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
     "sourceFiles": 206,
     "sourcePackageEquivalence": "exact",
     "checksumFilesVerified": 7,
     "consecutiveBuildOutputsCompared": 2,
     "byteIdenticalAcrossConsecutiveBuilds": true,
-    "runtimeSbom": "sitewipe-private-rc-1.11.17.runtime-sbom.cdx.json",
-    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.17.unsigned-provenance-input.json",
+    "runtimeSbom": "sitewipe-private-rc-1.11.19.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.19.unsigned-provenance-input.json",
     "remoteAttestation": "pending"
   },
   "publicationGate": {

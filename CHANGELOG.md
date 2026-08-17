@@ -6,6 +6,19 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.19 — private release-candidate work — 2026-08-17
+
+### Release-input finalization
+
+- Finalized repository formatting for the new service-worker failure-path regression tests before rebuilding the candidate artifacts.
+
+## 1.11.18 — private release-candidate work — 2026-08-17
+
+### Worker failure-path validation
+
+- Exercised running-job persistence failure, stale-job maintenance, malformed permission-recovery state, extension-local reset, update migration, and side-panel routing through the real service-worker message/event boundary.
+- Proved that a running-job persistence failure stops before any browser-data mutation and that extension-local reset does not call website-data deletion APIs.
+
 ## 1.11.17 — private release-candidate work — 2026-08-17
 
 ### Hosted-state invariants
