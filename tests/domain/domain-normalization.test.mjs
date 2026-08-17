@@ -57,7 +57,10 @@ test('a PRIVATE-suffix tenant literally named www retains its full boundary', ()
     'https://www.blogspot.com',
     'https://www.www.blogspot.com'
   ]);
-  assert.equal(target.baseOrigins.includes('https://blogspot.com'), false);
+  assert.equal(
+    target.baseOrigins.some((origin) => new URL(origin).hostname === 'blogspot.com'),
+    false
+  );
   assert.equal(urlMatchesTarget(selectedUrl, target), true);
   assert.equal(urlMatchesTarget(platformRootUrl, target), false);
   assert.equal(urlMatchesTarget(siblingUrl, target), false);
@@ -153,14 +156,18 @@ test('a sibling private tenant never enters any pure destructive or verification
   const siblingUrl = 'https://bob.blogspot.com/private';
 
   assert.equal(target.domain, 'alice.blogspot.com');
-  assert.equal(
-    target.baseOrigins.some((origin) => origin.includes('bob.blogspot.com')),
-    false
-  );
-  assert.equal(
-    target.hostPermissionOrigins.some((origin) => origin.includes('bob.blogspot.com')),
-    false
-  );
+  assert.deepEqual(target.baseOrigins, [
+    'http://alice.blogspot.com',
+    'https://alice.blogspot.com',
+    'http://www.alice.blogspot.com',
+    'https://www.alice.blogspot.com'
+  ]);
+  assert.deepEqual(target.hostPermissionOrigins, [
+    'http://alice.blogspot.com/*',
+    'https://alice.blogspot.com/*',
+    'http://*.alice.blogspot.com/*',
+    'https://*.alice.blogspot.com/*'
+  ]);
   assert.equal(tabMatchesCleanupTarget({ url: siblingUrl }, target), false);
   assert.equal(tabMatchesCleanupTarget({ url: 'https://unrelated.example/', pendingUrl: siblingUrl }, target), false);
   assert.equal(

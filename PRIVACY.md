@@ -2,7 +2,7 @@
 
 > **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
 
-This policy describes the current local candidate under the owner-approved custom identity SiteWipe `1.11.4`. The owner selected MIT for the first-party project source and authorized a private staging repository, but this policy is not yet hosted at a stable public URL and must not be represented as a Chrome Web Store policy until the exact public version, installed evidence, live disclosures, and publication are separately approved.
+This policy describes the current local candidate under the owner-approved custom identity SiteWipe `1.11.6`. The owner selected MIT for the first-party project source and authorized a private staging repository, but this policy is not yet hosted at a stable public URL and must not be represented as a Chrome Web Store policy until the exact public version, installed evidence, live disclosures, and publication are separately approved.
 
 Last reviewed: 2026-08-17.
 

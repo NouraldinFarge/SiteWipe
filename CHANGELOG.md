@@ -6,6 +6,18 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.6 — private release-candidate work — 2026-08-17
+
+### Release integrity
+
+- Promoted the formatter-normalized CodeQL assertion cleanup under a fresh candidate version so the stable-source fingerprint remains exact.
+
+## 1.11.5 — private release-candidate work — 2026-08-17
+
+### Security-analysis precision
+
+- Replaced URL-substring assertions in private-tenant and associated-domain tests with exact-value, complete-array, or parsed-host comparisons so CodeQL can distinguish test invariants from incomplete URL validation.
+
 ## 1.11.4 — private release-candidate work — 2026-08-17
 
 ### Private CodeQL evidence path

@@ -124,9 +124,9 @@ assert.equal(
   'expert mode must also discard the retired cleanup-review bypass'
 );
 assert.equal(
-  expertSettings.associatedDomainGroups.includes('cdn.example.net'),
-  true,
-  'expert mode must retain reviewed associated-domain groups'
+  expertSettings.associatedDomainGroups,
+  'example.com => cdn.example.net',
+  'expert mode must retain reviewed associated-domain groups exactly'
 );
 assert.equal(
   expertSettings.mainWorldPageScrub,
@@ -191,7 +191,7 @@ assert.deepEqual(
 
 const manifest = JSON.parse(await readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
 const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
-assert.equal(manifest.version, '1.11.4', 'manifest version must match this release');
+assert.equal(manifest.version, '1.11.6', 'manifest version must match this release');
 assert.equal(packageJson.version, manifest.version, 'package and manifest versions must match');
 assert.equal(APP.version, manifest.version, 'runtime and manifest versions must match');
 assert.equal(manifest.permissions.includes('bookmarks'), false, 'bookmark permission must never be requested');

@@ -37,7 +37,7 @@ test('cookie discovery retains reviewed queries while bounding expert partition 
   assert.ok(queries.some((query) => query.details.url === 'https://alice.blogspot.com/'));
   assert.ok(queries.some((query) => query.details.domain === 'alice.blogspot.com'));
   assert.ok(queries.every((query) => query.details.storeId === '0'));
-  assert.ok(queries.every((query) => !String(query.details.url || '').includes('bob.blogspot.com')));
+  assert.ok(queries.every((query) => !query.details.url || new URL(query.details.url).hostname !== 'bob.blogspot.com'));
 });
 
 test('cookie identity includes store and partition metadata', () => {
