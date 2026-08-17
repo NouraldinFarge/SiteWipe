@@ -222,7 +222,7 @@
       "browser-profiles/",
       ".pnpm-store/"
     ],
-    "note": "The truthful initial commit and private staging push were verified byte-for-byte at the Git commit level. Candidate 1.11.19 stable-source commit b374eef7d57d68371a4d20ae931465b6a5b9d7ba remains the latest completed hosted-validation baseline. Candidate 1.11.21 has complete local validation and awaits its exact-head private CI and CodeQL runs. Public visibility remains unauthorized."
+    "note": "The truthful initial commit and private staging push were verified byte-for-byte at the Git commit level. Candidate 1.11.21 stable-source commit adb346400a6750a9d3f5d4b04f547ce7a6826457 passed exact-head private CI and CodeQL with byte-identical local/hosted packages and zero retained SARIF results. Public visibility remains unauthorized."
   },
   "remoteWorkflowObservation": {
     "repositoryVisibility": "PRIVATE",
@@ -318,13 +318,36 @@
     },
     "currentCandidateHostedValidation": {
       "version": "1.11.21",
-      "status": "pending_after_stable_source_push",
-      "commitSha": null,
+      "status": "passed",
+      "commitSha": "adb346400a6750a9d3f5d4b04f547ce7a6826457",
       "ci": {
-        "status": "pending"
+        "status": "passed",
+        "runId": 32062613337,
+        "job": "Static, safety, tests, coverage, and package parity",
+        "runtimeZipSha256": "3A411859B8AAD73F2FE34C86D5DAB794BA9BAC800024C0DB1CC98D5E82A0E8CA",
+        "sourceZipSha256": "68832F0DEB55C57E54E604147E97D2B2FE3A5CBFF1C619DBDF53B351C5AD9D2B",
+        "localHostedRuntimeParity": true,
+        "localHostedSourceParity": true,
+        "coverage": {
+          "statements": 87.21,
+          "branches": 64.68,
+          "functions": 87.19,
+          "lines": 87.21
+        },
+        "artifactId": 9298700631,
+        "artifactCompressedBytes": 2751564,
+        "artifactArchiveDigestSha256": "09CDD59700E5267E1C8E19BE892AC833F85B98FE442B06180376686B0A0F45BA"
       },
       "codeql": {
-        "status": "pending"
+        "status": "passed",
+        "runId": 32062613332,
+        "sarifArtifactId": 9298768975,
+        "sarifArtifactName": "sitewipe-private-codeql-sarif-32062613332",
+        "sarifCompressedBytes": 73693,
+        "sarifArtifactArchiveDigestSha256": "C89AA7CA9F54FE3EBD16F7F933D5CF5A2BD04F9F2430C52B8A07FA7F3F20BA3C",
+        "sarifBytes": 590911,
+        "sarifSha256": "C8C92262F0E592086F05F98A7ED5C25AEB9EBB0B2A2171A70B7DD319D5FE31C7",
+        "sarifResults": 0
       }
     }
   },
@@ -368,7 +391,7 @@
   "limitations": [
     "No installed Chrome or Brave assertion was executed for this artifact at the time this record was written.",
     "No browser performance benchmark or installed accessibility run was executed.",
-    "Candidate 1.11.19 stable-source commit b374eef7d57d68371a4d20ae931465b6a5b9d7ba passed exact-head hosted CI with byte-identical local/hosted runtime and source ZIPs; CodeQL passed and the retained SARIF contained zero results. Candidate 1.11.21 has complete local validation and awaits exact-head hosted CI, artifact-parity, and retained-SARIF evidence.",
+    "Candidate 1.11.21 stable-source commit adb346400a6750a9d3f5d4b04f547ce7a6826457 passed exact-head hosted CI with byte-identical local/hosted runtime and source ZIPs; hosted coverage matched the local record, CodeQL passed, and the retained SARIF contained zero results. The evidence-only follow-up head remains subject to the same workflows without changing runtime bytes.",
     "Selected GitHub-owned Actions, full-SHA enforcement, dependency alerts, automated security fixes, and the public privacy-policy Gist are verified. Attestation remains unverified; branch protection, private vulnerability reporting, and a protected release environment are unavailable on the current private personal-repository plan and are staged for the authorized post-public control pass.",
     "The SiteWipe identity, MIT project license, first-party publication rights, asset rights, private-material exclusions, AI-assistance disclosure, and private staging destination are owner-confirmed. Material exact-name marketplace, repository, and domain collisions remain; direct trademark/legal review, renewed exact public-version approval, media, remote controls, and final publication decisions remain open.",
     "A local unsigned provenance input is not a GitHub artifact attestation.",
