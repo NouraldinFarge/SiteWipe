@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "observedAt": "2026-08-17T14:04:43.4896301-05:00",
+  "observedAt": "2026-08-17T14:31:25.4737544-05:00",
   "repository": "NouraldinFarge/SiteWipe",
   "repositoryUrl": "https://github.com/NouraldinFarge/SiteWipe",
   "visibility": "private",
@@ -19,18 +19,18 @@
     "automatedSecurityFixesEnabled": true
   },
   "hostedCandidateChecks": {
-    "version": "1.11.17",
-    "commitSha": "ce020c9c07241505905493d8ea7c4196c0be3a22",
-    "ciRunId": 32057977021,
+    "version": "1.11.19",
+    "commitSha": "b374eef7d57d68371a4d20ae931465b6a5b9d7ba",
+    "ciRunId": 32060389358,
     "ciStatus": "passed",
-    "runtimeZipSha256": "2A5BBFFC7C38D62A85E17D9AC2DDA40FE60E8BE6A0BBB2F5D3FD873E84538A00",
-    "sourceZipSha256": "83C2759A7B51A832A09B8B3DBD39C3C8BA4FAC75627AB11459E6290282CE9856",
+    "runtimeZipSha256": "965446F1ACD5083B9C7A6FF3C46F1A5354622336FE3C23B3E554D9C5706E3157",
+    "sourceZipSha256": "E2B455845BCD103A56474959B7A9BC73A4E7665B62201C77C464BD4FEB3E4C8F",
     "localHostedArtifactParity": true,
-    "codeqlRunId": 32057975808,
+    "codeqlRunId": 32060389278,
     "codeqlStatus": "passed",
-    "sarifArtifactId": 9297131399,
-    "sarifArtifactDigestSha256": "E98C06C133200EACE175AAB6EBA76F426187E6685D52CF3E8B364A418CE05D78",
-    "sarifSha256": "79E33624755A75DB646F088BC65A6883F95A5A9F50627ADF376EA754D1E8332F",
+    "sarifArtifactId": 9297995435,
+    "sarifArtifactDigestSha256": "A73961418F0513BC64502C21615CF6A2AD78FB5882FECE81A1EF8B35301F6820",
+    "sarifSha256": "D9167E2CB718A35B6718BA4BD39B42FCD34E3051DA7BF57E9FF54D753ADAB8FA",
     "sarifResults": 0
   },
   "publicOnlyOrPlanLimitedControls": {
