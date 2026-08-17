@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { format, resolveConfig } from 'prettier';
 
 import {
   computeReleaseInputFingerprint,
@@ -67,6 +68,9 @@ readiness = replaceRequired(
   `private \`${nextVersion}\``,
   'docs/release-readiness.md'
 );
+const readinessPath = resolve(projectRoot, 'docs/release-readiness.md');
+const prettierConfig = (await resolveConfig(readinessPath)) || {};
+readiness = await format(readiness, { ...prettierConfig, filepath: readinessPath });
 updates.set('docs/release-readiness.md', readiness);
 
 updates.set('CHANGELOG.md', promoteUnreleased(await source('CHANGELOG.md'), nextVersion, date));

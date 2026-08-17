@@ -2,7 +2,7 @@
 
 > **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
 
-`SiteWipe` is the owner-approved custom product identity for a local-first Chrome/Brave Manifest V3 extension that coordinates guarded, target-scoped cleanup across browser APIs. The exact name is already used by unrelated browser extensions, so this selection is not represented as unique or legally cleared. It is not a promise to erase every trace, it has not been published, and the current candidate version `1.11.8` is not an approved public version.
+`SiteWipe` is the owner-approved custom product identity for a local-first Chrome/Brave Manifest V3 extension that coordinates guarded, target-scoped cleanup across browser APIs. The exact name is already used by unrelated browser extensions, so this selection is not represented as unique or legally cleared. It is not a promise to erase every trace, it has not been published, and the current candidate version `1.11.12` is not an approved public version.
 
 The interesting engineering problem is destructive scope control: a cleanup request must remain inside an authorized registrable site or exact local origin while Chrome exposes cookies, tabs, origin storage, history, downloads, scripting, and network rules through different APIs and lifecycle semantics.
 
@@ -18,6 +18,7 @@ The interesting engineering problem is destructive scope control: a cleanup requ
 - Central report redaction, short default retention, SHA-256 content checksums, and evidence states that do not turn failed or timed-out verification into zero.
 - Keyboard and screen-reader semantics, live status messages, visible focus, forced-colors support, reduced-motion behavior, and destructive confirmation states.
 - A deterministic runtime/source release builder with explicit closures, root-level `manifest.json`, checksum inventory, runtime SBOM, exact path/byte/timestamp parity, a canonical `dist/current/` index, transactional version updates covering the runtime and every stable release input, and evidence that cannot be rebound automatically to untested bytes.
+- A Git publication-scope gate that requires the candidate worktree, Git-visible paths, source archive, and owner-approved remote to agree while rejecting outer/nested repositories, private/generated paths, symlinks, submodules, unresolved stages, and portable-name collisions.
 
 Automated checks establish design and code-level evidence. Installed-browser behavior, accessibility, media, performance, repository settings, exact public-version approval, name-collision/legal review, and remote provenance remain publication gates until retained evidence exists.
 
@@ -65,12 +66,15 @@ Requirements: Node.js 24 or later and npm 11 or later.
 ```powershell
 npm ci --ignore-scripts
 npm run check
+npm run check:publication-scope
 npm run test:coverage
 npm run build:release-candidate
 npm run verify:release-candidate
 ```
 
 `npm run check:publication-gates` is expected to fail until every human, browser, remote-repository, media, and provenance decision has evidence. A passing unit suite is not publication approval.
+
+`npm run check:publication-scope` is a narrower hard invariant: it proves the active Git worktree is the nested SiteWipe root, the outer container is not another worktree, only the owner-approved repository is configured, and every Git-visible candidate path is present in the private-path-scanned source closure. It does not authorize publication.
 
 For an unpacked, disposable-profile review:
 

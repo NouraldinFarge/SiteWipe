@@ -2,7 +2,7 @@
 
 > **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
 
-Last reviewed: 2026-08-17. `SiteWipe` is the owner-approved custom product identity; `1.11.8` remains a private candidate version rather than an approved public release.
+Last reviewed: 2026-08-17. `SiteWipe` is the owner-approved custom product identity; `1.11.12` remains a private candidate version rather than an approved public release.
 
 ## Design objective
 

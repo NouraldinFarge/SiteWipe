@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "local_automated_checks_passed",
-  "validatedAt": "2026-08-17T17:12:31.3930712Z",
+  "validatedAt": "2026-08-17T17:50:13.0047971Z",
   "releaseState": "Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.",
   "environment": {
     "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
@@ -23,19 +23,19 @@
     "format": "passed",
     "versionContract": {
       "status": "passed",
-      "version": "1.11.8",
+      "version": "1.11.12",
       "runtimeFiles": 50,
-      "runtimeFingerprintSha256": "505803F497B740F35B55E590B212C45A790334790AF30C2ACACF5A5ADDAD94C7",
-      "releaseInputFingerprintSha256": "77565EC5BBA18A5F22C37C4EC3369788858F514E7E59E8F8429A4E2CD8657CA9"
+      "runtimeFingerprintSha256": "EE9F55CC38A0322E8FB3D86D84FE1D09548AD306FC903FC0C58DC03F5EF66651",
+      "releaseInputFingerprintSha256": "7B32FE31A7AC69857B21C36F673C4F8DA22D0A1E49A72C51444997524342CB9E"
     },
-    "syntaxModules": 96,
+    "syntaxModules": 99,
     "typeCheck": "passed",
     "eslint": "passed",
     "htmlValidation": "passed",
     "cssValidation": "passed",
     "manifest": {
       "status": "passed",
-      "version": "1.11.8",
+      "version": "1.11.12",
       "descriptionCharacters": 128,
       "descriptionMaximum": 132,
       "requiredNamedPermissions": 10,
@@ -49,13 +49,26 @@
     },
     "repositorySecretAndPrivatePathScan": {
       "status": "passed",
-      "repositoryFiles": 202
+      "repositoryFiles": 205
+    },
+    "gitPublicationScope": {
+      "status": "passed",
+      "trackedFiles": 205,
+      "gitVisibleFiles": 205,
+      "sourceClosureFiles": 205,
+      "exactPathEquality": true,
+      "candidateRootIsGitRoot": true,
+      "parentContainerIsGitRepository": false,
+      "approvedRemoteOnly": true,
+      "nestedGitMarkers": 0,
+      "prohibitedIndexModes": 0,
+      "liveNegativeUntrackedFileProbe": "rejected"
     },
     "dependencyLicenseInventory": {
       "status": "passed",
       "runtimeDependencies": 0,
       "lockedDevelopmentGraph": 406,
-      "lockfileSha256": "7B5DCAC80F247EAC7D26D04B6450C7B6AD641DA474A5890D46C3A017AC2FAF18",
+      "lockfileSha256": "CA72331ED5D963683AC7487F08D153C3D275847F047C59D7321E47A241807105",
       "metadataExceptionsResolved": 1
     },
     "projectLicense": {
@@ -80,9 +93,9 @@
     },
     "legacyReleaseSelfTest": "passed",
     "nodeTests": {
-      "tests": 227,
+      "tests": 233,
       "suites": 0,
-      "passed": 227,
+      "passed": 233,
       "failed": 0,
       "cancelled": 0,
       "skipped": 0,
@@ -107,10 +120,10 @@
       "lines": 80
     },
     "all": {
-      "statements": 85.45,
-      "branches": 63.32,
-      "functions": 82.24,
-      "lines": 85.45
+      "statements": 85.54,
+      "branches": 63.75,
+      "functions": 82.65,
+      "lines": 85.54
     },
     "shared": {
       "statements": 98.63,
@@ -136,6 +149,12 @@
       "functions": 100,
       "lines": 100
     },
+    "publicationScope": {
+      "statements": 96.35,
+      "branches": 75.29,
+      "functions": 100,
+      "lines": 96.35
+    },
     "interpretation": "Coverage is a navigation aid, not a safety score. The extracted authorization module is directly covered; low service-worker, page-scrub, progress-overlay, and adapter coverage remains a publication risk requiring installed/error-path evidence."
   },
   "dependencyInstall": {
@@ -157,7 +176,7 @@
     "knownVulnerabilities": 0,
     "runtimeDependencies": 0,
     "lockedDevelopmentGraph": 406,
-    "lockfileSha256": "7B5DCAC80F247EAC7D26D04B6450C7B6AD641DA474A5890D46C3A017AC2FAF18"
+    "lockfileSha256": "CA72331ED5D963683AC7487F08D153C3D275847F047C59D7321E47A241807105"
   },
   "scopeAndPrivacyEvidence": {
     "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
@@ -178,7 +197,7 @@
   "gitInitialization": {
     "status": "private_staging_created_initial_push_verified",
     "branch": "agent/fix-private-codeql",
-    "commitCount": 5,
+    "commitCount": 6,
     "remoteCount": 1,
     "tagCount": 0,
     "parentContainerIsGitRepository": false,
@@ -192,7 +211,7 @@
       "coverage/",
       "dist/"
     ],
-    "note": "The truthful initial commit and private staging push were verified byte-for-byte at the Git commit level. Candidate 1.11.6 passed exact-head hosted checks; candidate 1.11.8 passed fresh local validation and requires fresh exact-head hosted validation after its private branch commit. Public visibility remains unauthorized."
+    "note": "The truthful initial commit and private staging push were verified byte-for-byte at the Git commit level. Candidate 1.11.8 passed exact-head hosted checks with matching local/hosted packages and zero CodeQL findings; candidate 1.11.12 passed fresh local validation and requires fresh exact-head hosted validation after its private branch commit. Public visibility remains unauthorized."
   },
   "remoteWorkflowObservation": {
     "repositoryVisibility": "PRIVATE",
@@ -234,41 +253,47 @@
       "resolution": "Candidate 1.11.6 replaced every reported URL-substring test assertion with an exact-value, complete-array, or parsed-host assertion."
     },
     "exactHeadValidation": {
-      "version": "1.11.6",
-      "commitSha": "f05926dce4fd416b7a41bac0eca9d978cc0e5123",
+      "version": "1.11.8",
+      "commitSha": "4ed5a2f34987c09d727ca22924a23b26b5681fa7",
       "ci": {
         "status": "passed",
-        "runId": 32047715064,
-        "runtimeZipSha256": "CE299F301B59F6416AF8E833872FC8157242D96B4090C4AD7D74DDFDF2CF7616",
-        "sourceZipSha256": "C2E543EA542D907CE958E6F3487611AD6A6D2E4635A8D571CF7E61D6C587AE66",
-        "sourcePackageEquivalence": "exact"
+        "runId": 32049474426,
+        "runtimeZipSha256": "A1FEF08C95C83624D869D0B4B7BDCFA205DFBC96E8A5D4F0DA1026048BDF3CD8",
+        "sourceZipSha256": "5F7796685EC1C4FC4AAB629AADBC157334AEA17A0D6BC2E928AE8D47EAE0C5A4",
+        "sourcePackageEquivalence": "exact",
+        "artifactId": 9294138201,
+        "artifactArchiveDigestSha256": "6C8D8A3C126558AC404896BA7A961B5E09C92823C837DF127D9DDC67B9A0D49F"
       },
       "codeql": {
         "status": "passed",
-        "runId": 32047715059,
-        "sarifArtifactId": 9293555717,
-        "sarifArtifactName": "sitewipe-private-codeql-sarif-32047715059",
-        "sarifCompressedBytes": 73499,
-        "sarifSha256": "F7980BDE0C117F65B04E56432879C09BA0933A63DAF820A54E12B1EA6C61B90E",
+        "runId": 32049474406,
+        "initialAttemptStatus": "github_feature_availability_503_before_analysis",
+        "successfulAttempt": 2,
+        "sarifArtifactId": 9294242085,
+        "sarifArtifactName": "sitewipe-private-codeql-sarif-32049474406",
+        "sarifCompressedBytes": 73498,
+        "sarifArtifactArchiveDigestSha256": "E1D5763D9080CE4274D8131EA7472AB2B9C838CFA95F4F3D5ACED49F029A537B",
+        "sarifBytes": 587356,
+        "sarifSha256": "8942D1152C5701E260DDCC56BB8CFAE27AF88916BDD0EF84FD02F8B94D3DD9B5",
         "sarifResults": 0
       }
     }
   },
   "artifacts": {
     "status": "local_reproducible_build_passed",
-    "runtimeZip": "sitewipe-private-rc-1.11.8.zip",
-    "runtimeZipSha256": "A1FEF08C95C83624D869D0B4B7BDCFA205DFBC96E8A5D4F0DA1026048BDF3CD8",
-    "runtimeZipBytes": 219701,
+    "runtimeZip": "sitewipe-private-rc-1.11.12.zip",
+    "runtimeZipSha256": "A02AFDF325B284F9CFF44BA504EC7EC8E32B5513C62CCE6D6D64052722ECC25C",
+    "runtimeZipBytes": 219703,
     "runtimeFiles": 50,
-    "sourceZip": "sitewipe-private-rc-1.11.8-source.zip",
+    "sourceZip": "sitewipe-private-rc-1.11.12-source.zip",
     "sourceZipSha256": "Recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
-    "sourceFiles": 202,
+    "sourceFiles": 205,
     "sourcePackageEquivalence": "exact",
     "checksumFilesVerified": 7,
     "consecutiveBuildOutputsCompared": 2,
     "byteIdenticalAcrossConsecutiveBuilds": true,
-    "runtimeSbom": "sitewipe-private-rc-1.11.8.runtime-sbom.cdx.json",
-    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.8.unsigned-provenance-input.json",
+    "runtimeSbom": "sitewipe-private-rc-1.11.12.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.12.unsigned-provenance-input.json",
     "remoteAttestation": "pending"
   },
   "publicationGate": {
@@ -293,7 +318,7 @@
   "limitations": [
     "No installed Chrome or Brave assertion was executed for this artifact at the time this record was written.",
     "No browser performance benchmark or installed accessibility run was executed.",
-    "The initial private GitHub CI run and the CodeQL-remediation PR runs passed. Exact candidate 1.11.6 matched local/hosted package hashes and produced a retained zero-finding SARIF; candidate 1.11.8 requires fresh exact-head hosted verification after its local validation and commit.",
+    "The initial private GitHub CI run and the CodeQL-remediation PR runs passed. Exact candidate 1.11.8 matched local/hosted package hashes and produced a retained zero-finding SARIF; candidate 1.11.12 requires fresh exact-head hosted verification after its local validation and commit.",
     "Attestation, branch protection, private vulnerability reporting, release environment, hosted privacy policy, and other remote repository controls remain unverified.",
     "The SiteWipe identity, MIT project license, first-party publication rights, asset rights, private-material exclusions, AI-assistance disclosure, and private staging destination are owner-confirmed. Material exact-name marketplace, repository, and domain collisions remain; direct trademark/legal review, renewed exact public-version approval, media, remote controls, and final publication decisions remain open.",
     "A local unsigned provenance input is not a GitHub artifact attestation.",

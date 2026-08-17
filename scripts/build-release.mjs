@@ -24,6 +24,7 @@ for (const validator of [
   'validate-manifest.mjs',
   'validate-package-allowlist.mjs',
   'check-remote-code.mjs',
+  'check-publication-scope.mjs',
   'check-secrets.mjs',
   'check-project-license.mjs',
   'check-notices.mjs',

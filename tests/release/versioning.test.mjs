@@ -42,8 +42,10 @@ test('the version ledger fingerprints every allowlisted runtime file and all rel
   assert.match(pkg.scripts.check, /npm run check:version/);
   assert.match(pkg.scripts.check, /npm run check:dependency-licenses/);
   assert.match(pkg.scripts.check, /npm run check:project-license/);
+  assert.match(pkg.scripts.check, /npm run check:publication-scope/);
   assert.match(await text('scripts/build-release.mjs'), /check-version\.mjs/);
   assert.match(await text('scripts/build-release.mjs'), /check-project-license\.mjs/);
+  assert.match(await text('scripts/build-release.mjs'), /check-publication-scope\.mjs/);
   assert.match(await text('scripts/verify-release.mjs'), /check-version\.mjs/);
 });
 
@@ -86,12 +88,16 @@ test('release evidence remains bound to tested bytes and approval runs after reb
   assert.match(bump, /performance\.status = 'pending'/);
   assert.match(bump, /accessibility\.status = 'pending_installed_validation'/);
   assert.match(bump, /dependencyInventory\.lockfileSha256 = sha256/);
+  assert.match(bump, /resolveConfig\(readinessPath\)/);
+  assert.match(bump, /await format\(readiness/);
   assert.match(publicationGate, /knownExactNameListings/);
   assert.match(publicationGate, /dependencyInventory\?\.lockfileSha256 !== sha256\(packageLock\)/);
   assert.match(publicationGate, /requiredChecksVerified/);
   assert.match(publicationGate, /hostedPrivacyPolicyUrl/);
   assert.match(publicationGate, /releaseEnvironmentVerified/);
   assert.match(publicationGate, /findRetiredBypassSignals/);
+  assert.match(publicationGate, /verifyLiveGitPublicationScope/);
+  assert.match(publicationGate, /check-publication-scope\.mjs/);
   assert.match(publicationGate, /Every Standard and Expert cleanup must require detailed per-run review/);
   assert.match(codeqlWorkflow, /actions: read/);
   assert.match(codeqlWorkflow, /security-events: write/);

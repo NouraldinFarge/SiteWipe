@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This repository is a private release candidate. The project-level license or source-availability model has not yet been selected by the owner. This file records third-party material independently of that pending decision.
+This repository is a private release candidate. The owner selected MIT for SiteWipe's first-party source. The material listed below is not relicensed as first-party work and remains governed by its identified terms.
 
 ## Public Suffix List
 

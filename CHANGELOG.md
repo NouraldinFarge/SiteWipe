@@ -6,6 +6,33 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.12 — private release-candidate work — 2026-08-17
+
+### Cross-platform release hardening
+
+- Rejected Windows-forbidden filename characters and reserved-device variants in the publication scope even when validation runs on another operating system.
+- Made generated release-document formatting use the repository's resolved Prettier configuration before its version fingerprint is recorded.
+
+## 1.11.11 — private release-candidate work — 2026-08-17
+
+### Version transaction integrity
+
+- Made the version transaction format its generated release-readiness update before computing the stable release-input fingerprint, including when a longer version string changes Markdown table widths.
+
+## 1.11.10 — private release-candidate work — 2026-08-17
+
+### Evidence consistency
+
+- Corrected current-facing license and provenance wording to match the owner's recorded MIT, authorship, asset-rights, third-party, and private-material confirmations without implying public-version, legal-clearance, or publication approval.
+
+## 1.11.9 — private release-candidate work — 2026-08-17
+
+### Publication-scope integrity
+
+- Bound the Git-visible file set to the reviewed source-archive closure so a stray tracked or unignored file cannot be exposed on GitHub while escaping packaging and private-path/secret review.
+- Added fail-closed checks for the exact candidate worktree root, a non-Git outer container, one owner-approved fetch/push destination, nested Git metadata, unresolved index stages, symlinks, submodules, private/generated paths, non-portable names, and case-insensitive collisions.
+- Added adversarial publication-scope tests and made both the complete local check and release builder enforce the new invariant.
+
 ## 1.11.8 — private release-candidate work — 2026-08-17
 
 ### Repository governance

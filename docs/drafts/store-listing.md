@@ -1,6 +1,6 @@
 # DRAFT — NOT APPROVED FOR PUBLICATION: Chrome Web Store listing
 
-All wording below is conditional on exact-artifact browser/accessibility/performance evidence, a hosted privacy policy/contact, license/provenance approval, authentic approved media, accurate live dashboard disclosures, and final store-submission authorization.
+All wording below is conditional on exact-artifact browser/accessibility/performance evidence, a hosted privacy policy/contact, retained MIT/provenance evidence, authentic approved media, accurate live dashboard disclosures, and final store-submission authorization.
 
 ## Name
 

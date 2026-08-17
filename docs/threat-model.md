@@ -2,7 +2,7 @@
 
 > **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
 
-Last reviewed: 2026-08-17. This model covers the reviewed local SiteWipe `1.11.8` candidate, not a future store-signed artifact or unrelated product using the same name.
+Last reviewed: 2026-08-17. This model covers the reviewed local SiteWipe `1.11.12` candidate, not a future store-signed artifact or unrelated product using the same name.
 
 ## Security goals
 

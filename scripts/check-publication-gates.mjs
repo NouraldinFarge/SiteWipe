@@ -1,11 +1,17 @@
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveCurrentValidationEvidence } from './validation-evidence.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const blockers = [];
+if (!verifyLiveGitPublicationScope()) {
+  blockers.push(
+    'The live Git worktree, index, approved remote, and reviewed source closure do not form one safe publication scope.'
+  );
+}
 const pkg = await optionalJson('package.json');
 const expectedRuntimeZip = `sitewipe-private-rc-${pkg?.version || 'unknown'}.zip`;
 const currentRelease = await optionalJson('dist/current/current-release.json');
@@ -60,6 +66,11 @@ const packageLock = await optionalBytes('package-lock.json');
 if (
   provenance?.technicalStatus !== 'passed' ||
   provenance?.technicalEvidence?.sourceClosurePrivatePathScan?.status !== 'passed' ||
+  provenance?.technicalEvidence?.gitPublicationClosure?.status !== 'passed' ||
+  provenance?.technicalEvidence?.gitPublicationClosure?.trackedMatchesSourceClosure !== true ||
+  provenance?.technicalEvidence?.gitPublicationClosure?.approvedRemoteOnly !== true ||
+  provenance?.technicalEvidence?.gitPublicationClosure?.outerContainerExcluded !== true ||
+  provenance?.technicalEvidence?.gitPublicationClosure?.prohibitedIndexModesRejected !== true ||
   provenance?.technicalEvidence?.runtimePackage?.status !== 'passed' ||
   provenance?.technicalEvidence?.dependencyLicenseInventory?.status !== 'passed' ||
   provenance?.technicalEvidence?.thirdPartyNoticesAndPsl?.status !== 'passed' ||
@@ -241,4 +252,17 @@ async function findRetiredBypassSignals(optionsSource) {
     /\bapprovalMode\s*(?::|={2,3})\s*['"](?:quick|bypass)['"]/i
   ];
   return [...sources].filter(([, source]) => forbidden.some((pattern) => pattern.test(source))).map(([path]) => path);
+}
+
+function verifyLiveGitPublicationScope() {
+  try {
+    execFileSync(process.execPath, [resolve(root, 'scripts/check-publication-scope.mjs')], {
+      cwd: root,
+      stdio: 'pipe',
+      windowsHide: true
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }

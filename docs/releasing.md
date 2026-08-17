@@ -32,6 +32,7 @@ Then validate and build:
 ```powershell
 npm ci --ignore-scripts
 npm run check
+npm run check:publication-scope
 npm run test:coverage
 npm audit --audit-level=moderate
 npm run build:release-candidate
@@ -51,6 +52,8 @@ The builder must create two distinct artifacts:
 
 1. a loadable runtime ZIP containing only `scripts/release-files.mjs` entries, with `manifest.json` at archive root;
 2. a source archive containing every path in the declared source closure—reviewed source, documentation, tests, scripts, lockfile, CI, assets, evidence, and third-party materials—excluding private/local material.
+
+The Git-visible publication candidate must be exactly the same path set as that source closure. The repository check also requires the nested candidate to be the worktree root, the outer container not to be another worktree, exactly one owner-approved fetch/push destination, and ordinary file modes only. This prevents a tracked file from reaching GitHub while being omitted from the source ZIP and its private-path/secret scan.
 
 The runtime build also produces:
 
@@ -72,6 +75,7 @@ The build/verification path rejects or detects:
 - unknown runtime files or missing allowlisted files;
 - remote script/resource origins, dynamic remote-code patterns, or inline handlers/scripts;
 - absolute local paths, private keys, common secret formats, logs, profiles, caches, old archives, internal documents, prompts, or transcripts;
+- any mismatch between Git-visible paths and the reviewed source closure, an unapproved or additional remote, outer/nested Git metadata, unresolved index stage, symlink, submodule, private/generated path, non-portable path, or case-insensitive path collision;
 - files not byte-identical to the reviewed source after ZIP extraction;
 - runtime dependency, lockfile-bound development-license, or third-party-notice inconsistencies;
 - stale or extra files in `dist/current/`, a mismatched current-release index, stale manual evidence hashes, or symbolic links in either source closure.

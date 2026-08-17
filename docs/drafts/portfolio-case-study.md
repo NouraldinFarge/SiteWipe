@@ -25,7 +25,7 @@ Chromium does not expose one uniform “delete this site” transaction. Cookies
 
 ## Validation position
 
-The local project includes unit, stateful Chrome-API mock, fixed-seed property, official PSL corpus, accessibility-contract, static-analysis, package-integrity, and deterministic-build checks. Exact counts and coverage must be inserted only from the final retained validation record. Installed Chrome/Brave, accessibility, performance, media, remote CI/security, license/provenance, and publication evidence remain open; this case study must not be published while those gates are open.
+The local project includes unit, stateful Chrome-API mock, fixed-seed property, official PSL corpus, accessibility-contract, static-analysis, package-integrity, and deterministic-build checks. Exact counts and coverage must be inserted only from the final retained validation record. MIT and the recorded provenance are owner-approved; installed Chrome/Brave, accessibility, performance, media, exact-version remote CI/security, and publication evidence remain open. This case study must not be published while those gates are open.
 
 ## What I would discuss in an interview
 
