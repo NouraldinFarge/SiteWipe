@@ -1,0 +1,12 @@
+{
+  "name": "sitewipe-mv3-extension",
+  "version": "1.11.2",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "node test-harness/release-selftest.mjs && node ../scripts/run-tests.mjs",
+    "test:legacy": "node test-harness/release-selftest.mjs",
+    "test:unit": "node ../scripts/run-tests.mjs"
+  }
+}

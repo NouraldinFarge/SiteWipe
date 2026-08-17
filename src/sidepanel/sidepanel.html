@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SiteWipe Report</title>
+    <link rel="stylesheet" href="../shared/theme.css" />
+    <link rel="stylesheet" href="../shared/components.css" />
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <main class="app-shell side-shell">
+      <header class="header topbar">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 2.75 4.25 5.8v5.55c0 4.95 3.25 8.52 7.75 9.9 4.5-1.38 7.75-4.95 7.75-9.9V5.8L12 2.75Z"
+                stroke="white"
+                stroke-width="1.7"
+              />
+              <path d="M8.5 12.2h7M9.8 15h4.4M10.7 9.4h2.6" stroke="white" stroke-width="1.7" stroke-linecap="round" />
+            </svg>
+          </div>
+          <div>
+            <div class="brand-title">SiteWipe</div>
+            <div class="brand-subtitle">Detailed cleanup workspace</div>
+          </div>
+        </div>
+        <button id="openOptions" class="btn icon ghost" type="button" aria-label="Open options">⚙</button>
+      </header>
+
+      <nav class="segmented" role="tablist" aria-label="Side panel sections">
+        <button
+          id="reportTabButton"
+          class="segment active"
+          data-tab="report"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="reportTab"
+          tabindex="0"
+        >
+          Report
+        </button>
+        <button
+          id="matrixTabButton"
+          class="segment"
+          data-tab="matrix"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="matrixTab"
+          tabindex="-1"
+        >
+          Matrix
+        </button>
+        <button
+          id="historyTabButton"
+          class="segment"
+          data-tab="history"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="historyTab"
+          tabindex="-1"
+        >
+          History
+        </button>
+        <button
+          id="privacyTabButton"
+          class="segment"
+          data-tab="privacy"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="privacyTab"
+          tabindex="-1"
+        >
+          Privacy
+        </button>
+      </nav>
+
+      <section id="reportTab" class="tab-panel active" role="tabpanel" aria-labelledby="reportTabButton" tabindex="0">
+        <div class="button-row">
+          <button id="exportReport" class="btn secondary" type="button">Export full JSON (sensitive)</button
+          ><button id="exportRedactedReport" class="btn ghost" type="button">Export redacted JSON</button
+          ><button id="exportHtmlReport" class="btn ghost" type="button">Export redacted HTML</button
+          ><button id="exportTextReport" class="btn ghost" type="button">Export full text (sensitive)</button
+          ><button id="exportRedactedTextReport" class="btn ghost" type="button">Export redacted text</button
+          ><button id="copyTroubleshooting" class="btn ghost" type="button">
+            Copy redacted troubleshooting summary</button
+          ><button id="verifyDigest" class="btn ghost" type="button">Verify checksum</button>
+        </div>
+        <input
+          id="reportFilter"
+          class="input report-filter"
+          type="search"
+          placeholder="Filter report sections, warnings, and errors…"
+          aria-label="Filter report"
+        />
+        <div id="reportContainer" class="stack"></div>
+      </section>
+      <section id="matrixTab" class="tab-panel" role="tabpanel" aria-labelledby="matrixTabButton" tabindex="0" hidden>
+        <article class="card panel-card">
+          <div class="section-title"><span>Cleanup capability matrix</span><small>Honest API support</small></div>
+          <div id="matrixContainer" class="matrix"></div>
+        </article>
+      </section>
+      <section id="historyTab" class="tab-panel" role="tabpanel" aria-labelledby="historyTabButton" tabindex="0" hidden>
+        <article class="card panel-card">
+          <div class="section-title">
+            <span>Recent cleanups</span
+            ><button id="clearHistory" class="btn danger" type="button">Delete stored report history</button>
+          </div>
+          <div class="button-row">
+            <button id="exportHistory" class="btn secondary" type="button">Export full history JSON (sensitive)</button
+            ><button id="exportRedactedHistory" class="btn ghost" type="button">Export redacted history JSON</button
+            ><button id="exportHistoryText" class="btn ghost" type="button">Export redacted history text</button>
+          </div>
+          <input
+            id="historyFilter"
+            class="input report-filter"
+            type="search"
+            placeholder="Filter cleanup history…"
+            aria-label="Filter cleanup history"
+          />
+          <div id="historyContainer" class="history-list"></div>
+        </article>
+      </section>
+      <section id="privacyTab" class="tab-panel" role="tabpanel" aria-labelledby="privacyTabButton" tabindex="0" hidden>
+        <article class="card panel-card">
+          <div class="section-title"><span>Hard limitations</span><small>What no extension can erase</small></div>
+          <p class="privacy-copy">
+            SiteWipe removes only data exposed through Chrome/Brave extension APIs. It cannot erase ISP logs, DNS
+            resolver logs, router logs, VPN provider logs, operating-system logs, antivirus or endpoint-security logs,
+            enterprise monitoring, firewall records, remote website/CDN logs, account activity on a website, payment
+            records, receipts, screenshots, backups, browser sync copies already uploaded elsewhere, data outside
+            Chrome/Brave, memory artifacts, or hidden browser internals. Files on disk are preserved unless the separate
+            irreversible Expert option for preflight-bound completed downloads is enabled; failed or uncertain file
+            removals retain their browser download record for recovery.
+          </p>
+        </article>
+      </section>
+      <div id="panelStatus" class="toast panel-status" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+    </main>
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

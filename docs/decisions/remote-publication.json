@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "status": "private_staging_creation_and_first_push_authorized",
+  "repositoryUrl": "https://github.com/NouraldinFarge/SiteWipe",
+  "ownerApproved": true,
+  "approvedAt": "2026-08-17",
+  "defaultBranch": "main",
+  "maintainerHandle": "NouraldinFarge",
+  "gitAuthorName": "Nouraldin Farge",
+  "gitAuthorEmail": "144660662+NouraldinFarge@users.noreply.github.com",
+  "firstCommitAuthorized": true,
+  "privateUploadAuthorized": true,
+  "publicVisibilityAuthorized": false,
+  "branchProtectionVerified": false,
+  "requiredChecksVerified": false,
+  "privateVulnerabilityReportingVerified": false,
+  "hostedPrivacyPolicyUrl": null,
+  "releaseEnvironmentVerified": false,
+  "finalPublicationApproval": false,
+  "notes": [
+    "The owner confirmed the repository destination, author identity, private staging creation, and first push on 2026-08-17.",
+    "Authorization is limited to a truthful initial commit and first push to a private repository; it does not authorize public visibility, tags, releases, store submission, Pages, Packages, or professional-profile publication.",
+    "A visibility change or first public release requires a new explicit action-time owner approval after the exact candidate and all applicable gates are reviewed."
+  ]
+}

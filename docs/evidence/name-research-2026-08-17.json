@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "status": "owner_selected_sitewipe_material_collisions_confirmed_legal_review_open",
+  "checkedAt": "2026-08-17",
+  "workingCodename": "SiteWipe",
+  "approvedName": "SiteWipe",
+  "ownerApprovedAt": "2026-08-16T22:36:47-05:00",
+  "ownerStatement": "Product identity/name is SiteWipe; this is custom made.",
+  "selectedNameFindings": {
+    "chromeWebStoreExactNameListings": [
+      {
+        "extensionId": "jkpagdcphgjehcbcbmpklodjjjnhcbjp",
+        "observedName": "Sitewipe",
+        "observedVersion": "2.0.1",
+        "observedUpdated": "2026-05-21",
+        "url": "https://chromewebstore.google.com/detail/sitewipe/jkpagdcphgjehcbcbmpklodjjjnhcbjp"
+      },
+      {
+        "extensionId": "hopjcfadgicekhdaamknhjccoliddehc",
+        "observedName": "SiteWipe",
+        "observedVersion": "1.0.1",
+        "observedUpdated": "2026-04-23",
+        "url": "https://chromewebstore.google.com/detail/sitewipe/hopjcfadgicekhdaamknhjccoliddehc"
+      }
+    ],
+    "firefoxExactNameListings": [
+      {
+        "slug": "sitewipe",
+        "observedName": "SiteWipe",
+        "observedVersion": "1.0",
+        "url": "https://addons.mozilla.org/en-US/firefox/addon/sitewipe/"
+      },
+      {
+        "slug": "sitewipe-tool",
+        "observedName": "SiteWipe",
+        "observedVersion": "2.0.1",
+        "observedUpdated": "2026-05-19",
+        "url": "https://addons.mozilla.org/en-US/firefox/addon/sitewipe-tool/"
+      }
+    ],
+    "githubExactRepository": {
+      "observed": true,
+      "fullName": "thuyydt/SiteWipe",
+      "queryTotalForSitewipeInName": 1,
+      "url": "https://github.com/thuyydt/SiteWipe"
+    },
+    "npmExactLowercasePackage": {
+      "observed": false,
+      "httpStatus": 404,
+      "url": "https://registry.npmjs.org/sitewipe",
+      "limitation": "A 404 is only a dated no-record observation and is not reservation or availability."
+    },
+    "dotCom": {
+      "registered": true,
+      "ldhName": "SITEWIPE.COM",
+      "registrationDate": "2025-01-16T18:41:11Z",
+      "observedRdapDatabaseUpdate": "2026-08-17T14:54:27Z",
+      "url": "https://rdap.verisign.com/com/v1/domain/sitewipe.com"
+    },
+    "conclusion": "Owner-selected custom identity with material exact-name browser-extension, repository, and domain collisions; uniqueness, registrability, non-infringement, and legal clearance are not claimed."
+  },
+  "trademarkScreen": {
+    "previousSnapshot": "The 2026-08-16 engineering snapshot reported zero exact compound/spaced USPTO records.",
+    "currentDirectUsptoResultRetained": false,
+    "currentDirectWipoResultRetained": false,
+    "currentDirectTmviewResultRetained": false,
+    "status": "direct_professional_or_informed_database_review_required"
+  },
+  "correctionsFromPreviousSnapshot": [
+    "The previous GitHub zero-exact-repository finding is no longer current; one exact repository was observed.",
+    "The previous no-dot-com-registration finding was incorrect or stale; SITEWIPE.COM was registered on 2025-01-16.",
+    "A second exact-name Firefox listing, sitewipe-tool, is now retained."
+  ],
+  "limitations": [
+    "This is not a legal clearance conclusion or trademark opinion.",
+    "Marketplace, repository, package, domain, and trademark status can change after the snapshot.",
+    "One Chrome/Firefox listing pair appears to be the same unrelated product; listings are counted as marketplace surfaces, not distinct owners.",
+    "Direct USPTO, WIPO, TMview, relevant national-office, similar spelling/sound/translation, related-owner, and goods/services-class review remains open.",
+    "The owner approved the SiteWipe identity but has not approved a public version or accepted the documented collision risk for a specific public channel."
+  ],
+  "sources": [
+    "https://chromewebstore.google.com/detail/sitewipe/jkpagdcphgjehcbcbmpklodjjjnhcbjp",
+    "https://chromewebstore.google.com/detail/sitewipe/hopjcfadgicekhdaamknhjccoliddehc",
+    "https://addons.mozilla.org/en-US/firefox/addon/sitewipe/",
+    "https://addons.mozilla.org/en-US/firefox/addon/sitewipe-tool/",
+    "https://api.github.com/search/repositories?q=sitewipe%20in%3Aname",
+    "https://registry.npmjs.org/sitewipe",
+    "https://rdap.verisign.com/com/v1/domain/sitewipe.com",
+    "https://tmsearch.uspto.gov/search/",
+    "https://www.wipo.int/en/web/global-brand-database",
+    "https://www.tmdn.org/tmview/"
+  ]
+}

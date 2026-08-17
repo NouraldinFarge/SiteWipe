@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "status": "pending",
+  "measuredAt": null,
+  "environment": {},
+  "artifact": {
+    "version": "1.11.2",
+    "runtimeZip": "sitewipe-private-rc-1.11.2.zip",
+    "sha256": null
+  },
+  "fixtures": [],
+  "limitations": [
+    "No installed-browser benchmark has been completed for this candidate.",
+    "Node test duration is not browser cleanup performance."
+  ],
+  "reviewerApproval": false
+}

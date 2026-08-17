@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "status": "owner_approved",
+  "model": "MIT",
+  "spdxIdentifier": "MIT",
+  "licenseFileRequired": true,
+  "licenseFile": "LICENSE",
+  "licenseFileSha256": "86ECA68E8C1B0498315252BD01B6190F01500EE720C333D00793DD947F5B6511",
+  "copyrightYear": 2026,
+  "copyrightHolder": "Nouraldin Farge",
+  "ownerApproved": true,
+  "approvedAt": "2026-08-17",
+  "ownerStatement": "License: MIT",
+  "notes": [
+    "The root LICENSE contains the standard MIT grant and disclaimer for the confirmed copyright holder.",
+    "Root, lockfile, and extension-source package metadata declare SPDX MIT while remaining private:true to prevent accidental npm publication.",
+    "Third-party material remains governed by the licenses and notices identified in THIRD_PARTY_NOTICES.md and the dependency inventory."
+  ]
+}

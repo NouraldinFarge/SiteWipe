@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "status": "technical_inventory_complete_owner_acknowledged",
+  "inventoriedAt": "2026-08-17",
+  "lockfileSha256": "D03926D8F543C46BB1BF7DB52832D7D8F269C2F6A44ACB6F3FFB56EDB96829FE",
+  "runtimeDependencyCount": 0,
+  "lockedDevelopmentGraphCount": 406,
+  "licenseCounts": {
+    "(BSD-2-Clause OR MIT OR Apache-2.0)": 1,
+    "(MIT OR WTFPL)": 1,
+    "Apache-2.0": 41,
+    "BSD-2-Clause": 8,
+    "BSD-3-Clause": 9,
+    "BlueOak-1.0.0": 14,
+    "CC-BY-3.0": 1,
+    "CC0-1.0": 3,
+    "ISC": 53,
+    "MISSING": 1,
+    "MIT": 269,
+    "MIT-0": 3,
+    "MPL-2.0": 1,
+    "Python-2.0": 1
+  },
+  "metadataExceptions": [
+    {
+      "path": "node_modules/svg-tags",
+      "name": "svg-tags",
+      "version": "1.0.0",
+      "reason": "The lockfile entry omits license metadata; the installed package declares MIT through its legacy licenses array and includes the MIT text.",
+      "resolvedLicense": "MIT",
+      "licenseFile": "LICENSE",
+      "licenseFileBytes": 1079,
+      "licenseFileSha256": "4FA26A349D96C6BF268296011D84A70D18A1E85DFBEF9A3C3F785C97E28D1F5D"
+    }
+  ],
+  "installScriptPackages": [
+    {
+      "path": "node_modules/libxmljs2",
+      "name": "libxmljs2",
+      "version": "0.37.0",
+      "control": "All documented local and CI installations use npm ci --ignore-scripts."
+    }
+  ],
+  "highAttentionLicenses": [
+    {
+      "name": "argparse",
+      "version": "2.0.1",
+      "license": "Python-2.0",
+      "usage": "development-only"
+    },
+    {
+      "name": "axe-core",
+      "version": "4.13.0",
+      "license": "MPL-2.0",
+      "usage": "development-only"
+    },
+    {
+      "name": "spdx-exceptions",
+      "version": "2.5.0",
+      "license": "CC-BY-3.0",
+      "usage": "development-only"
+    }
+  ],
+  "npmAuditVulnerabilities": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "directDevelopmentDependencies": [
+    {
+      "name": "@cyclonedx/cyclonedx-npm",
+      "version": "6.0.1",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "@eslint/js",
+      "version": "10.0.1",
+      "license": "MIT"
+    },
+    {
+      "name": "@types/chrome",
+      "version": "0.2.6",
+      "license": "MIT"
+    },
+    {
+      "name": "@types/node",
+      "version": "26.2.0",
+      "license": "MIT"
+    },
+    {
+      "name": "axe-core",
+      "version": "4.13.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "name": "c8",
+      "version": "12.0.0",
+      "license": "ISC"
+    },
+    {
+      "name": "eslint",
+      "version": "10.8.1",
+      "license": "MIT"
+    },
+    {
+      "name": "fast-check",
+      "version": "4.9.0",
+      "license": "MIT"
+    },
+    {
+      "name": "globals",
+      "version": "17.11.0",
+      "license": "MIT"
+    },
+    {
+      "name": "html-validate",
+      "version": "11.7.0",
+      "license": "MIT"
+    },
+    {
+      "name": "prettier",
+      "version": "3.9.6",
+      "license": "MIT"
+    },
+    {
+      "name": "stylelint",
+      "version": "17.14.1",
+      "license": "MIT"
+    },
+    {
+      "name": "stylelint-config-standard",
+      "version": "40.0.0",
+      "license": "MIT"
+    },
+    {
+      "name": "typescript",
+      "version": "7.0.2",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "yauzl",
+      "version": "3.4.0",
+      "license": "MIT"
+    },
+    {
+      "name": "yazl",
+      "version": "3.3.1",
+      "license": "MIT"
+    }
+  ],
+  "controls": [
+    "Every direct dependency is pinned to an exact version in package.json and package-lock.json.",
+    "Installation and CI use npm ci --ignore-scripts.",
+    "scripts/check-dependency-licenses.mjs binds this inventory to the lockfile hash, exact license counts, metadata exceptions, installed license text, and install-script package inventory.",
+    "npm audit reported zero known vulnerabilities for the exact current lockfile on 2026-08-17.",
+    "The loadable extension ZIP contains no npm runtime dependency files.",
+    "A CycloneDX development-graph SBOM can be regenerated with npm run sbom."
+  ],
+  "limitations": [
+    "Registry/package metadata and license text are evidence inputs, not a legal license conclusion.",
+    "The owner acknowledged the complete technical inventory, required notices, documented third-party material, and selected MIT for the first-party project source; this record is evidence, not legal advice.",
+    "A later lockfile change invalidates this inventory and audit result."
+  ],
+  "ownerApproval": true,
+  "ownerApprovedAt": "2026-08-17"
+}

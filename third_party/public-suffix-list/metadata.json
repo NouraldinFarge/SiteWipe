@@ -1,0 +1,22 @@
+{
+  "source": "https://publicsuffix.org/list/public_suffix_list.dat",
+  "version": "2026-08-14_20-15-49_UTC",
+  "commit": "a77cfe0674a4b05c6e2448c01f3cb2c965a1b6d8",
+  "bytes": 332856,
+  "sha256": "155B43D46932E933F622365225E7861288C36A45380B1F7D00B3D09748926226",
+  "testCorpus": {
+    "source": "https://raw.githubusercontent.com/publicsuffix/list/a77cfe0674a4b05c6e2448c01f3cb2c965a1b6d8/tests/test_psl.txt",
+    "bytes": 4308,
+    "sha256": "8F50AD958916D6A8F79FBA2363501475571ACCE752757F9126FE9D2F17DD920D",
+    "cases": 78,
+    "license": "CC0-1.0"
+  },
+  "license": {
+    "expression": "MPL-2.0",
+    "source": "https://raw.githubusercontent.com/publicsuffix/list/a77cfe0674a4b05c6e2448c01f3cb2c965a1b6d8/LICENSE",
+    "bytes": 16727,
+    "sha256": "66A3107D5AD6A058AAB753EAAC2047CCB2ED0E39465DD0FE5844DA3E300D5172"
+  },
+  "generatedModule": "src/shared/public-suffix-data.js",
+  "generator": "scripts/update-public-suffix-data.mjs"
+}

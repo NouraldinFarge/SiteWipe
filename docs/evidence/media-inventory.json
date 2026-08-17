@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "status": "pending",
+  "authenticScreenshotCount": 0,
+  "demoDurationSeconds": 0,
+  "screenshots": [],
+  "demo": null,
+  "storeAssets": {
+    "icon128": "src/assets/icons/icon128.png",
+    "screenshots1280x800": [],
+    "promotionalTile440x280": null,
+    "marquee1400x560": null,
+    "githubSocialPreview": null
+  },
+  "requirements": [
+    "Capture only the installed extension in disposable Chrome and Brave profiles.",
+    "Use synthetic fixture data and inspect every frame for identifiers.",
+    "Do not substitute static file renders or mock results for browser evidence.",
+    "Use the owner-approved SiteWipe identity and bind final media to the exact installed artifact."
+  ],
+  "reviewerApproval": false
+}

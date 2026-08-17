@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "status": "local_snapshot_and_generated_module_verified",
+  "checkedAt": "2026-08-17",
+  "source": "https://publicsuffix.org/list/public_suffix_list.dat",
+  "snapshotVersion": "2026-08-14_20-15-49_UTC",
+  "upstreamCommit": "a77cfe0674a4b05c6e2448c01f3cb2c965a1b6d8",
+  "sourceFile": "third_party/public-suffix-list/public_suffix_list.dat",
+  "sourceBytes": 332856,
+  "sourceSha256": "155B43D46932E933F622365225E7861288C36A45380B1F7D00B3D09748926226",
+  "generatedModule": "src/shared/public-suffix-data.js",
+  "generatedModuleSha256": "A22EB2BA9C4D5A93106D4677E412438E0C4987638C7A05F8E06B84865651136D",
+  "generator": "scripts/update-public-suffix-data.mjs",
+  "runtimeDownload": false,
+  "sections": {
+    "icannIncluded": true,
+    "privateIncluded": true
+  },
+  "ruleCounts": {
+    "icann": 6949,
+    "private": 3290,
+    "total": 10239,
+    "exact": 9950,
+    "wildcard": 281,
+    "exception": 8
+  },
+  "license": {
+    "expression": "MPL-2.0",
+    "file": "third_party/public-suffix-list/LICENSE",
+    "sha256": "66A3107D5AD6A058AAB753EAAC2047CCB2ED0E39465DD0FE5844DA3E300D5172"
+  },
+  "officialTestCorpus": {
+    "source": "https://raw.githubusercontent.com/publicsuffix/list/a77cfe0674a4b05c6e2448c01f3cb2c965a1b6d8/tests/test_psl.txt",
+    "bytes": 4308,
+    "sha256": "8F50AD958916D6A8F79FBA2363501475571ACCE752757F9126FE9D2F17DD920D",
+    "cases": 78,
+    "license": "CC0-1.0"
+  },
+  "verification": [
+    "Metadata values match the generated module header and local source hash.",
+    "ICANN and PRIVATE markers are present in the retained upstream snapshot.",
+    "The shipped runtime imports generated local data and performs no PSL network download.",
+    "Exact, wildcard, exception, Unicode/punycode, unknown-suffix, public-suffix-only, hosted-tenant, associated-target, credential, IP, port, and cross-adapter properties are automated; installed-browser fixtures remain pending."
+  ]
+}

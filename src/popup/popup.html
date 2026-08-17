@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SiteWipe</title>
+    <link rel="stylesheet" href="../shared/theme.css" />
+    <link rel="stylesheet" href="../shared/components.css" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="app-shell popup-shell">
+      <header class="header popup-header">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 2.75 4.25 5.8v5.55c0 4.95 3.25 8.52 7.75 9.9 4.5-1.38 7.75-4.95 7.75-9.9V5.8L12 2.75Z"
+                stroke="white"
+                stroke-width="1.7"
+              />
+              <path d="M8.5 12.2h7M9.8 15h4.4M10.7 9.4h2.6" stroke="white" stroke-width="1.7" stroke-linecap="round" />
+            </svg>
+          </div>
+          <div>
+            <div class="brand-title">SiteWipe</div>
+            <div class="brand-subtitle">Targeted browser cleanup</div>
+          </div>
+        </div>
+        <button id="openOptions" class="btn icon ghost" type="button" aria-label="Open options">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M10.1 3.3h3.8l.52 2.08c.48.18.93.44 1.34.75l2.04-.62 1.9 3.3-1.52 1.48c.04.25.06.5.06.75s-.02.5-.06.75l1.52 1.48-1.9 3.3-2.04-.62c-.41.31-.86.57-1.34.75l-.52 2.08h-3.8l-.52-2.08c-.48-.18-.93-.44-1.34-.75l-2.04.62-1.9-3.3 1.52-1.48A5.9 5.9 0 0 1 5.78 12c0-.25.02-.5.06-.75L4.32 9.77l1.9-3.3 2.04.62c.41-.31.86-.57 1.34-.75l.52-2.08Z"
+              stroke="currentColor"
+              stroke-width="1.55"
+              stroke-linejoin="round"
+            />
+            <circle cx="12" cy="12" r="2.55" stroke="currentColor" stroke-width="1.55" />
+          </svg>
+        </button>
+      </header>
+
+      <section class="card warning candidate-notice" role="note" aria-label="Private candidate warning">
+        <strong>Private candidate — disposable profiles only</strong>
+        <span>Safety, privacy, accessibility, browser, and release-readiness validation is still in progress.</span>
+      </section>
+
+      <section class="status-strip">
+        <span id="readyBadge" class="badge success" role="status">Ready</span>
+        <span id="incognitoBadge" class="badge warning" role="status" aria-live="polite">Private: checking…</span>
+      </section>
+
+      <section id="activeTabCard" class="card soft active-tab-card" hidden>
+        <div class="active-tab-copy">
+          <div class="eyebrow">Detected active tab</div>
+          <strong id="activeTabTitle">Current page</strong>
+          <span id="activeTabDomain" class="mono">Checking…</span>
+        </div>
+        <button id="useActiveTab" class="btn secondary compact" type="button">Use active tab</button>
+      </section>
+
+      <section class="card target-card">
+        <div class="eyebrow">Target website</div>
+        <h1>Deep clean one site.</h1>
+        <p>
+          Use the detected tab or enter a domain. SiteWipe removes matching browser-accessible data while preserving
+          protected browser data.
+        </p>
+        <form id="targetForm" novalidate aria-busy="false">
+          <div class="input-wrap">
+            <label class="label" for="targetInput">Domain or URL</label>
+            <input
+              id="targetInput"
+              class="input"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="example.com or https://example.com/page"
+              aria-describedby="targetHelp targetError"
+              required
+              aria-required="true"
+            />
+            <div id="targetHelp" class="help-text">
+              Subdomains are included. Similar domains like badexample.com are not.
+            </div>
+            <div id="targetError" class="error-text" role="alert"></div>
+          </div>
+          <div id="normalizedCard" class="normalized-card" hidden>
+            <span>Normalized target</span>
+            <strong id="normalizedDomain" class="mono"></strong>
+          </div>
+          <button id="deepCleanButton" class="btn primary" type="submit">
+            <span id="deepCleanSpinner" class="spinner" aria-hidden="true" hidden></span
+            ><span id="deepCleanLabel">Review cleanup</span>
+          </button>
+        </form>
+      </section>
+
+      <section id="reviewCard" class="card review-card" aria-labelledby="reviewHeading" hidden>
+        <div class="review-head">
+          <div>
+            <div class="eyebrow">Required before cleanup</div>
+            <h2 id="reviewHeading" tabindex="-1">Review cleanup scope</h2>
+          </div>
+          <span class="badge warning">No changes yet</span>
+        </div>
+
+        <dl class="review-facts">
+          <div>
+            <dt>You entered</dt>
+            <dd id="reviewEnteredTarget" class="mono"></dd>
+          </div>
+          <div>
+            <dt>Normalized target</dt>
+            <dd id="reviewNormalizedTarget" class="mono"></dd>
+          </div>
+          <div>
+            <dt>Scope</dt>
+            <dd id="reviewScope"></dd>
+          </div>
+          <div>
+            <dt>Subdomains</dt>
+            <dd id="reviewSubdomains"></dd>
+          </div>
+          <div>
+            <dt>Normal windows</dt>
+            <dd id="reviewNormalScope"></dd>
+          </div>
+          <div>
+            <dt>Private windows</dt>
+            <dd id="reviewPrivateScope"></dd>
+          </div>
+        </dl>
+
+        <div id="reviewAssociatedSection" class="review-section" hidden>
+          <h3>Associated targets included</h3>
+          <ul id="reviewAssociatedList" class="review-list"></ul>
+        </div>
+
+        <div class="review-section">
+          <h3>Categories SiteWipe will attempt</h3>
+          <ul id="reviewAttemptedList" class="review-list"></ul>
+        </div>
+
+        <div class="review-section review-safe">
+          <h3>Protected categories</h3>
+          <ul id="reviewProtectedList" class="review-list"></ul>
+        </div>
+
+        <div class="review-section">
+          <h3>Chrome/Brave cannot safely remove</h3>
+          <ul id="reviewUnavailableList" class="review-list"></ul>
+        </div>
+
+        <div class="review-section">
+          <h3>Expected impact</h3>
+          <div id="reviewEffects" class="review-effects"></div>
+        </div>
+
+        <div class="review-section review-warning">
+          <h3>Before you approve</h3>
+          <ul id="reviewWarnings" class="review-list"></ul>
+        </div>
+
+        <fieldset class="review-acknowledgements">
+          <legend>Required acknowledgements</legend>
+          <label class="check-row"
+            ><input id="reviewScopeAcknowledge" type="checkbox" required aria-required="true" /><span
+              >I reviewed this scope and understand matching browser data will be removed and matching tabs will
+              close.</span
+            ></label
+          >
+          <label id="reviewAssociatedAcknowledgeWrap" class="check-row" hidden
+            ><input id="reviewAssociatedAcknowledge" type="checkbox" /><span
+              >I reviewed every associated target listed above.</span
+            ></label
+          >
+          <label id="reviewLocalAcknowledgeWrap" class="check-row" hidden
+            ><input id="reviewLocalAcknowledge" type="checkbox" /><span
+              >I understand localhost/IP cleanup is exact-origin, while cookies remain host-scoped.</span
+            ></label
+          >
+          <label id="reviewProtectedAcknowledgeWrap" class="check-row" hidden
+            ><input id="reviewProtectedAcknowledge" type="checkbox" /><span
+              >I approve cleanup of installed/protected web-app origin data.</span
+            ></label
+          >
+          <div id="reviewFileConfirmationWrap" class="file-confirmation" hidden>
+            <label class="label" for="reviewFileConfirmation">To approve on-disk file removal, type exactly:</label>
+            <code id="reviewFileConfirmationPhrase"></code>
+            <input id="reviewFileConfirmation" class="input" type="text" autocomplete="off" spellcheck="false" />
+          </div>
+        </fieldset>
+
+        <div id="reviewHostPermission" class="review-host-permission" hidden>
+          <strong>Target-specific site access will be requested on final approval</strong>
+          <p>
+            Chrome will request only the reviewed target patterns when you activate the final approval button. Access
+            newly granted for this review is durably tracked until Chrome/Brave proves it has been released. Access that
+            existed before the review is preserved.
+          </p>
+        </div>
+
+        <p id="reviewExpiry" class="review-expiry"></p>
+        <div id="reviewApprovalError" class="error-text" role="status" aria-live="polite" aria-atomic="true"></div>
+        <div class="review-actions">
+          <button id="cancelCleanupReview" class="btn secondary" type="button">Cancel — keep data</button>
+          <button id="approveCleanup" class="btn primary" type="button" disabled>Approve, grant access, and run</button>
+        </div>
+      </section>
+
+      <section id="progressCard" class="card soft progress-card" role="status" aria-live="polite" hidden>
+        <div class="progress-copy">
+          <strong id="progressTitle">Preparing cleanup…</strong>
+          <span id="progressDetail">Closing tabs and clearing browser-accessible site data.</span>
+        </div>
+        <div
+          id="progressTrack"
+          class="progress"
+          role="progressbar"
+          aria-label="Cleanup progress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <span id="progressBar"></span>
+        </div>
+        <div class="button-row">
+          <button id="cancelActiveJob" class="btn secondary compact" type="button">Request cancel</button>
+        </div>
+      </section>
+
+      <section id="summaryCard" class="card summary-card" aria-labelledby="summaryTitle" aria-live="polite" hidden>
+        <div class="summary-head">
+          <div>
+            <div class="eyebrow">Final report</div>
+            <h2 id="summaryTitle">Cleanup complete</h2>
+          </div>
+          <span id="summaryStatus" class="badge success">Report</span>
+        </div>
+        <div id="summaryRows" class="summary-rows"></div>
+        <div class="button-row">
+          <button id="openSidePanel" class="btn secondary" type="button">Open detailed report</button>
+          <button id="forgetLatestReport" class="btn ghost" type="button">Forget this report</button>
+        </div>
+      </section>
+
+      <footer class="popup-footer">
+        <details class="privacy-details">
+          <summary>Safety boundaries</summary>
+          <p>
+            Local-first. No remote code. Passwords, bookmarks, browser Sync/account settings, autofill profiles, and
+            payment methods are protected. Downloaded files require a separate Expert setting.
+          </p>
+        </details>
+      </footer>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "status": "pending",
+  "attemptedAt": null,
+  "artifact": {
+    "version": "1.11.2",
+    "runtimeZip": "sitewipe-private-rc-1.11.2.zip",
+    "sha256": null
+  },
+  "chrome": {
+    "status": "pending",
+    "version": null,
+    "operatingSystem": null,
+    "disposableProfile": null,
+    "assertions": []
+  },
+  "brave": {
+    "status": "pending",
+    "version": null,
+    "operatingSystem": null,
+    "disposableProfile": null,
+    "assertions": []
+  },
+  "automationAttempt": null,
+  "requiredMatrix": [
+    "fresh install and upgrade migration",
+    "mandatory complete Standard and Expert review across associated, local, private, protected/PWA, file, persistent-shield, permission-requesting, and uncertain scope",
+    "read-only preparation, initial action only renders review, explicit final approval, native permission prompt grant/withhold behavior, and no stale/alternate quick cleanup route",
+    "PRIVATE-suffix sibling and lookalike isolation",
+    "normal and private-window access disabled/enabled",
+    "partitioned cookies and every exposed storage fixture",
+    "worker termination, browser restart, popup closure, and orphan DNR repair",
+    "ten consecutive runs, timeouts, partial failures, and report expiry",
+    "protected data and unrelated controls remain unchanged"
+  ],
+  "limitations": [
+    "Node tests and static checks do not establish installed Chrome behavior.",
+    "Chrome evidence cannot be reused as Brave evidence.",
+    "No browser version or extension artifact hash is approved until the matrix is actually run.",
+    "Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion."
+  ],
+  "reviewerApproval": false
+}

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "status": "pending_installed_validation",
+  "reviewedAt": "2026-08-16",
+  "sourceContracts": {
+    "status": "passed",
+    "namedTests": 6,
+    "coverage": [
+      "programmatic labels and described controls",
+      "ARIA tab pattern and keyboard bindings",
+      "required and invalid destructive controls",
+      "reduced motion, forced colors, target size, and CTA contrast",
+      "explicit confirmation before disabling report redaction",
+      "mandatory Standard/Expert per-run review, retired-setting absence, acknowledgement semantics, final-approval labeling, and native-prompt caveat"
+    ]
+  },
+  "installedChecks": {
+    "axe": "pending",
+    "keyboardOnly": "pending",
+    "focusOrderAndRestoration": "pending",
+    "screenReaderAnnouncements": "pending",
+    "zoom125": "pending",
+    "zoom150": "pending",
+    "zoom200": "pending",
+    "zoom400": "pending",
+    "forcedColors": "pending",
+    "reducedMotion": "pending"
+  },
+  "browserVersions": {},
+  "artifact": {
+    "version": "1.11.2",
+    "runtimeZip": "sitewipe-private-rc-1.11.2.zip",
+    "sha256": null
+  },
+  "reviewerApproval": false
+}

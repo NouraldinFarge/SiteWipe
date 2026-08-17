@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "reviewedAt": "2026-08-17",
+  "reviewer": "owner confirmation and local automated/source audit",
+  "technicalStatus": "passed",
+  "ownerApproval": true,
+  "ownerApprovedAt": "2026-08-17",
+  "ownerConfirmation": {
+    "firstPartyCreationConfirmed": true,
+    "recordedAt": "2026-08-17",
+    "statement": "I confirm that SiteWipe contains no employer, client, school, or confidential material; I have the right to publish its first-party code, icons, copy, fixtures, and assets; no unrelated extension or competitor source was copied; and I accept the documented AI-assistance and third-party Public Suffix List disclosures.",
+    "interpretation": "The owner confirms authority over SiteWipe's first-party source closure and the documented exclusions. Identified third-party material remains third-party, and this record is not a trademark opinion or a claim of entirely hand-written authorship."
+  },
+  "projectLicenseModel": "MIT",
+  "iconProvenanceApproved": true,
+  "thirdPartyNoticesReviewed": true,
+  "dependencyLicensesReviewed": true,
+  "privateMaterialExclusionReviewed": true,
+  "technicalEvidence": {
+    "sourceClosurePrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 202
+    },
+    "runtimePackage": {
+      "status": "passed",
+      "runtimeFiles": 50,
+      "npmRuntimeDependencies": 0
+    },
+    "dependencyLicenseInventory": {
+      "status": "passed",
+      "lockedDevelopmentPackages": 406,
+      "legacyMetadataExceptionsResolved": 1,
+      "developmentSbomGeneration": "passed"
+    },
+    "thirdPartyNoticesAndPsl": {
+      "status": "passed",
+      "components": ["Public Suffix List data", "Public Suffix List conformance corpus"]
+    },
+    "candidateIcon": {
+      "status": "passed",
+      "editableSource": "assets/brand/icon-source.svg",
+      "generatedPngsVerified": 4,
+      "externalAssets": 0
+    },
+    "sourceArchiveControls": {
+      "status": "passed",
+      "rejectsPrivateMaterialPatterns": true,
+      "rejectsSymbolicLinksAndDirectoryJunctions": true,
+      "exactSourceClosureRequired": true
+    }
+  },
+  "notes": [
+    "Technical inventory exists in docs/provenance.md and passed all local source, asset, notice, dependency-license, and package-closure controls.",
+    "All 406 locked packages are development-only; the runtime ZIP contains no npm dependencies. One legacy missing lockfile license field is bound to the installed package's MIT declaration and exact license-text hash.",
+    "The owner confirmed the exact provenance statement on 2026-08-17 and selected MIT for the first-party project source.",
+    "This approval does not convert Public Suffix List material or development dependencies into first-party work, provide trademark clearance, prove installed-browser behavior, or authorize public visibility."
+  ]
+}

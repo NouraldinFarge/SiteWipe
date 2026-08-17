@@ -1,0 +1,106 @@
+{
+  "status": "Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.",
+  "capturedAtUtc": "2026-08-16T19:56:25.0856380Z",
+  "environment": {
+    "operatingSystem": "Microsoft Windows 11 Pro",
+    "operatingSystemVersion": "10.0.26100",
+    "architecture": "64-bit",
+    "node": "v24.18.0",
+    "npm": "11.16.0",
+    "chrome": "151.0.7922.138",
+    "brave": "151.1.93.136"
+  },
+  "source": {
+    "path": "src",
+    "productName": "SiteWipe",
+    "version": "1.9.8",
+    "manifestVersion": 3,
+    "minimumChromeVersion": "119",
+    "fileCount": 30,
+    "byteCount": 368497,
+    "javascriptAndMjsFiles": 15,
+    "runtimeJavascriptFiles": 14,
+    "javascriptAndTestLines": 6249,
+    "textLinesExcludingBinaryImages": 7297,
+    "largestFile": {
+      "path": "background/cleanup.js",
+      "bytes": 105255,
+      "lines": 2370
+    },
+    "defaultSettings": 42,
+    "messageTypes": 26,
+    "cleanupMatrixEntries": 66,
+    "namedPermissions": 13,
+    "hostPermissions": ["<all_urls>"],
+    "manifestDescriptionCharacters": 189,
+    "runtimeDependencies": 0,
+    "explicitSelfTestAssertions": 56,
+    "embeddedDomainSelfTests": 9,
+    "gitRepository": false
+  },
+  "checks": {
+    "npmTest": {
+      "passed": true,
+      "result": "SiteWipe release self-test: all checks passed."
+    },
+    "javascriptSyntax": {
+      "passed": true,
+      "checkedFiles": 15
+    },
+    "runtimeNetworkApiScan": {
+      "passed": true,
+      "developerControlledNetworkCallsDetected": false,
+      "analyticsOrTelemetryDetected": false
+    },
+    "dynamicCodeScan": {
+      "passed": true,
+      "evalOrFunctionConstructorDetected": false
+    },
+    "archiveParity": {
+      "passed": true,
+      "matchingFiles": 30,
+      "sourceFiles": 30,
+      "archiveFiles": 30
+    }
+  },
+  "releaseArchive": {
+    "fileName": "SiteWipe_MV3_Extension_v1.9.8_repeat_use_scope_payment_safety.zip",
+    "bytes": 106800,
+    "sha256": "E1A53B3E5CC0B6506B94F402B651662571165258AAA5F5B21B30C3C8593E0BD8",
+    "historicalArchiveCount": 8,
+    "historicalVersions": ["1.9.0", "1.9.2", "1.9.3", "1.9.4", "1.9.5", "1.9.6", "1.9.7", "1.9.8"],
+    "missingHistoricalVersion": "1.9.1"
+  },
+  "files": [
+    {"path":"assets/icons/icon128.png","bytes":1951,"sha256":"7507878924011C4880F3502BE9E47120441EC6D1707C304FA59F3E32503ADCB8"},
+    {"path":"assets/icons/icon16.png","bytes":307,"sha256":"425329AE9E12127E280B2542A952343863270A194786CBA2484159FF90C08503"},
+    {"path":"assets/icons/icon32.png","bytes":554,"sha256":"25B03659680EF15751E9B74C01224BE61C43378787A31EF1214918FD3BAAF0E5"},
+    {"path":"assets/icons/icon48.png","bytes":772,"sha256":"360D53473DC083AFD314021AE8DC97802C7A0F8B230D523716463F3C310A1B6B"},
+    {"path":"background/cleanup.js","bytes":105255,"sha256":"F4A84E31799A261E78DFB79804C8E3E28683E36C8432ADCC2C2B753FA1636AFD"},
+    {"path":"background/domain.js","bytes":19308,"sha256":"3501C79C5C5D651260F0E4C0ADE10DDEF63239EFD2182D0D5099D5382E505E5B"},
+    {"path":"background/report.js","bytes":11071,"sha256":"F12EC32CD3242CC3E6D189A60AAE60CED079B6EEA4FDEB66D4D26A87C82CDF36"},
+    {"path":"background/service-worker.js","bytes":35679,"sha256":"2794CDC3859571FCC670F7DC4569DD3CDB49E67AAC03C4C87B50CFA27CD45965"},
+    {"path":"manifest.json","bytes":1459,"sha256":"FE5671F204BEE6CCC7FDD63CF51A559EF67C5EE9D2ADAFE5051495D6F372A893"},
+    {"path":"options/options.css","bytes":4645,"sha256":"1B4A294FCDAB4D392B21A97C2371C5DF956FCEA0B1C018CB9549B31948AE9557"},
+    {"path":"options/options.html","bytes":22576,"sha256":"669D73895C2DC0FDB32DA0298798C43070733174C7474805BBDB0B6C9C9E611F"},
+    {"path":"options/options.js","bytes":28212,"sha256":"09782E66A53DF8C9CD20EDA4389D2D3D82B69FA8D0F7CAC48B9F7B0A5A5B1156"},
+    {"path":"package.json","bytes":173,"sha256":"9377064F9F4DFB860B3C230F6F895DCA84076D98885A95468F6A44BF5C656F36"},
+    {"path":"popup/popup.css","bytes":3041,"sha256":"BD4D378EA055F52FCBA413BB3C8F9BADBDA9FE556FEE538670765A486AA6F029"},
+    {"path":"popup/popup.html","bytes":5273,"sha256":"B2AE13E1398DDB6238B449431B0413C6DC726D4E0B8DE271C926AE3F2DBFF9C1"},
+    {"path":"popup/popup.js","bytes":12992,"sha256":"B10341E7215EB8FAB2BE7DDFF34193C915FEC027BE10ED5BDD28B9C7E5B5B44A"},
+    {"path":"README.md","bytes":12842,"sha256":"9BDA80BB972FA69A861AAB72429E9CBC65C69DAEDC4E68D80A63CA0CAE1E0679"},
+    {"path":"shared/cleanup-mode.js","bytes":1068,"sha256":"FB282C211C628E2EA713FFCF4B0A349137201B0F800F3D7B460CA570D1CBED35"},
+    {"path":"shared/components.css","bytes":6422,"sha256":"BA0595727F7A7DBAEC2376245125A8C9868C4960CA2517404EC16CD478A244A4"},
+    {"path":"shared/constants.js","bytes":20312,"sha256":"5B6ABD3505E83DF3F32B77AF0823ABC15FC430D02E1B0F0C71BF5AB72ABED144"},
+    {"path":"shared/messaging.js","bytes":819,"sha256":"FB405C223EEDB4221F217246257A75EB491591D5EB57D7C36C2AEAC29E41F72F"},
+    {"path":"shared/report-integrity.js","bytes":1352,"sha256":"CAE9216BB245E23704255B1241C0700CCE901B24D428CF6A8A0CE35F42659C68"},
+    {"path":"shared/safety.js","bytes":3355,"sha256":"1F415112BD08F6226B420228CF5452923A4211BA74D1A29668E0EEDE940DC4DB"},
+    {"path":"shared/storage.js","bytes":12655,"sha256":"F8EC4512F5ABF6A06B2E288A9781381822AF6D53F05404A51BF1D1C74B7F6B59"},
+    {"path":"shared/target-scope.js","bytes":2160,"sha256":"4675C61F992BA2251E7B37AFF884836AA845C8285243614F07EE25CCA8854AD9"},
+    {"path":"shared/theme.css","bytes":1782,"sha256":"90BAB10E1B802DE0CB45804A10A37AB1E8DCE301AFF4A4B4B56D2DA2875D01D3"},
+    {"path":"sidepanel/sidepanel.css","bytes":1919,"sha256":"48C44603C3BD611319579AFFAF97FB05297F00014D6E749763307D136AA11A2F"},
+    {"path":"sidepanel/sidepanel.html","bytes":4319,"sha256":"DA25DF1853693532EFE1D61C8A93CE4FC1270084CCC58B48798B8807DB4BFA76"},
+    {"path":"sidepanel/sidepanel.js","bytes":33337,"sha256":"DC04642EE5693729DCE2FC52F4FF2E5EEDF682647227807D77A7A31CF0FF69A0"},
+    {"path":"test-harness/release-selftest.mjs","bytes":12887,"sha256":"7594E004C77E04746C7CEA8C25B4FDB4CFD64A77806DBABFEE160DE3C14AD316"}
+  ]
+}

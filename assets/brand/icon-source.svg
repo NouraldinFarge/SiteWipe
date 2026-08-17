@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Private candidate shield and clean-sweep icon</title>
+  <desc id="description">A white boundary shield containing two clean-sweep bars on a rounded violet-to-cyan field.</desc>
+  <defs>
+    <linearGradient id="field" x1="42" y1="470" x2="470" y2="42" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7c3aed" />
+      <stop offset="0.48" stop-color="#2563eb" />
+      <stop offset="1" stop-color="#06b6d4" />
+    </linearGradient>
+    <linearGradient id="glow" x1="110" y1="426" x2="402" y2="86" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.08" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.22" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#field)" />
+  <path d="M48 390C138 292 195 177 244 42h220v116C370 272 244 390 48 390Z" fill="url(#glow)" />
+  <path
+    d="M256 76 390 136v106c0 91-51 159-134 204-83-45-134-113-134-204V136Z"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="30"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path d="M170 210h172v46H170Z" fill="#ffffff" />
+  <path d="m190 278 132 0-32 48h-68Z" fill="#ffffff" />
+</svg>

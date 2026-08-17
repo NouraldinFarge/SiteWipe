@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "status": "owner_publication_rights_confirmed_visual_branding_pending",
+  "workingIdentity": "SiteWipe owner-approved product identity; private candidate artifact",
+  "source": "assets/brand/icon-source.svg",
+  "createdAt": "2026-08-16",
+  "origin": "Original project-controlled geometric SVG authored during the evidence-driven audit with AI assistance; no external visual asset was incorporated.",
+  "baselineRelationship": "Retains the generic boundary-shield and clean-sweep concept while replacing inherited PNG-only files whose editable-source provenance was not established.",
+  "tool": {
+    "name": "ImageMagick",
+    "version": "7.1.2-27 Q16-HDRI x64 b661ac9:20260705",
+    "commandPattern": "magick -background none icon-source.svg -resize SIZExSIZE -depth 8 -define png:color-type=6 -strip iconSIZE.png"
+  },
+  "sourceSha256": "709F150462299D41E7B832E4A8567BCBB7B714902D947E7E55DE45AD2C40C144",
+  "outputs": [
+    {
+      "path": "src/assets/icons/icon16.png",
+      "dimensions": "16x16",
+      "bytes": 779,
+      "sha256": "C317DD4BC05477829ABCD4D5E8ED6B133103AD46935DA569CA081074267A7176"
+    },
+    {
+      "path": "src/assets/icons/icon32.png",
+      "dimensions": "32x32",
+      "bytes": 1985,
+      "sha256": "269FD1798C89A2A8040F95C2DA29BEBD81CCB9E008DFD12EF899E9F8E376BE3E"
+    },
+    {
+      "path": "src/assets/icons/icon48.png",
+      "dimensions": "48x48",
+      "bytes": 3287,
+      "sha256": "5EC464DF33447B354E57004841DAA427A68441FD5DE953EDD3F3AF2FE0BD78DA"
+    },
+    {
+      "path": "src/assets/icons/icon128.png",
+      "dimensions": "128x128",
+      "bytes": 10179,
+      "sha256": "BFE86E44E39A9DC6C7AB800E1A4A881DD16537DD68939F0CA1F6A9BC4167AC16"
+    }
+  ],
+  "externalAssets": [],
+  "ownerPublicationRightsApproved": true,
+  "ownerPublicationRightsApprovedAt": "2026-08-17",
+  "ownerRightsStatement": "The owner confirmed the right to publish SiteWipe's first-party icons and assets as part of the recorded provenance statement.",
+  "finalVisualBrandApproval": false,
+  "ownerApproved": false,
+  "approvedAt": null
+}

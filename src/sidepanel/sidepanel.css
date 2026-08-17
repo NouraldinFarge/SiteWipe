@@ -1,0 +1,126 @@
+html,
+body {
+  min-width: 0;
+  min-height: 100vh;
+}
+.side-shell {
+  min-height: 100vh;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding-bottom: 4px;
+}
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.segment {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  min-height: 44px;
+}
+.segment.active {
+  color: var(--text-main);
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.36), rgba(0, 212, 255, 0.18));
+}
+.tab-panel {
+  display: none;
+}
+.tab-panel.active {
+  display: block;
+}
+.stack {
+  display: grid;
+  gap: 12px;
+}
+.panel-card {
+  padding: 16px;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.section-title span {
+  font-weight: 760;
+  font-size: 15px;
+}
+.section-title small {
+  color: var(--text-faint);
+}
+.report-grid {
+  display: grid;
+  gap: 8px;
+}
+.report-row {
+  min-width: 0;
+}
+.report-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.errors-list,
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+.event-item {
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.035);
+}
+.event-item strong {
+  display: block;
+  margin-bottom: 4px;
+}
+.event-item p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+  font-size: 12px;
+}
+.matrix {
+  overflow-x: auto;
+}
+.matrix-row {
+  min-width: 760px;
+}
+.privacy-copy {
+  color: var(--text-muted);
+  line-height: 1.58;
+}
+.empty-state {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.035);
+}
+.panel-status {
+  left: 12px;
+  right: 12px;
+}
+@media (max-width: 390px) {
+  .side-shell {
+    padding: 12px;
+  }
+  .segmented {
+    grid-template-columns: repeat(2, 1fr);
+    border-radius: var(--radius-lg);
+  }
+}

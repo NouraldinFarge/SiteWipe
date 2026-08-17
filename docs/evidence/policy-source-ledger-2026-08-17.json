@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "status": "official_sources_reviewed_local_assessment_only",
+  "checkedAt": "2026-08-17T14:38:11.519Z",
+  "scope": "Chrome Web Store and Chrome Extensions policy/permission guidance relevant to SiteWipe",
+  "sources": [
+    {
+      "title": "Quality guidelines",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/quality-guidelines/",
+      "pageLastUpdated": "2024-07-10",
+      "conclusion": "An extension should have a narrow, easy-to-understand single purpose. SiteWipe's listing and runtime must stay confined to reviewed site-scoped browser-data cleanup."
+    },
+    {
+      "title": "Permissions policy",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/permissions/",
+      "pageLastUpdated": "2022-11-01",
+      "conclusion": "Request the narrowest permissions needed for current features and do not retain permissions for possible future use."
+    },
+    {
+      "title": "Permissions API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/permissions",
+      "pageLastUpdated": "2026-01-07",
+      "conclusion": "Optional permissions and host permissions should be requested as subsets from a user gesture and can be queried or removed; SiteWipe uses final reviewed activation and durable ownership tracking."
+    },
+    {
+      "title": "Declare permissions",
+      "url": "https://developer.chrome.com/docs/extensions/develop/concepts/declare-permissions",
+      "pageLastUpdated": "2024-02-05",
+      "conclusion": "Host access grants substantial site capability, optional host permissions reduce install-time authority, and incognito access remains browser-controlled."
+    },
+    {
+      "title": "User data FAQ",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/user-data-faq/",
+      "pageLastUpdated": "page footer reports 2016-04-23; content was reviewed live on checkedAt",
+      "conclusion": "Browsing URLs and cookies are user data even when processed or stored locally; privacy policy and dashboard disclosures must accurately cover collection, use, retention, and sharing."
+    },
+    {
+      "title": "Limited Use requirements",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/limited-use/",
+      "pageLastUpdated": "2022-11-01",
+      "conclusion": "User data may be used only as necessary for the disclosed single purpose; browsing activity use must support a user-facing feature and not advertising, and transfer restrictions/affirmative disclosure apply."
+    },
+    {
+      "title": "Disclosure requirements",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/disclosure-requirements",
+      "pageLastUpdated": "2022-11-01",
+      "conclusion": "Data handling must be transparent; unexpected collection or use requires prominent disclosure and consent. SiteWipe's destructive effects and local retention must be visible before use."
+    },
+    {
+      "title": "Manifest V3 requirements",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements",
+      "pageLastUpdated": "2024-04-03",
+      "conclusion": "Extension logic must be self-contained and remote executable code is prohibited. The release scanner and runtime closure enforce this boundary."
+    },
+    {
+      "title": "Minimum functionality",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/minimum-functionality",
+      "pageLastUpdated": "2022-11-01",
+      "conclusion": "The submitted artifact must provide functional value and not be broken or merely a launcher; exact-artifact installed validation remains necessary."
+    },
+    {
+      "title": "Chrome Web Store listing",
+      "url": "https://developer.chrome.com/docs/webstore/cws-dashboard-listing",
+      "pageLastUpdated": "2020-12-07",
+      "conclusion": "The listing uses a 128px icon, one to five 1280x800 screenshots, an optional YouTube video field, and promotional image fields described on the page. The page is internally ambiguous about marquee optionality, so the live dashboard must be verified at action time."
+    },
+    {
+      "title": "Troubleshooting Chrome Web Store violations",
+      "url": "https://developer.chrome.com/docs/webstore/troubleshooting/",
+      "pageLastUpdated": "current page reviewed on checkedAt",
+      "conclusion": "Test the exact submitted artifact and review excessive permissions, metadata, deceptive behavior, privacy, and functionality before submission."
+    },
+    {
+      "title": "Unexpected behavior",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/unexpected-behavior",
+      "pageLastUpdated": "current page reviewed on checkedAt",
+      "conclusion": "Product behavior and disclosures must match user expectations; destructive effects must not be hidden behind permissions or vague primary actions."
+    },
+    {
+      "title": "Listing requirements",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/listing-requirements",
+      "pageLastUpdated": "current page reviewed on checkedAt",
+      "conclusion": "Listing metadata and media must accurately represent the extension and may not claim unverified functionality or identity."
+    }
+  ],
+  "aiAssistanceDisclosureFinding": {
+    "status": "no_specific_requirement_identified_in_reviewed_official_sources",
+    "limitation": "This is a dated technical search result, not a timeless legal or store-dashboard conclusion. Recheck official policy and dashboard fields at submission time."
+  },
+  "siteWipeAssessment": {
+    "singlePurpose": "technically aligned; final listing review pending",
+    "leastPrivilege": "no required host patterns; exact optional subsets; required named-permission rationale documented; installed prompt validation pending",
+    "userData": "local processing still treated as user data; privacy policy and store disclosures pending hosted/final review",
+    "remoteCode": "source scanners and runtime closure report no project-controlled remote code; exact artifact revalidation pending",
+    "publicationStatus": "blocked"
+  }
+}

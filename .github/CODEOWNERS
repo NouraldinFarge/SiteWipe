@@ -1,0 +1,4 @@
+# Publication blocker: the owner has not supplied or approved a GitHub handle.
+# Add a verified maintainer pattern such as `* @approved-handle` before enabling
+# required CODEOWNERS review. Do not invent an account or ownership claim.
+

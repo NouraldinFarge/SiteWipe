@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "status": "owner_selected_sitewipe_known_collisions_legal_review_open",
+  "checkedAt": "2026-08-16",
+  "workingCodename": "SiteWipe",
+  "approvedName": "SiteWipe",
+  "ownerApprovedAt": "2026-08-16T22:36:47-05:00",
+  "ownerStatement": "Product identity/name is SiteWipe; this is custom made.",
+  "selectedNameFindings": {
+    "chromeWebStoreExactNameListings": [
+      {
+        "extensionId": "jkpagdcphgjehcbcbmpklodjjjnhcbjp",
+        "observedVersion": "2.0.1",
+        "url": "https://chromewebstore.google.com/detail/sitewipe/jkpagdcphgjehcbcbmpklodjjjnhcbjp"
+      },
+      {
+        "extensionId": "hopjcfadgicekhdaamknhjccoliddehc",
+        "observedVersion": "1.0.1",
+        "url": "https://chromewebstore.google.com/detail/sitewipe/hopjcfadgicekhdaamknhjccoliddehc"
+      }
+    ],
+    "firefoxExactNameListing": {
+      "slug": "sitewipe",
+      "observedVersion": "1.0",
+      "url": "https://addons.mozilla.org/en-US/firefox/addon/sitewipe/"
+    },
+    "conclusion": "Owner-selected custom identity with known exact-name browser-extension collisions; uniqueness and legal clearance are not claimed."
+  },
+  "method": {
+    "chromeWebStore": "Exact search-page query; result-card count compared with a positive-control SiteWipe query.",
+    "github": "Public repository Search API using broad compound and exact-name queries.",
+    "npm": "Exact lowercase package lookup against the public registry.",
+    "generalWeb": "Exact quoted compound-term search plus contextual review of returned results.",
+    "domain": "Verisign .com RDAP exact-domain lookup; 404 interpreted only as no registration observed.",
+    "usTrademark": "USPTO Trademark Search wordmarkExact query for compound and spaced forms, live and dead records.",
+    "internationalTrademark": "Search-engine index checks restricted to WIPO and TMview; direct interactive-database review not completed."
+  },
+  "positiveControls": {
+    "chromeWebStoreSiteWipeProductCards": 2
+  },
+  "candidates": [
+    {
+      "rank": 1,
+      "name": "OriginSieve",
+      "pronunciation": "OR-ih-jin siv",
+      "chromeWebStoreProductCards": 0,
+      "githubExactRepositories": 0,
+      "npmExactPackageObserved": false,
+      "generalWebExactSoftwareCollisionObserved": false,
+      "dotComRegistrationObserved": false,
+      "usptoExactCompoundRecords": 0,
+      "usptoExactSpacedRecords": 0,
+      "internationalDirectDatabaseReview": "pending"
+    },
+    {
+      "rank": 2,
+      "name": "OriginCordon",
+      "pronunciation": "OR-ih-jin KOR-don",
+      "chromeWebStoreProductCards": 0,
+      "githubExactRepositories": 0,
+      "npmExactPackageObserved": false,
+      "generalWebExactSoftwareCollisionObserved": false,
+      "dotComRegistrationObserved": false,
+      "usptoExactCompoundRecords": 0,
+      "usptoExactSpacedRecords": 0,
+      "internationalDirectDatabaseReview": "pending"
+    },
+    {
+      "rank": 3,
+      "name": "TraceCordon",
+      "pronunciation": "TRAYS KOR-don",
+      "chromeWebStoreProductCards": 0,
+      "githubExactRepositories": 0,
+      "npmExactPackageObserved": false,
+      "generalWebExactSoftwareCollisionObserved": false,
+      "dotComRegistrationObserved": false,
+      "usptoExactCompoundRecords": 0,
+      "usptoExactSpacedRecords": 0,
+      "internationalDirectDatabaseReview": "pending"
+    },
+    {
+      "rank": 4,
+      "name": "TidyOrigin",
+      "pronunciation": "TIE-dee OR-ih-jin",
+      "chromeWebStoreProductCards": 0,
+      "githubExactRepositories": 0,
+      "npmExactPackageObserved": false,
+      "generalWebExactSoftwareCollisionObserved": false,
+      "dotComRegistrationObserved": false,
+      "usptoExactCompoundRecords": 0,
+      "usptoExactSpacedRecords": 0,
+      "internationalDirectDatabaseReview": "pending"
+    },
+    {
+      "rank": 5,
+      "name": "ScopeScour",
+      "pronunciation": "SKOHP SKOW-er",
+      "chromeWebStoreProductCards": 0,
+      "githubExactRepositories": 0,
+      "npmExactPackageObserved": false,
+      "generalWebExactSoftwareCollisionObserved": false,
+      "dotComRegistrationObserved": false,
+      "usptoExactCompoundRecords": 0,
+      "usptoExactSpacedRecords": 0,
+      "internationalDirectDatabaseReview": "pending"
+    },
+    {
+      "rank": 6,
+      "name": "BoundaryBroom",
+      "pronunciation": "BOUND-uh-ree BROOM",
+      "chromeWebStoreProductCards": 0,
+      "githubExactRepositories": 0,
+      "npmExactPackageObserved": false,
+      "generalWebExactSoftwareCollisionObserved": false,
+      "dotComRegistrationObserved": false,
+      "usptoExactCompoundRecords": 0,
+      "usptoExactSpacedRecords": 0,
+      "internationalDirectDatabaseReview": "pending"
+    },
+    {
+      "rank": 7,
+      "name": "CleanCordon",
+      "pronunciation": "KLEEN KOR-don",
+      "chromeWebStoreProductCards": 0,
+      "githubExactRepositories": 0,
+      "npmExactPackageObserved": false,
+      "generalWebExactSoftwareCollisionObserved": false,
+      "dotComRegistrationObserved": false,
+      "usptoExactCompoundRecords": 0,
+      "usptoExactSpacedRecords": 0,
+      "internationalDirectDatabaseReview": "pending"
+    },
+    {
+      "rank": 8,
+      "name": "CacheCordon",
+      "pronunciation": "CASH KOR-don",
+      "chromeWebStoreProductCards": 0,
+      "githubExactRepositories": 0,
+      "npmExactPackageObserved": false,
+      "generalWebExactSoftwareCollisionObserved": false,
+      "generalWebNonSoftwareLinguisticCollision": "French cache-cordon/cable-cover text",
+      "dotComRegistrationObserved": false,
+      "usptoExactCompoundRecords": 0,
+      "usptoExactSpacedRecords": 0,
+      "internationalDirectDatabaseReview": "pending"
+    }
+  ],
+  "rejected": [
+    {
+      "name": "SiloSweep",
+      "reason": "Current Apple-platform application collision observed."
+    },
+    {
+      "name": "ScopeSweep",
+      "reason": "GitHub repository collision observed."
+    },
+    {
+      "name": "TraceSieve",
+      "reason": "GitHub repository collision observed."
+    }
+  ],
+  "limitations": [
+    "No result is a legal clearance conclusion.",
+    "Availability can change after the snapshot.",
+    "Direct WIPO, TMview, national-office, phonetic, translation, related-owner, and goods/services-class review remains pending.",
+    "Domain status means only no registration was observed through the queried RDAP endpoint.",
+    "The owner approved the SiteWipe product identity but has not approved a public version.",
+    "Exact-name marketplace collisions create user-confusion and store-discoverability risk even if legal review later permits use."
+  ],
+  "sources": [
+    "https://chromewebstore.google.com/",
+    "https://chromewebstore.google.com/detail/sitewipe/jkpagdcphgjehcbcbmpklodjjjnhcbjp",
+    "https://chromewebstore.google.com/detail/sitewipe/hopjcfadgicekhdaamknhjccoliddehc",
+    "https://addons.mozilla.org/en-US/firefox/addon/sitewipe/",
+    "https://api.github.com/search/repositories",
+    "https://registry.npmjs.org/",
+    "https://rdap.verisign.com/com/v1/",
+    "https://tmsearch.uspto.gov/search/",
+    "https://www.wipo.int/en/web/global-brand-database",
+    "https://www.tmdn.org/tmview/"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "status": "not_applicable_retired",
+  "ownerApproved": false,
+  "approvedBy": null,
+  "approvedAt": null,
+  "reviewedVersion": null,
+  "reviewedArtifactSha256": null,
+  "acknowledgements": {
+    "standardAndExpertOneClickScope": false,
+    "noPerRunSiteWipeScopeOrImpactReview": false,
+    "irreversibleFileAndBrowserDataEffects": false,
+    "browserPermissionPromptIsNotCleanupConsent": false
+  },
+  "note": "The complete-review bypass was removed before publication. This historical record remains false and unbound so it cannot be mistaken for approval or used to reintroduce the retired consent model."
+}

@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SiteWipe Options</title>
+    <link rel="stylesheet" href="../shared/theme.css" />
+    <link rel="stylesheet" href="../shared/components.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="app-shell options-shell">
+      <aside class="rail">
+        <div class="brand rail-brand">
+          <div class="logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 2.75 4.25 5.8v5.55c0 4.95 3.25 8.52 7.75 9.9 4.5-1.38 7.75-4.95 7.75-9.9V5.8L12 2.75Z"
+                stroke="white"
+                stroke-width="1.7"
+              />
+              <path d="M8.5 12.2h7M9.8 15h4.4M10.7 9.4h2.6" stroke="white" stroke-width="1.7" stroke-linecap="round" />
+            </svg>
+          </div>
+          <div>
+            <div class="brand-title">SiteWipe</div>
+            <div class="brand-subtitle">Options</div>
+          </div>
+        </div>
+        <nav class="rail-nav" aria-label="Options sections">
+          <a href="#privacy">Privacy</a>
+          <a href="#permissions">Permissions</a>
+          <a href="#incognito">Private access</a>
+          <a href="#accessibility">Accessibility</a>
+          <a href="#shield">Shield</a>
+          <a href="#maintenance">Maintenance</a>
+          <a href="#advanced">Advanced</a>
+        </nav>
+      </aside>
+
+      <section class="content">
+        <header class="page-hero">
+          <div>
+            <div class="eyebrow">Control center</div>
+            <h1>Privacy, permissions, and transparency.</h1>
+            <p>
+              SiteWipe stores settings and optional cleanup reports locally in this browser profile. It does not use
+              remote code or send cleanup data to a server.
+            </p>
+          </div>
+          <span id="incognitoBadge" class="badge warning" role="status" aria-live="polite">Private: checking…</span>
+        </header>
+
+        <section class="card warning candidate-notice" role="note" aria-label="Private candidate warning">
+          <strong>Private release candidate — use only in disposable Chrome or Brave profiles</strong>
+          <span
+            >It is not approved for publication or everyday browser profiles. Browser and accessibility evidence remains
+            pending.</span
+          >
+        </section>
+
+        <section id="privacy" class="card settings-card">
+          <div class="section-title"><span>Privacy dashboard</span><small>Extension-local data only</small></div>
+          <fieldset class="settings-fieldset">
+            <legend class="sr-only">Privacy and cleanup settings</legend>
+            <div class="setting-row">
+              <div>
+                <strong>Cleanup mode</strong>
+                <p id="cleanupModeHelp">
+                  Standard mode keeps cleanup targeted to the selected site. Expert mode enables configurable expanded
+                  and destructive options.
+                </p>
+              </div>
+              <select id="cleanupMode" class="input compact-select">
+                <option value="standard">Standard (recommended)</option>
+                <option value="expert">Expert</option>
+              </select>
+            </div>
+            <div class="setting-row setting-info" role="note">
+              <div>
+                <strong>Cleanup review is always required</strong>
+                <p>
+                  Standard and Expert cleanup both show a fresh, read-only summary of the exact scope, configured
+                  effects, known limits, impact counts, private-window reach, and any file deletion. Cleanup cannot
+                  start until you review that summary and explicitly approve the run.
+                </p>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Keep local cleanup history</strong>
+                <p>
+                  Stores recent SiteWipe reports in chrome.storage.local for side panel review. Off by default in the
+                  performance build; the latest report is still shown after a run.
+                </p>
+              </div>
+              <label class="switch"><input id="keepHistory" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Report retention</strong>
+                <p>
+                  When local cleanup history is enabled, automatically prunes reports older than this window before
+                  saving a new report. The latest report is still shown after a run unless you forget it.
+                </p>
+              </div>
+              <select id="reportRetentionDays" class="input compact-select">
+                <option value="1">1 day</option>
+                <option value="7">7 days</option>
+                <option value="30">30 days</option>
+                <option value="90">90 days</option>
+                <option value="0">No age limit</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Auto-forget latest report</strong>
+                <p>
+                  The latest locally stored report is redacted by default and expires after 30 minutes. Choosing
+                  indefinite retention is an explicit privacy opt-in. Cleanup history retention controls the separate
+                  history list.
+                </p>
+              </div>
+              <select id="latestReportRetentionMinutes" class="input compact-select">
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes (safe default)</option>
+                <option value="60">1 hour</option>
+                <option value="240">4 hours</option>
+                <option value="1440">1 day</option>
+                <option value="0">Keep indefinitely (privacy risk)</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Browser permission rules stay under your control</strong>
+                <p>
+                  SiteWipe no longer adds default-like browser permission or content-setting rules, because they can
+                  override intentional user, policy, or other-extension choices. Existing SiteWipe-owned rules from
+                  earlier releases are cleared when you upgrade.
+                </p>
+              </div>
+              <span class="badge">Preserved</span>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Run browser cookie sweep</strong>
+                <p>
+                  After enumerating and deleting matching cookies directly, also asks Chrome to remove target-domain
+                  cookies through origin-scoped browsingData cleanup.
+                </p>
+              </div>
+              <label class="switch"><input id="aggressiveCookieSweep" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Include installed/protected site data</strong>
+                <p>
+                  Also cleans protected web origins for the target, such as installed app/PWA data. Off by default
+                  because it doubles some browsingData cleanup work.
+                </p>
+              </div>
+              <label class="switch"><input id="includeProtectedWebOrigins" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Scrub live page storage before closing tabs</strong>
+                <p>
+                  Injects a one-time cleanup pass into matching open pages and frames to clear page-visible
+                  sessionStorage, localStorage, Cache API entries, IndexedDB databases, Storage Buckets, visible
+                  cookies, and service worker registrations before tabs close.
+                </p>
+              </div>
+              <label class="switch"><input id="pageScriptScrub" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Delete live Storage Buckets</strong>
+                <p>
+                  When the selected site exposes the Storage Buckets API in an open page, deletes those buckets during
+                  the live scrub. Off by default because some pages expose slow bucket operations.
+                </p>
+              </div>
+              <label class="switch"><input id="storageBucketScrub" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Discover embedded target frames</strong>
+                <p>
+                  Optional deeper scan: checks open tab frames so SiteWipe can clean target data loaded inside iframes
+                  on other pages. Off by default for better performance.
+                </p>
+              </div>
+              <label class="switch"><input id="embeddedFrameDiscovery" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Probe partitioned cookies by embedding site</strong>
+                <p>
+                  Optional deeper scan: uses discovered top-level pages that embedded the target as additional
+                  partition-key probes for CHIPS/partitioned cookie deletion. Off by default for speed.
+                </p>
+              </div>
+              <label class="switch"
+                ><input id="probePartitionedCookiesWithEmbeddingSites" type="checkbox" /><span></span
+              ></label>
+            </div>
+            <div class="setting-row danger-row">
+              <div>
+                <strong>Exhaustive preflight-bound target cookie scan</strong>
+                <p>
+                  Slow opt-in mode: enumerates cookies exposed under the temporary preflight-bound target permissions
+                  before applying the same target matcher. It does not grant access to unrelated sites.
+                </p>
+              </div>
+              <label class="switch"><input id="exhaustiveCookieStoreScan" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Use capped recent-download fallback</strong>
+                <p>
+                  Searches a small recent slice of all download records after normal domain queries. Off by default for
+                  speed; enable only if normal download cleanup misses records.
+                </p>
+              </div>
+              <label class="switch"><input id="downloadRecentFallback" type="checkbox" /><span></span></label>
+            </div>
+
+            <div class="setting-row">
+              <div>
+                <strong>Verify exposed residue after cleanup</strong>
+                <p>
+                  After a normal cleanup, re-checks exposed cookies, open target tabs, history URLs, and download
+                  records. On by default; no hidden browser internals are claimed.
+                </p>
+              </div>
+              <label class="switch"><input id="verificationPass" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Use broad history/download fallback terms</strong>
+                <p>
+                  Optional performance tradeoff: after precise domain searches, also queries the registrable first label
+                  such as
+                  <span class="mono">example</span>. Off by default because short or generic labels can create huge
+                  result sets.
+                </p>
+              </div>
+              <label class="switch"><input id="broadDiscoveryFallback" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Block target requests during cleanup</strong>
+                <p>
+                  Uses MV3 Declarative Net Request session rules to stop the target from immediately recreating storage
+                  while SiteWipe is running. On by default.
+                </p>
+              </div>
+              <label class="switch"><input id="temporaryDnrShield" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Show cleanup progress on pages</strong>
+                <p>
+                  Draws a small bottom-right progress overlay in accessible http/https tabs while SiteWipe is running,
+                  updates it between cleanup phases, then removes it when cleanup finishes. Restricted pages such as
+                  chrome:// cannot be overlaid.
+                </p>
+              </div>
+              <label class="switch"><input id="progressOverlay" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Show cancel button in progress overlay</strong>
+                <p>
+                  Adds a Request cancel button to the page overlay. Cancellation is cooperative: SiteWipe stops before
+                  the next major phase rather than interrupting a destructive browser operation mid-call.
+                </p>
+              </div>
+              <label class="switch"><input id="progressOverlayCancelButton" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Progress overlay scope</strong>
+                <p>
+                  Choose where the page overlay appears during a cleanup. Target tabs is quietest but may disappear once
+                  matching tabs are closed.
+                </p>
+              </div>
+              <select id="overlayScope" class="input compact-select">
+                <option value="target_tabs">Target tabs only (recommended)</option>
+                <option value="current_window">Current window only</option>
+                <option value="all_tabs">All accessible tabs</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Keep target blocked until browser restart</strong>
+                <p>
+                  Optional post-wipe shield: leaves the target-domain session request block active after cleanup. Off by
+                  default because it can break sites until disabled or the browser restarts.
+                </p>
+              </div>
+              <label class="switch"><input id="postWipeSessionBlock" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Post-wipe shield expiration</strong>
+                <p>
+                  When the post-wipe shield is enabled, optionally clear SiteWipe's target block after a short local
+                  timer instead of waiting for browser restart.
+                </p>
+              </div>
+              <select id="postWipeShieldExpiresMinutes" class="input compact-select">
+                <option value="0">No timer / until restart</option>
+                <option value="15">15 minutes</option>
+                <option value="60">1 hour</option>
+                <option value="240">4 hours</option>
+                <option value="1440">1 day</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Reset saved site zoom</strong>
+                <p>
+                  Resets open target tabs to the browser default zoom factor before tabs are closed, which clears
+                  Chrome's per-origin zoom memory for those tabs.
+                </p>
+              </div>
+              <label class="switch"><input id="resetZoom" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Reset muted target tabs</strong>
+                <p>
+                  Optional: unmutes target tabs before closing them. Off by default because muting can be an intentional
+                  user preference.
+                </p>
+              </div>
+              <label class="switch"><input id="resetMutedTabs" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Unpin target tabs</strong>
+                <p>
+                  Optional: unpins target tabs before closing them and records pin/group/window details in the report.
+                </p>
+              </div>
+              <label class="switch"><input id="unpinTargetTabs" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Delete OPFS data from live pages</strong>
+                <p>
+                  Uses navigator.storage.getDirectory() in matching open pages where available to remove Origin Private
+                  File System entries, capped for performance.
+                </p>
+              </div>
+              <label class="switch"><input id="opfsScrub" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Clean push and sync registrations</strong>
+                <p>
+                  Before unregistering service workers, tries to unsubscribe push subscriptions and unregister
+                  periodic-sync tags. One-off Background Sync tags are recorded as evidence because the web API has no
+                  tag-level unregister operation.
+                </p>
+              </div>
+              <label class="switch"><input id="serviceWorkerExtraScrub" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Clear PWA/app badge</strong>
+                <p>Calls navigator.clearAppBadge() in matching live pages where supported.</p>
+              </div>
+              <label class="switch"><input id="appBadgeClear" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Audit live page permissions</strong>
+                <p>
+                  Queries page-visible permission states such as notifications, camera, microphone, geolocation,
+                  clipboard, MIDI, and persistent storage when supported.
+                </p>
+              </div>
+              <label class="switch"><input id="permissionAudit" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row danger-row">
+              <div>
+                <strong>Delete matched downloaded files from disk</strong>
+                <p>
+                  Optional destructive mode: removes completed files on disk for matched target download records, then
+                  erases those download-history entries. Leave off unless you want SiteWipe to delete files.
+                </p>
+              </div>
+              <label class="switch"><input id="deleteDownloadedFiles" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Autofill and payment methods are protected</strong>
+                <p>
+                  Chrome couples global form-data cleanup with saved autofill profiles and payment cards. SiteWipe does
+                  not call that profile-wide removal API because it cannot safely delete autofill while preserving
+                  payment methods.
+                </p>
+              </div>
+              <span class="badge success">Protected</span>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Redact stored cleanup reports</strong>
+                <p>
+                  Safe default. Removes target domains, URLs, referrers, filenames, local paths, extension IDs, and
+                  sensitive free-form error text before local storage. Turning this off stores sensitive browsing
+                  details and requires informed opt-in.
+                </p>
+              </div>
+              <label class="switch"><input id="redactReports" type="checkbox" /><span></span></label>
+            </div>
+          </fieldset>
+          <div class="button-row">
+            <button id="clearReports" class="btn danger" type="button">Delete all local reports</button>
+          </div>
+        </section>
+
+        <section id="permissions" class="card settings-card">
+          <div class="section-title"><span>Permission explanation</span><small>Why each API is used</small></div>
+          <div id="permissionCards" class="permission-grid"></div>
+        </section>
+
+        <section id="incognito" class="card settings-card">
+          <div class="section-title"><span>Incognito/private setup</span><small>Manual browser control</small></div>
+          <ol class="steps">
+            <li>Open <span class="mono">chrome://extensions</span> or <span class="mono">brave://extensions</span>.</li>
+            <li>Find SiteWipe and choose <strong>Details</strong>.</li>
+            <li>Enable <strong>Allow in incognito</strong>.</li>
+            <li>
+              Review and run cleanup again. The popup and report will show whether private cleanup access is available.
+            </li>
+          </ol>
+          <p class="help-text">
+            SiteWipe never claims private cleanup happened unless Chrome/Brave exposes incognito access to the
+            extension.
+          </p>
+        </section>
+
+        <section id="accessibility" class="card settings-card">
+          <div class="section-title"><span>Accessibility</span><small>Readable and motion-safe</small></div>
+          <fieldset class="settings-fieldset">
+            <legend class="sr-only">Accessibility settings</legend>
+            <div class="setting-row">
+              <div>
+                <strong>Reduced motion</strong>
+                <p>Disables non-essential animation and shimmer.</p>
+              </div>
+              <label class="switch"><input id="reducedMotion" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>High contrast dark</strong>
+                <p>Increases text and border contrast across popup, side panel, and options.</p>
+              </div>
+              <label class="switch"><input id="highContrast" type="checkbox" /><span></span></label>
+            </div>
+          </fieldset>
+        </section>
+
+        <section id="shield" class="card settings-card">
+          <div class="section-title"><span>Active request shield</span><small>Session DNR cleanup</small></div>
+          <p id="activeShieldText" class="help-text" role="status" aria-live="polite">Checking active shield…</p>
+          <fieldset class="settings-fieldset">
+            <legend class="sr-only">Request shield recovery settings</legend>
+            <div class="setting-row">
+              <div>
+                <strong>Auto-repair orphaned SiteWipe shields</strong>
+                <p>
+                  During scheduled maintenance, clear SiteWipe-owned DNR request-blocking rules when no active shield
+                  record exists. This prevents stale local request blocks after browser interruptions.
+                </p>
+              </div>
+              <label class="switch"><input id="autoRepairOrphanedShields" type="checkbox" /><span></span></label>
+            </div>
+          </fieldset>
+          <div class="button-row">
+            <button id="clearShield" class="btn secondary" type="button">Clear active post-wipe shield</button
+            ><button id="repairShield" class="btn ghost" type="button">Repair shield state</button>
+          </div>
+        </section>
+
+        <section id="maintenance" class="card settings-card">
+          <div class="section-title">
+            <span>Scheduled maintenance</span><small>Local cleanup of SiteWipe state</small>
+          </div>
+          <p id="maintenanceText" class="help-text" role="status" aria-live="polite">Checking maintenance state…</p>
+          <div class="button-row">
+            <button id="runMaintenanceNow" class="btn secondary" type="button">Run maintenance now</button
+            ><button id="resetExtensionState" class="btn danger" type="button">Reset SiteWipe local state</button>
+          </div>
+        </section>
+
+        <section id="job" class="card settings-card">
+          <div class="section-title"><span>Active cleanup job</span><small>Recovery status</small></div>
+          <p id="activeJobText" class="help-text" role="status" aria-live="polite">Checking active cleanup job…</p>
+          <div class="button-row">
+            <button id="clearActiveJob" class="btn secondary" type="button">Clear stale job status</button>
+          </div>
+        </section>
+
+        <section id="advanced" class="card settings-card">
+          <div class="section-title"><span>Advanced</span><small>Debug and reset</small></div>
+          <fieldset class="settings-fieldset">
+            <legend class="sr-only">Advanced and diagnostic settings</legend>
+            <div class="setting-row">
+              <div>
+                <strong>Allow exact-origin localhost/IP cleanup</strong>
+                <p>
+                  Advanced developer mode for local apps and IP-address targets. Requires a full http/https origin such
+                  as http://localhost:3000. Tabs/storage/history/downloads match the exact origin; cookies are
+                  host-scoped because browser cookies are not port-scoped.
+                </p>
+              </div>
+              <label class="switch"><input id="allowLocalTargets" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Block cleanup when associated groups have errors</strong>
+                <p>
+                  Safer default: if associated-domain group syntax has errors, SiteWipe stops before any cleanup instead
+                  of silently cleaning only the primary target or a partial group.
+                </p>
+              </div>
+              <label class="switch"><input id="blockOnAssociatedGroupErrors" type="checkbox" /><span></span></label>
+            </div>
+            <div class="setting-row stack-row">
+              <div>
+                <strong>Associated-domain cleanup groups</strong>
+                <p>
+                  Optional advanced mapping for configured related domains. Use one group per line:
+                  <span class="mono">primary.example =&gt; cdn.example, login.example</span>. When the primary is
+                  cleaned, the associated targets are included too.
+                </p>
+                <textarea
+                  id="associatedDomainGroups"
+                  class="input multiline-input"
+                  rows="5"
+                  spellcheck="false"
+                  placeholder="example.com =&gt; examplecdn.com, example-login.com"
+                  aria-describedby="associatedGroupsDiagnostics"
+                  aria-invalid="false"
+                ></textarea>
+                <div
+                  id="associatedGroupsDiagnostics"
+                  class="diagnostic-box"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  No associated-domain groups configured.
+                </div>
+              </div>
+            </div>
+            <div class="setting-row stack-row">
+              <div>
+                <strong>Settings backup and restore</strong>
+                <p>
+                  Export your SiteWipe settings to a local JSON file, or import a previously exported settings file.
+                  Imports are sanitized and only known settings keys are applied; reports and browser website data are
+                  not imported.
+                </p>
+                <div class="button-row">
+                  <button id="exportSettings" class="btn secondary" type="button">Export settings JSON</button
+                  ><button id="importSettings" class="btn ghost" type="button">Import settings JSON</button
+                  ><button id="copySettingsSummary" class="btn ghost" type="button">Copy settings summary</button>
+                </div>
+                <input
+                  id="settingsImportFile"
+                  type="file"
+                  accept="application/json,.json"
+                  aria-label="Choose a SiteWipe settings JSON file"
+                  hidden
+                />
+                <pre
+                  id="settingsPortabilityOutput"
+                  class="debug-output"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Settings portability status"
+                >
+No settings import/export action yet.</pre>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div>
+                <strong>Advanced debug log</strong>
+                <p>Stores recent SiteWipe runtime events locally. Useful for troubleshooting.</p>
+              </div>
+              <label class="switch"><input id="debugLog" type="checkbox" /><span></span></label>
+            </div>
+          </fieldset>
+          <pre id="debugOutput" class="debug-output" role="log" aria-live="polite" aria-label="Debug log"></pre>
+          <div class="button-row">
+            <button id="runSelfTests" class="btn secondary" type="button">Run built-in self-tests</button>
+            <button id="clearDebug" class="btn secondary" type="button">Clear debug log</button>
+            <button id="resetSettings" class="btn danger" type="button">Reset extension settings</button>
+          </div>
+          <pre id="selfTestOutput" class="debug-output" role="status" aria-live="polite" aria-label="Self-test results">
+Self-tests not run.</pre>
+        </section>
+      </section>
+      <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

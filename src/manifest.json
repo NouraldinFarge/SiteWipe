@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "SiteWipe",
+  "version": "1.11.2",
+  "description": "Review browser-exposed data for one site, approve the scope, then clear it with local reports, recovery, and best-effort checks.",
+  "minimum_chrome_version": "119",
+  "incognito": "spanning",
+  "action": {
+    "default_title": "SiteWipe",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon16.png",
+      "32": "assets/icons/icon32.png",
+      "48": "assets/icons/icon48.png",
+      "128": "assets/icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "32": "assets/icons/icon32.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "options_page": "options/options.html",
+  "permissions": [
+    "browsingData",
+    "cookies",
+    "tabs",
+    "history",
+    "downloads",
+    "storage",
+    "scripting",
+    "declarativeNetRequest",
+    "sidePanel",
+    "alarms"
+  ],
+  "optional_permissions": ["webNavigation"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
+  }
+}

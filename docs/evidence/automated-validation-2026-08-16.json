@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "status": "version_bumped_pending_validation",
+  "validatedAt": null,
+  "releaseState": "Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.",
+  "environment": {
+    "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
+    "osArchitecture": "X64",
+    "processArchitecture": "X64",
+    "node": "v24.18.0",
+    "npm": "11.16.0"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "pending",
+    "format": "passed",
+    "versionContract": {
+      "status": "pending",
+      "version": "1.11.1",
+      "runtimeFiles": 50,
+      "runtimeFingerprintSha256": null
+    },
+    "syntaxModules": 93,
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "htmlValidation": "passed",
+    "cssValidation": "passed",
+    "manifest": {
+      "status": "passed",
+      "version": "1.11.1",
+      "descriptionCharacters": 115,
+      "descriptionMaximum": 132,
+      "requiredNamedPermissions": 10
+    },
+    "remoteCodeAndRuntimeSecretScan": {
+      "status": "passed",
+      "runtimeFiles": 49
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 181
+    },
+    "dependencyLicenseInventory": {
+      "status": "passed",
+      "runtimeDependencies": 0,
+      "lockedDevelopmentGraph": 406,
+      "metadataExceptionsResolved": 1
+    },
+    "thirdPartyNoticeAndPslHash": "passed",
+    "iconSourceAndPngProvenance": "passed",
+    "documentation": {
+      "status": "passed",
+      "markdownFiles": 34
+    },
+    "githubActionPins": {
+      "status": "passed",
+      "references": 10
+    },
+    "runtimeAllowlist": {
+      "status": "passed",
+      "runtimeFiles": 49,
+      "sourceOnlyFiles": 3
+    },
+    "legacyReleaseSelfTest": "passed",
+    "nodeTests": {
+      "tests": 214,
+      "suites": 0,
+      "passed": 214,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "tests": 7,
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "passed",
+    "all": {
+      "statements": 85.24,
+      "branches": 62.27,
+      "functions": 81.62,
+      "lines": 85.24
+    },
+    "shared": {
+      "statements": 98.49,
+      "branches": 75.79,
+      "functions": 86.15,
+      "lines": 98.49
+    },
+    "background": {
+      "statements": 63.38,
+      "branches": 53.71,
+      "functions": 78.16,
+      "lines": 63.38
+    },
+    "serviceWorker": {
+      "statements": 48.58,
+      "branches": 26.95,
+      "functions": 68.88,
+      "lines": 48.58
+    },
+    "interpretation": "Coverage is a navigation aid, not a safety score. Low browser-adapter and worker coverage remains a publication risk."
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=moderate",
+    "status": "passed",
+    "knownVulnerabilities": 0,
+    "runtimeDependencies": 0,
+    "lockedDevelopmentGraph": 406
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "passed",
+    "installedChromeRun": "pending",
+    "installedBraveRun": "pending"
+  },
+  "gitInitialization": {
+    "status": "initialized_candidate_root_only",
+    "branch": "main",
+    "commitCount": 0,
+    "remote": null,
+    "parentContainerIsGitRepository": false,
+    "ignoredLocalDirectoriesVerified": [
+      "node_modules/",
+      "coverage/",
+      "dist/"
+    ],
+    "note": "The owner selected the SiteWipe identity. Reviewed files remain intentionally untracked until license/source model, provenance, authorship, intended remote, and first-publication decisions are recorded."
+  },
+  "artifacts": {
+    "status": "pending_rebuild",
+    "runtimeZip": "sitewipe-private-rc-1.11.1.zip",
+    "runtimeZipSha256": "2444DF55401CB1ABF396F1C7309A07FE0B4C711212CD13EC4BAC850DDF839C60",
+    "runtimeZipBytes": 219700,
+    "runtimeFiles": 50,
+    "sourceZip": "sitewipe-private-rc-1.11.1-source.zip",
+    "sourceZipSha256": "Recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
+    "sourceFiles": 197,
+    "sourcePackageEquivalence": "pending",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "remoteAttestation": "pending"
+  },
+  "limitations": [
+    "No installed Chrome or Brave assertion was executed.",
+    "No browser performance benchmark or installed accessibility run was executed.",
+    "CI, CodeQL, attestation, branch protection, and remote repository settings are unverified until an approved remote exists.",
+    "The SiteWipe identity is owner-selected with known exact-name marketplace collisions; legal name review, public version, license/source model, provenance, media, and publication decisions remain open.",
+    "Complete review bypass deliberately omits per-run high-risk confirmations and remains a publication safety blocker under ADR 0004."
+  ]
+}

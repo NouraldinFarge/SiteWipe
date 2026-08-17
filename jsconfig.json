@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["chrome"],
+    "skipLibCheck": true
+  },
+  "files": [
+    "src/background/cleanup-preflight.js",
+    "src/background/dnr-shield.js",
+    "src/background/domain.js",
+    "src/background/downloads.js",
+    "src/background/history.js",
+    "src/background/operation-control.js",
+    "src/background/permission-leases.js",
+    "src/background/report.js",
+    "src/background/tab-state.js",
+    "src/shared/cleanup-mode.js",
+    "src/shared/message-contracts.js",
+    "src/shared/messaging.js",
+    "src/shared/public-suffix.js",
+    "src/shared/report-integrity.js",
+    "src/shared/report-redaction.js",
+    "src/shared/safety.js",
+    "src/shared/state-schema.js",
+    "src/shared/storage.js",
+    "src/shared/target-scope.js",
+    "src/shared/verification-evidence.js"
+  ],
+  "exclude": ["src/shared/public-suffix-data.js", "src/test-harness/**", "node_modules/**"]
+}

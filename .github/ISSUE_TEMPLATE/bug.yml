@@ -1,0 +1,60 @@
+name: Bug report
+description: Report a reproducible defect using synthetic, redacted evidence only.
+title: '[Bug]: '
+labels: ['bug', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project is not publicly released. Do **not** paste an unredacted report, real domain, URL, history entry, download, filename, local path, extension ID, account detail, private-window activity, cookie, or token. Use a disposable profile and synthetic replacements.
+        Security issues must not be filed publicly; follow SECURITY.md and use the verified private vulnerability-reporting route once it exists.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy and test safety
+      options:
+        - label: I used a disposable browser profile and synthetic data.
+          required: true
+        - label: I inspected this report and removed private browsing data and identifiers.
+          required: true
+        - label: This is not a security vulnerability or destructive-scope bypass.
+          required: true
+  - type: input
+    id: artifact
+    attributes:
+      label: Candidate version and artifact SHA-256
+      description: Use the internal version plus the tested ZIP/source hash; do not paste an extension ID.
+      placeholder: '1.11.2 / SHA-256 …'
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Synthetic environment
+      description: Operating system and exact Chrome or Brave version.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Synthetic reproduction
+      description: Include the smallest reproducible fixture, expected result, and actual result.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted evidence
+      description: Paste only the minimum centrally redacted output after inspecting it.
+      render: text
+  - type: dropdown
+    id: repeatability
+    attributes:
+      label: Repeatability
+      options:
+        - Every run
+        - Intermittent
+        - Once
+        - Not retested because another destructive run would be unsafe
+    validations:
+      required: true

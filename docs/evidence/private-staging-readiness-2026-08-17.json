@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "status": "local_ready_for_first_private_staging_push",
+  "recordedAt": "2026-08-17T11:20:09-05:00",
+  "candidate": {
+    "name": "SiteWipe",
+    "version": "1.11.2",
+    "runtimeArtifact": "sitewipe-private-rc-1.11.2.zip",
+    "runtimeArtifactSha256": "33FE6FEE6BDEC9ED438E9DA1953804E88740A91795F6E1B059F50E4FDB468063",
+    "runtimeFiles": 50,
+    "sourceArtifact": "sitewipe-private-rc-1.11.2-source.zip",
+    "sourceFiles": 202
+  },
+  "ownerDecisions": {
+    "productIdentity": "approved",
+    "license": "MIT",
+    "provenance": "approved",
+    "gitAuthor": "Nouraldin Farge <144660662+NouraldinFarge@users.noreply.github.com>",
+    "repositoryUrl": "https://github.com/NouraldinFarge/SiteWipe",
+    "firstCommitAuthorized": true,
+    "privateStagingCreationAndFirstPushAuthorized": true,
+    "publicVisibilityAuthorized": false,
+    "finalPublicationApproval": false
+  },
+  "licenseEvidence": {
+    "spdxIdentifier": "MIT",
+    "licenseFile": "LICENSE",
+    "licenseFileSha256": "86ECA68E8C1B0498315252BD01B6190F01500EE720C333D00793DD947F5B6511",
+    "thirdPartyTermsRemainSeparate": true
+  },
+  "localValidation": {
+    "fullCheck": "passed",
+    "nodeTests": 227,
+    "nodeTestFailures": 0,
+    "nodeTestSkips": 0,
+    "propertyTests": 11,
+    "propertySeed": 20260817,
+    "coverage": {
+      "statements": 85.45,
+      "branches": 63.32,
+      "functions": 82.24,
+      "lines": 85.45
+    },
+    "knownNpmVulnerabilities": 0,
+    "runtimeDependencies": 0,
+    "lockedDevelopmentGraph": 406,
+    "consecutiveBuildOutputsCompared": 8,
+    "byteIdenticalAcrossConsecutiveBuilds": true,
+    "sourcePackageEquivalence": "exact",
+    "automatedValidation": "docs/evidence/automated-validation-2026-08-17.json"
+  },
+  "publicationGate": {
+    "recommendation": "blocked",
+    "blockerCount": 20,
+    "openClasses": [
+      "renewed exact public-version approval",
+      "installed Chrome and Brave evidence",
+      "installed accessibility and measured performance evidence",
+      "authentic screenshots and demo",
+      "remote CI, CodeQL, branch/security controls, hosted privacy policy, and release environment",
+      "final public/release/store/portfolio approval"
+    ]
+  },
+  "stagingBoundary": {
+    "requiredRepositoryVisibility": "private",
+    "allowedNow": ["one truthful initial commit", "create the named private repository", "push main once"],
+    "notAuthorized": [
+      "public visibility",
+      "tag",
+      "GitHub Release",
+      "Pages",
+      "Packages",
+      "store submission",
+      "portfolio or professional-profile publication"
+    ]
+  },
+  "notes": [
+    "The earlier audit-handoff record remains historical evidence for candidate 1.11.1; this record captures the later 1.11.2 licensing, provenance, and private-staging decision state.",
+    "The source ZIP hash is intentionally recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
+    "No installed-browser claim or public-publication approval is inferred from local automation or private staging authorization."
+  ]
+}

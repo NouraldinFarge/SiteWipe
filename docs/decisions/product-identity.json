@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "status": "owner_approved_with_known_marketplace_collisions",
+  "workingCodename": "SiteWipe",
+  "approvedName": "SiteWipe",
+  "approvedPublicVersion": "1.11.1",
+  "publicVersionApprovedAt": "2026-08-17",
+  "publicVersionOwnerStatement": "Repository/version/author: Confirmed",
+  "currentCandidateRequiresRenewedVersionApproval": true,
+  "ownerApproved": true,
+  "approvedAt": "2026-08-16T22:36:47-05:00",
+  "ownerStatement": "Product identity/name is SiteWipe; this is custom made.",
+  "knownExactNameListings": [
+    {
+      "marketplace": "Chrome Web Store",
+      "extensionId": "jkpagdcphgjehcbcbmpklodjjjnhcbjp",
+      "url": "https://chromewebstore.google.com/detail/sitewipe/jkpagdcphgjehcbcbmpklodjjjnhcbjp"
+    },
+    {
+      "marketplace": "Chrome Web Store",
+      "extensionId": "hopjcfadgicekhdaamknhjccoliddehc",
+      "url": "https://chromewebstore.google.com/detail/sitewipe/hopjcfadgicekhdaamknhjccoliddehc"
+    },
+    {
+      "marketplace": "Firefox Browser Add-ons",
+      "slug": "sitewipe",
+      "url": "https://addons.mozilla.org/en-US/firefox/addon/sitewipe/"
+    },
+    {
+      "marketplace": "Firefox Browser Add-ons",
+      "slug": "sitewipe-tool",
+      "url": "https://addons.mozilla.org/en-US/firefox/addon/sitewipe-tool/"
+    }
+  ],
+  "notes": [
+    "The owner explicitly selected SiteWipe as the custom product identity on 2026-08-16; no rename is authorized or required.",
+    "Two current Chrome Web Store listings and two Firefox add-on listings use the exact same name; one Chrome/Firefox pair appears to be the same unrelated product. The selection is not represented as unique or marketplace-distinctive.",
+    "A current exact-name GitHub repository and a registered sitewipe.com domain were also observed on 2026-08-17; npm returned no exact lowercase package record.",
+    "The existing candidate screen and the refreshed exact-name marketplace check are retained as evidence rather than rewritten to imply availability.",
+    "This record is an owner product-name decision, not a trademark registration, legal clearance, non-infringement opinion, domain/handle approval, or store-listing acceptance.",
+    "The owner confirmed candidate 1.11.1 with the repository and author identity. Adding the approved license and release controls is a stable-input change, so the mandatory patch bump supersedes that candidate and requires renewed approval of the resulting exact public version."
+  ]
+}

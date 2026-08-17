@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SiteWipe synthetic browser fixture</title>
+    <style>
+      body {
+        max-width: 52rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        color: #161724;
+        background: #f5f7ff;
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+      }
+      button,
+      a {
+        display: inline-block;
+        min-height: 44px;
+        margin: 0.25rem;
+        padding: 0.7rem 1rem;
+      }
+      pre {
+        overflow: auto;
+        padding: 1rem;
+        background: white;
+        border: 1px solid #a8adca;
+      }
+      iframe {
+        width: 100%;
+        min-height: 12rem;
+        border: 2px solid #5a6191;
+      }
+    </style>
+    <script type="module" src="/fixture-page.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Disposable SiteWipe fixture</h1>
+      <p id="identity">Synthetic data only. Do not use this fixture in a daily browser profile.</p>
+      <p>
+        <button id="seed" type="button">Seed this origin</button>
+        <button id="snapshot" type="button">Snapshot exposed state</button>
+        <button id="reset" type="button">Reset this origin</button>
+        <a id="download" href="/fixture-download.txt" download>Download harmless fixture</a>
+      </p>
+      <pre id="result" role="status" aria-live="polite">Waiting for a fixture action.</pre>
+      <section id="partitionFixture" hidden>
+        <h2>Third-party partition fixture</h2>
+        <iframe id="partitionFrame" title="Synthetic partitioned-cookie fixture"></iframe>
+      </section>
+    </main>
+  </body>
+</html>

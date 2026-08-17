@@ -1,0 +1,35 @@
+name: Feature proposal
+description: Propose a narrowly scoped improvement without private browsing data.
+title: '[Proposal]: '
+labels: ['proposal', 'needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include real browsing data, reports, domains, URLs, filenames, paths, accounts, extension IDs, or secrets. A new cleanup surface, permission, network call, dependency, or export format requires a threat-model update.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the user problem with synthetic examples.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety, privacy, permission, and accessibility impact
+      description: Explain scope, failure behavior, protected data, permission changes, retained data, and keyboard/assistive-technology behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Safer or narrower alternatives considered
+    validations:
+      required: true
