@@ -198,7 +198,7 @@
   "gitInitialization": {
     "status": "private_staging_created_initial_push_verified",
     "branch": "agent/fix-private-codeql",
-    "commitCount": 7,
+    "commitCountAtStableSourceHead": 8,
     "remoteCount": 1,
     "tagCount": 0,
     "parentContainerIsGitRepository": false,
@@ -216,7 +216,7 @@
       "browser-profiles/",
       ".pnpm-store/"
     ],
-    "note": "The truthful initial commit and private staging push were verified byte-for-byte at the Git commit level. Candidate 1.11.16 commit 72f289781d8dab01d3f8d1374696784c4e55eb6b passed exact-head hosted checks with matching local/hosted packages and zero retained CodeQL SARIF results. Public visibility remains unauthorized."
+    "note": "The truthful initial commit and private staging push were verified byte-for-byte at the Git commit level. Candidate 1.11.17 stable-source commit ce020c9c07241505905493d8ea7c4196c0be3a22 passed exact-head hosted checks with matching local/hosted packages and zero retained CodeQL SARIF results. Public visibility remains unauthorized."
   },
   "remoteWorkflowObservation": {
     "repositoryVisibility": "PRIVATE",
@@ -283,30 +283,30 @@
         "sarifResults": 0
       }
     },
-    "latestExactHeadValidation": {
-      "version": "1.11.16",
-      "commitSha": "72f289781d8dab01d3f8d1374696784c4e55eb6b",
+    "latestStableSourceExactHeadValidation": {
+      "version": "1.11.17",
+      "commitSha": "ce020c9c07241505905493d8ea7c4196c0be3a22",
       "ci": {
         "status": "passed",
-        "runId": 32057110350,
+        "runId": 32057977021,
         "job": "Static, safety, tests, coverage, and package parity",
-        "runtimeZipSha256": "BC408E201AB988598A40A6D69526EDFCE8588C0C363A388670C10DE204474FE0",
-        "sourceZipSha256": "11414974CEC3BD649684A001F7157DC9E9C142ED1DE0A5322D0F2168A57C03A3",
+        "runtimeZipSha256": "2A5BBFFC7C38D62A85E17D9AC2DDA40FE60E8BE6A0BBB2F5D3FD873E84538A00",
+        "sourceZipSha256": "83C2759A7B51A832A09B8B3DBD39C3C8BA4FAC75627AB11459E6290282CE9856",
         "localHostedRuntimeParity": true,
         "localHostedSourceParity": true,
-        "artifactId": 9296772275,
-        "artifactCompressedBytes": 2691604,
-        "artifactArchiveDigestSha256": "BF95C12B820204F9DE80E786D05ACC08AC8B76A144A1D9B7815C3F814031E661"
+        "artifactId": 9297066790,
+        "artifactCompressedBytes": 2692504,
+        "artifactArchiveDigestSha256": "2DB93EE1F215F3E5BF82763331B51847ABF29105318F381D6B7DFBCB316B7190"
       },
       "codeql": {
         "status": "passed",
-        "runId": 32057110393,
-        "sarifArtifactId": 9296835910,
-        "sarifArtifactName": "sitewipe-private-codeql-sarif-32057110393",
-        "sarifCompressedBytes": 73623,
-        "sarifArtifactArchiveDigestSha256": "54238397645BE85DA30384C9FAC4919203BF7A862B77CA6E4A4E749720B5909F",
+        "runId": 32057975808,
+        "sarifArtifactId": 9297131399,
+        "sarifArtifactName": "sitewipe-private-codeql-sarif-32057975808",
+        "sarifCompressedBytes": 73626,
+        "sarifArtifactArchiveDigestSha256": "E98C06C133200EACE175AAB6EBA76F426187E6685D52CF3E8B364A418CE05D78",
         "sarifBytes": 589504,
-        "sarifSha256": "743FD1A30E0467AE53F3EC9E37213E3966520ABE2E7623099C89D7D12C7752D3",
+        "sarifSha256": "79E33624755A75DB646F088BC65A6883F95A5A9F50627ADF376EA754D1E8332F",
         "sarifResults": 0
       }
     }
@@ -331,7 +331,7 @@
   "publicationGate": {
     "command": "npm run check:publication-gates",
     "publicationRecommendation": "blocked",
-    "blockerCount": 19,
+    "blockerCount": 18,
     "originalBlockerCount": 24,
     "closedOriginalBlockers": [
       "The complete-review bypass consent defect was removed in source; no owner approval record was fabricated.",
@@ -344,13 +344,13 @@
       "exact-artifact Chrome and Brave evidence",
       "exact-artifact performance and installed accessibility evidence",
       "authentic approved screenshots and demo",
-      "exact-head private CI and CodeQL verification plus public-only branch, vulnerability-reporting, and release-environment controls"
+      "public-only branch, vulnerability-reporting, and release-environment controls"
     ]
   },
   "limitations": [
     "No installed Chrome or Brave assertion was executed for this artifact at the time this record was written.",
     "No browser performance benchmark or installed accessibility run was executed.",
-    "Candidate 1.11.16 commit 72f289781d8dab01d3f8d1374696784c4e55eb6b passed exact-head hosted CI with byte-identical local/hosted runtime and source ZIPs; CodeQL passed and the retained SARIF contained zero results. Candidate 1.11.17 has fresh local validation and requires its own hosted verification after commit.",
+    "Candidate 1.11.17 stable-source commit ce020c9c07241505905493d8ea7c4196c0be3a22 passed exact-head hosted CI with byte-identical local/hosted runtime and source ZIPs; CodeQL passed and the retained SARIF contained zero results. Evidence-only follow-up heads remain subject to the same hosted workflows without changing runtime bytes.",
     "Selected GitHub-owned Actions, full-SHA enforcement, dependency alerts, automated security fixes, and the public privacy-policy Gist are verified. Attestation remains unverified; branch protection, private vulnerability reporting, and a protected release environment are unavailable on the current private personal-repository plan and are staged for the authorized post-public control pass.",
     "The SiteWipe identity, MIT project license, first-party publication rights, asset rights, private-material exclusions, AI-assistance disclosure, and private staging destination are owner-confirmed. Material exact-name marketplace, repository, and domain collisions remain; direct trademark/legal review, renewed exact public-version approval, media, remote controls, and final publication decisions remain open.",
     "A local unsigned provenance input is not a GitHub artifact attestation.",

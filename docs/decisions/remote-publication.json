@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "private_staging_controls_and_policy_verified",
+  "status": "private_staging_controls_policy_and_checks_verified",
   "repositoryUrl": "https://github.com/NouraldinFarge/SiteWipe",
   "ownerApproved": true,
   "approvedAt": "2026-08-17",
@@ -19,7 +19,7 @@
   "initialCommitSha": "29d0a6ea17701ab8892d36472d10120d9f61eb1b",
   "initialPushVerified": true,
   "branchProtectionVerified": false,
-  "requiredChecksVerified": false,
+  "requiredChecksVerified": true,
   "privateVulnerabilityReportingVerified": false,
   "actionsPolicyVerified": true,
   "actionShaPinningVerified": true,
@@ -32,6 +32,7 @@
     "The owner confirmed the repository destination, author identity, private staging creation, and first push on 2026-08-17.",
     "The owner separately authorized a public privacy-policy Gist, selected Actions, full-SHA enforcement, dependency alerts, automated security fixes, and branch/environment/public-only security controls where available.",
     "Selected GitHub-owned Actions, full-SHA enforcement, dependency alerts, automated security fixes, and the byte-matched public policy Gist are verified. Private/free-plan branch protection, per-action patterns, private vulnerability reporting, and protected environments remain staged for the immediate post-public control pass.",
+    "Candidate 1.11.17 stable-source commit ce020c9c07241505905493d8ea7c4196c0be3a22 passed exact-head hosted CI and CodeQL; local and hosted runtime/source archives matched byte-for-byte and the retained SARIF contained zero results.",
     "The owner identified NouraldinFarge as reviewer, but the same account is the pull-request author and sole collaborator, so no independent approval is claimed and no impossible approving-review rule will be enabled.",
     "Public visibility remains unauthorized until the owner separately approves the exact final candidate and gives action-time visibility authorization. Visibility approval will not imply merging, tags, releases, store submission, Pages, Packages, or professional-profile publication."
   ]
