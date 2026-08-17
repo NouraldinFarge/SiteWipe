@@ -46,6 +46,8 @@ With separately authorized repository-setting access, verify and record:
 
 Use the exact job names observed on the approved remote; intended local definitions cover formatting, version contract, syntax/types/lint/HTML/CSS, manifest, remote-code/secret/license/notices/assets/docs/action pins/package closure, legacy/unit/property tests, coverage, build/verification, and CodeQL. Never mark them verified from YAML inspection alone.
 
+Private staging may not have GitHub code-scanning ingestion enabled. In that state, the pinned CodeQL workflow must still run the complete analysis and retain its SARIF as a short-lived private Actions artifact, without claiming Security-tab ingestion. Its least-privilege token includes read-only Actions metadata because the CodeQL action resolves the current workflow run. When repository visibility and GitHub feature availability permit code-scanning ingestion, the same workflow uploads the SARIF and waits for processing; that remote result must be verified separately.
+
 ## Release path after later approvals
 
 The manual candidate workflow must check out an exact reviewed commit, install with scripts disabled, run all checks and coverage, build twice, verify byte identity and source/runtime parity, evaluate publication gates after rebuild, generate checksums/SBOM/provenance input, and create a GitHub artifact attestation only in the approved environment. A public tag/release, visibility change, store submission, and professional-surface edits each remain separate owner actions.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "private_staging_creation_and_first_push_authorized",
+  "status": "private_staging_created_initial_push_verified",
   "repositoryUrl": "https://github.com/NouraldinFarge/SiteWipe",
   "ownerApproved": true,
   "approvedAt": "2026-08-17",
@@ -11,6 +11,10 @@
   "firstCommitAuthorized": true,
   "privateUploadAuthorized": true,
   "publicVisibilityAuthorized": false,
+  "repositoryCreated": true,
+  "repositoryVisibility": "PRIVATE",
+  "initialCommitSha": "29d0a6ea17701ab8892d36472d10120d9f61eb1b",
+  "initialPushVerified": true,
   "branchProtectionVerified": false,
   "requiredChecksVerified": false,
   "privateVulnerabilityReportingVerified": false,

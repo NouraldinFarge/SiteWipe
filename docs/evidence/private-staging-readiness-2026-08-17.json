@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "status": "local_ready_for_first_private_staging_push",
-  "recordedAt": "2026-08-17T11:20:09-05:00",
+  "status": "private_staging_created_codeql_remediation_pending_pr",
+  "recordedAt": "2026-08-17T11:32:34-05:00",
   "candidate": {
     "name": "SiteWipe",
-    "version": "1.11.2",
-    "runtimeArtifact": "sitewipe-private-rc-1.11.2.zip",
-    "runtimeArtifactSha256": "33FE6FEE6BDEC9ED438E9DA1953804E88740A91795F6E1B059F50E4FDB468063",
+    "version": "1.11.3",
+    "runtimeArtifact": "sitewipe-private-rc-1.11.3.zip",
+    "runtimeArtifactSha256": "50F1845D5868906428BF7F172C079970823465F2C9DFE21D53EBF98B595D91C1",
     "runtimeFiles": 50,
-    "sourceArtifact": "sitewipe-private-rc-1.11.2-source.zip",
+    "sourceArtifact": "sitewipe-private-rc-1.11.3-source.zip",
     "sourceFiles": 202
   },
   "ownerDecisions": {
@@ -19,6 +19,8 @@
     "repositoryUrl": "https://github.com/NouraldinFarge/SiteWipe",
     "firstCommitAuthorized": true,
     "privateStagingCreationAndFirstPushAuthorized": true,
+    "privateStagingCreated": true,
+    "initialPushVerified": true,
     "publicVisibilityAuthorized": false,
     "finalPublicationApproval": false
   },
@@ -49,6 +51,17 @@
     "sourcePackageEquivalence": "exact",
     "automatedValidation": "docs/evidence/automated-validation-2026-08-17.json"
   },
+  "remoteValidation": {
+    "visibility": "PRIVATE",
+    "defaultBranch": "main",
+    "initialCommitSha": "29d0a6ea17701ab8892d36472d10120d9f61eb1b",
+    "remoteMainMatchesInitialCommit": true,
+    "ciRunId": 32045525083,
+    "ciStatus": "passed",
+    "codeqlRunId": 32045525091,
+    "codeqlStatus": "analysis_completed_ingestion_failed",
+    "codeqlRemediationVersion": "1.11.3"
+  },
   "publicationGate": {
     "recommendation": "blocked",
     "blockerCount": 20,
@@ -63,7 +76,8 @@
   },
   "stagingBoundary": {
     "requiredRepositoryVisibility": "private",
-    "allowedNow": ["one truthful initial commit", "create the named private repository", "push main once"],
+    "completed": ["one truthful initial commit", "create the named private repository", "push main once"],
+    "allowedNow": ["push an agent remediation branch", "open a draft pull request for private review"],
     "notAuthorized": [
       "public visibility",
       "tag",
@@ -75,7 +89,7 @@
     ]
   },
   "notes": [
-    "The earlier audit-handoff record remains historical evidence for candidate 1.11.1; this record captures the later 1.11.2 licensing, provenance, and private-staging decision state.",
+    "The earlier audit-handoff record remains historical evidence for candidate 1.11.1; this record captures the later 1.11.3 licensing, provenance, private-staging, CI, and CodeQL-remediation state.",
     "The source ZIP hash is intentionally recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
     "No installed-browser claim or public-publication approval is inferred from local automation or private staging authorization."
   ]

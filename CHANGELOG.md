@@ -6,6 +6,12 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.3 — private release-candidate work — 2026-08-17
+
+### Private remote verification
+
+- Made CodeQL private-staging compatible by granting read-only workflow-run metadata access, retaining locally analyzed SARIF as a short-lived private artifact when code-scanning ingestion is unavailable, and preserving automatic Security-tab upload for a future public repository.
+
 ## 1.11.2 — private release-candidate work — 2026-08-17
 
 ### Licensing, provenance, and private staging

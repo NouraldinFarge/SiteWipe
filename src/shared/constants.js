@@ -1,6 +1,6 @@
 export const APP = Object.freeze({
   name: 'SiteWipe',
-  version: '1.11.2',
+  version: '1.11.3',
   maxReports: 10
 });
 

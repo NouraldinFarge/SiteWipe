@@ -2,7 +2,7 @@
 
 > **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
 
-There is no supported public release yet. Security review currently applies to the private `1.11.2` candidate and its locally generated artifacts only.
+There is no supported public release yet. Security review currently applies to the private `1.11.3` candidate and its locally generated artifacts only.
 
 ## Reporting a vulnerability
 

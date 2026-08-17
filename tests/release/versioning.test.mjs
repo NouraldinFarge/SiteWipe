@@ -79,6 +79,7 @@ test('release evidence remains bound to tested bytes and approval runs after reb
   const builder = await text('scripts/build-release.mjs');
   const bump = await text('scripts/bump-version.mjs');
   const workflow = await text('.github/workflows/release-candidate.yml');
+  const codeqlWorkflow = await text('.github/workflows/codeql.yml');
   const publicationGate = await text('scripts/check-publication-gates.mjs');
   assert.doesNotMatch(builder, /browser-validation\.json|performance-results\.json|accessibility-results\.json/);
   assert.match(bump, /browser\.status = 'pending'/);
@@ -92,6 +93,12 @@ test('release evidence remains bound to tested bytes and approval runs after reb
   assert.match(publicationGate, /releaseEnvironmentVerified/);
   assert.match(publicationGate, /findRetiredBypassSignals/);
   assert.match(publicationGate, /Every Standard and Expert cleanup must require detailed per-run review/);
+  assert.match(codeqlWorkflow, /actions: read/);
+  assert.match(codeqlWorkflow, /security-events: write/);
+  assert.match(codeqlWorkflow, /repository\.visibility == 'public'/);
+  assert.match(codeqlWorkflow, /upload-database: false/);
+  assert.match(codeqlWorkflow, /Retain private CodeQL SARIF evidence/);
+  assert.match(codeqlWorkflow, /actions\/upload-artifact@[0-9a-f]{40}/);
   assert.ok(
     workflow.indexOf('npm run verify:release-candidate') < workflow.indexOf('npm run check:publication-gates'),
     'publication gates must evaluate the rebuilt and verified bytes'
