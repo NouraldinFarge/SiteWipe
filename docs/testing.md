@@ -1,6 +1,6 @@
 # Testing strategy and evidence
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 The exact latest local run date, environment, counts, coverage, and artifact binding live in `docs/evidence/automated-validation-current.json` and its referenced dated record. Browser claims require retained disposable-profile evidence and are not inferred from Node tests.
 

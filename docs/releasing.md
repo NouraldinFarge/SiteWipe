@@ -1,12 +1,12 @@
 # Release process
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-There is no approved public release process execution yet. These steps are designed to produce a reviewable candidate; they do not authorize publishing, pushing, tagging, creating a GitHub Release, portfolio use, or store submission.
+There is no approved supported-binary release process execution yet. These steps produce a reviewable unreleased candidate; public source availability does not authorize tagging, creating a GitHub Release, portfolio promotion, or browser-store submission.
 
 ## Human prerequisites
 
-Before the first public release, the owner must approve and record:
+Before the first supported binary release, the owner must approve and record:
 
 - the owner-selected product identity, known name-collision/legal disposition, and exact public version;
 - the project license/source-availability model and ownership assertions;
@@ -41,7 +41,7 @@ npm run check:publication-gates
 
 The last command is expected to fail while any human, browser, media, or remote gate is open.
 
-Normal builds never increment the version. They update only the active automated-validation artifact fields; they do not write browser, performance, or accessibility hashes because only an actual exact-artifact run may bind those human-reviewed records. Pending manual hashes may remain null, while any recorded/approved hash must match the current runtime ZIP. Both build and verification fail if the runtime or stable-input version transaction is missing or stale. This keeps repeated unchanged builds deterministic while ensuring release-input changes cannot retain an old version or inherit old installed-browser evidence.
+Normal builds never increment the version. They update only the active automated-validation artifact fields; they do not write browser, performance, or accessibility hashes because only an actual exact-artifact run may bind those human-reviewed records. Pending manual hashes may remain null, while any recorded/approved hash must match the current runtime ZIP. Both build and verification fail if the runtime or stable-input version transaction is missing or stale. This makes unchanged builds reproducible within the recorded environment while ensuring release-input changes cannot retain an old version or inherit old installed-browser evidence.
 
 ## Artifact contract
 
@@ -49,8 +49,8 @@ The builder constructs a fresh `dist/.current-staging/` directory, validates it,
 
 The builder must create two distinct artifacts:
 
-1. a loadable runtime ZIP containing only `scripts/release-files.mjs` entries, with `manifest.json` at archive root;
-2. a source archive containing every path in the declared source closure—reviewed source, documentation, tests, scripts, lockfile, CI, assets, evidence, and third-party materials—excluding private/local material.
+1. a compressed loadable runtime ZIP containing only `scripts/release-files.mjs` entries, with `manifest.json` at archive root;
+2. an uncompressed, stored-entry source ZIP containing every path in the declared source closure—reviewed source, documentation, tests, scripts, lockfile, CI, assets, evidence, and third-party materials—excluding private/local material.
 
 The runtime build also produces:
 
@@ -60,9 +60,9 @@ The runtime build also produces:
 - machine-readable artifact inventory and unsigned provenance input;
 - source/package byte-equivalence results.
 
-Both archives use sorted paths and normalized timestamps. Verification reopens both archives and requires exact path, byte, and timestamp parity with the current source closures. Source roots, directories, and files may not be symbolic links.
+Both archives use sorted paths, fixed file modes, and normalized timestamps. Verification reopens both archives and requires exact path, content-byte, and timestamp parity with the current source closures. It additionally requires every source-ZIP entry to be stored rather than compressed, avoiding platform-specific DEFLATE output and making the source archive's bytes reproducible across supported hosts when the same locked tools and source bytes are used. The runtime ZIP remains compressed: its extracted content contract is deterministic, but archive-level SHA-256 equality across operating systems must not be claimed until a two-host comparison records it. Same-host consecutive-build equality is useful evidence but is not a substitute for that cross-platform check. Source roots, directories, and files may not be symbolic links.
 
-An unsigned local provenance input is not an attestation. GitHub artifact attestation must be created by the reviewed manual release workflow for the exact artifact after remote controls are configured.
+An unsigned local provenance input is not an attestation. GitHub artifact attestation must be created by the reviewed manual release workflow for the exact artifact after the `unreleased-candidate` environment is created with required reviewers and remote controls are independently verified.
 
 ## Required local rejection checks
 

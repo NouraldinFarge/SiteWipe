@@ -44,12 +44,12 @@ requireValue(
 for (const [path, expected] of [
   ['README.md', `current candidate version \`${version}\``],
   ['PRIVACY.md', `SiteWipe \`${version}\``],
-  ['SECURITY.md', `private \`${version}\` candidate`],
+  ['SECURITY.md', `public-source \`${version}\` prerelease`],
   ['src/README.md', `Version \`${version}\``],
-  ['docs/architecture.md', `\`${version}\` remains a private candidate version`],
+  ['docs/architecture.md', `\`${version}\` remains a public-source prerelease version`],
   ['docs/threat-model.md', `SiteWipe \`${version}\` candidate`],
   ['docs/release-readiness.md', `v${version},`],
-  ['CHANGELOG.md', `## ${version} — private release-candidate work`],
+  ['CHANGELOG.md', `## ${version} — public-source prerelease work`],
   ['.github/ISSUE_TEMPLATE/bug.yml', `${version} / SHA-256`]
 ]) {
   requireValue((await text(path)).includes(expected), `${path} is missing current-version text: ${expected}`);
@@ -58,13 +58,15 @@ for (const [path, expected] of [
 const browser = await json('docs/evidence/browser-validation.json');
 const performance = await json('docs/evidence/performance-results.json');
 const accessibility = await json('docs/evidence/accessibility-results.json');
+const media = await json('docs/evidence/media-inventory.json');
 const validationEvidence = await resolveCurrentValidationEvidence(projectRoot);
 const automated = await json(validationEvidence.relativePath);
 const expectedRuntimeZip = `${artifactBase}.zip`;
 for (const [label, artifact] of [
   ['browser evidence', browser.artifact],
   ['performance evidence', performance.artifact],
-  ['accessibility evidence', accessibility.artifact]
+  ['accessibility evidence', accessibility.artifact],
+  ['media evidence', media.artifact]
 ]) {
   requireValue(artifact?.version === version, `${label} version does not match ${version}`);
   requireValue(artifact?.runtimeZip === expectedRuntimeZip, `${label} runtime ZIP name is stale`);
@@ -74,6 +76,14 @@ requireValue(automated.artifacts?.runtimeZip === expectedRuntimeZip, 'automated 
 requireValue(
   automated.artifacts?.sourceZip === `${artifactBase}-source.zip`,
   'automated evidence source ZIP name is stale'
+);
+requireValue(
+  automated.artifacts?.runtimeSbom === `${artifactBase}.runtime-sbom.cdx.json`,
+  'automated evidence runtime SBOM name is stale'
+);
+requireValue(
+  automated.artifacts?.unsignedProvenanceInput === `${artifactBase}.unsigned-provenance-input.json`,
+  'automated evidence unsigned provenance-input name is stale'
 );
 
 const fingerprint = await computeRuntimeFingerprint();
@@ -116,6 +126,7 @@ if (requireArtifact) {
       digest,
       evidenceRequiresHash(accessibility)
     );
+    validateOptionalEvidenceHash('media evidence', media.artifact?.sha256, digest, evidenceRequiresHash(media));
     requireValue(automated.artifacts?.runtimeZipSha256 === digest, 'automated evidence artifact hash is stale');
     requireValue(
       automated.artifacts?.runtimeZipBytes === runtimeBytes.length,

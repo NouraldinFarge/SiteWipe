@@ -36,7 +36,7 @@ export function resolveNextVersion(currentValue, request = 'patch') {
 }
 
 export function runtimeArtifactBase(version) {
-  return `sitewipe-private-rc-${assertSemanticVersion(version)}`;
+  return `sitewipe-unreleased-candidate-${assertSemanticVersion(version)}`;
 }
 
 export async function computeRuntimeFingerprint(root = projectRoot, overrides = new Map()) {

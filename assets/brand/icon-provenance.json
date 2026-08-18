@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "owner_publication_rights_confirmed_visual_branding_pending",
-  "workingIdentity": "SiteWipe owner-approved product identity; private candidate artifact",
+  "workingIdentity": "SiteWipe owner-approved product identity; public-source unreleased candidate artifact",
   "source": "assets/brand/icon-source.svg",
   "createdAt": "2026-08-16",
   "origin": "Original project-controlled geometric SVG authored during the evidence-driven audit with AI assistance; no external visual asset was incorporated.",
@@ -11,7 +11,7 @@
     "version": "7.1.2-27 Q16-HDRI x64 b661ac9:20260705",
     "commandPattern": "magick -background none icon-source.svg -resize SIZExSIZE -depth 8 -define png:color-type=6 -strip iconSIZE.png"
   },
-  "sourceSha256": "709F150462299D41E7B832E4A8567BCBB7B714902D947E7E55DE45AD2C40C144",
+  "sourceSha256": "B29ADAF6935B81FBA829A8F5B4BA29F912FEC7748B68328D0DB92EE80A8BF272",
   "outputs": [
     {
       "path": "src/assets/icons/icon16.png",

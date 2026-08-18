@@ -1,6 +1,6 @@
 # Disposable browser fixture
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 This loopback-only fixture seeds synthetic browser data without touching a daily profile. It is fixture infrastructure, not retained Chrome/Brave evidence and not a browser automation result.
 

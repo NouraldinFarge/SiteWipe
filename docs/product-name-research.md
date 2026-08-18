@@ -1,6 +1,6 @@
 # Product-name research
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 Owner decision: **2026-08-16**. Marketplace/repository/package/domain screen refreshed: **2026-08-17**. The owner explicitly selected **SiteWipe** as the custom product identity. No rename is authorized or required.
 

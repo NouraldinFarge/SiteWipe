@@ -1,6 +1,6 @@
 # ADR 0004: Historical complete cleanup-review bypass
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 - Status: Superseded and removed by [ADR 0009](./0009-mandatory-cleanup-review.md)
 - Original date: 2026-08-16

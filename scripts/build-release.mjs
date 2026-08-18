@@ -9,6 +9,7 @@ import yazl from 'yazl';
 import { RUNTIME_FILES } from './release-files.mjs';
 import { collectSourceArchiveEntries } from './source-archive.mjs';
 import { resolveCurrentValidationEvidence } from './validation-evidence.mjs';
+import { runtimeArtifactBase } from './versioning.mjs';
 import { readZipEntries } from './zip-utils.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,7 +41,7 @@ for (const validator of [
 }
 
 await prepareBuildDirectory(dist);
-const base = `sitewipe-private-rc-${manifest.version}`;
+const base = runtimeArtifactBase(manifest.version);
 const zipPath = resolve(dist, `${base}.zip`);
 const fixedTime = new Date('1980-01-01T00:00:00.000Z');
 const sourceEntries = [];
@@ -85,14 +86,15 @@ if (await updateSourceArtifactEvidence(sourceArchiveEntries.length)) {
   sourceArchiveEntries = await collectSourceArchiveEntries(root);
 }
 const sourceArchivePath = resolve(dist, `${base}-source.zip`);
-await writeZip(sourceArchivePath, sourceArchiveEntries, fixedTime);
+await writeZip(sourceArchivePath, sourceArchiveEntries, fixedTime, { compress: false });
 const sourceArchiveZipEntries = (await readZipEntries(sourceArchivePath)).sort((a, b) => a.path.localeCompare(b.path));
 assertEquivalent(sourceArchiveEntries, sourceArchiveZipEntries, { requireRootManifest: false });
+assertStored(sourceArchiveZipEntries);
 const sourceArchiveBytes = await readFile(sourceArchivePath);
 const sourceArchiveDigest = sha256(sourceArchiveBytes);
 const equivalence = {
   schema: 'sitewipe.source-package-equivalence.v1',
-  state: 'Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.',
+  state: 'Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.',
   artifact: `${base}.zip`,
   artifactSha256: zipDigest,
   manifestAtZipRoot: zipEntries.some((entry) => entry.path === 'manifest.json'),
@@ -101,6 +103,7 @@ const equivalence = {
   exactPathParity: true,
   exactByteParity: true,
   fixedZipTimestamp: fixedTime.toISOString(),
+  sourceArchiveCompression: 'stored',
   files: sourceEntries.map(({ path, size, sha256: digest }) => ({
     path,
     size,
@@ -120,7 +123,7 @@ const sbom = {
       name: manifest.name,
       version: manifest.version,
       properties: [
-        { name: 'sitewipe:release-state', value: 'private-release-candidate' },
+        { name: 'sitewipe:release-state', value: 'unreleased-candidate' },
         { name: 'sitewipe:runtime-dependencies', value: '0' }
       ]
     }
@@ -158,7 +161,7 @@ await writeFile(sbomPath, `${JSON.stringify(sbom, null, 2)}\n`, 'utf8');
 const releaseNotesPath = resolve(dist, `${base}.release-notes.md`);
 await writeFile(
   releaseNotesPath,
-  `# ${manifest.name} ${manifest.version} private release candidate\n\nStatus: **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**\n\nThis artifact is for disposable-profile validation only. It is not approved for publication, a public release, a portfolio, or the Chrome Web Store. Exact public-version approval, installed-browser evidence, authentic media, remote CI and repository controls, and final publication approval remain gates.\n\nThe owner selected MIT for SiteWipe's first-party source. Third-party material remains governed by its identified terms and notices.\n\nThe loadable ZIP places \`manifest.json\` at its root and contains only the explicit runtime allowlist. Verify it with \`npm run verify:release-candidate\`.\n`,
+  `# ${manifest.name} ${manifest.version} unreleased candidate\n\nStatus: **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**\n\nThis artifact is for disposable-profile validation only. Public source availability does not make it a supported binary, approve a browser-store submission, or authorize portfolio promotion. Exact-version approval, installed-browser evidence, authentic media, remote CI and repository controls, and final publication approval remain gates.\n\nThe owner selected MIT for SiteWipe's first-party source. Third-party material remains governed by its identified terms and notices.\n\nThe loadable ZIP places \`manifest.json\` at its root and contains only the explicit runtime allowlist. Verify it with \`npm run verify:release-candidate\`.\n`,
   'utf8'
 );
 
@@ -172,7 +175,7 @@ await writeFile(
       predicateType: 'https://slsa.dev/provenance/v1',
       predicate: {
         buildDefinition: {
-          buildType: 'urn:sitewipe:build-type:local-private-release-candidate:v1',
+          buildType: 'urn:sitewipe:build-type:local-unreleased-candidate:v1',
           externalParameters: {
             version: manifest.version,
             runtimeAllowlist: 'scripts/release-files.mjs'
@@ -220,8 +223,9 @@ await writeFile(
   currentReleasePath,
   `${JSON.stringify(
     {
-      schema: 'sitewipe.current-private-release-candidate.v1',
-      state: 'Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.',
+      schema: 'sitewipe.current-unreleased-candidate.v1',
+      state:
+        'Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.',
       version: manifest.version,
       artifactBase: base,
       runtimeArtifact: `${base}.zip`,
@@ -245,7 +249,7 @@ await promoteCurrentRelease();
 console.log(
   JSON.stringify(
     {
-      status: 'private-release-candidate',
+      status: 'unreleased-candidate',
       artifact: resolve(currentDist, `${base}.zip`),
       bytes: zipBytes.length,
       sha256: zipDigest,
@@ -254,6 +258,7 @@ console.log(
       sourceBytes: sourceArchiveBytes.length,
       sourceSha256: sourceArchiveDigest,
       sourceFiles: sourceArchiveEntries.length,
+      sourceArchiveCompression: 'stored',
       sourcePackageEquivalence: 'exact',
       currentReleaseDirectory: currentDist,
       outputs: checksumTargets.map((path) => path.split(/[\\/]/).at(-1)).concat('SHA256SUMS')
@@ -300,7 +305,7 @@ async function pathExists(path) {
   }
 }
 
-function writeZip(path, entries, mtime) {
+function writeZip(path, entries, mtime, { compress = true } = {}) {
   return new Promise((resolvePromise, reject) => {
     const zip = new yazl.ZipFile();
     const output = createWriteStream(path);
@@ -312,11 +317,19 @@ function writeZip(path, entries, mtime) {
       zip.addBuffer(entry.bytes, entry.path, {
         mtime,
         mode: 0o100644,
-        compress: true
+        compress
       });
     }
     zip.end();
   });
+}
+
+function assertStored(entries) {
+  for (const entry of entries) {
+    if (entry.compressedSize !== entry.uncompressedSize) {
+      throw new Error(`Source ZIP entry must use stored bytes: ${entry.path}`);
+    }
+  }
 }
 
 function assertEquivalent(sourceFiles, packagedFiles, options = {}) {
@@ -355,7 +368,12 @@ async function updateSourceArtifactEvidence(sourceFiles) {
   const path = (await resolveCurrentValidationEvidence(root)).relativePath;
   const automated = await readJson(path);
   if (automated.artifacts?.sourceFiles === sourceFiles) return false;
-  automated.artifacts = { ...automated.artifacts, sourceFiles };
+  automated.artifacts = {
+    ...automated.artifacts,
+    sourceFiles,
+    sourceArchiveCompression: 'stored',
+    sourceArchiveCrossPlatformExactByteContract: 'designed_not_two_host_validated'
+  };
   await writeJson(path, automated);
   return true;
 }

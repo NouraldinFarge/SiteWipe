@@ -5,11 +5,12 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RUNTIME_FILES } from './release-files.mjs';
 import { collectSourceArchiveEntries } from './source-archive.mjs';
+import { runtimeArtifactBase } from './versioning.mjs';
 import { readZipEntries } from './zip-utils.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
-const base = `sitewipe-private-rc-${pkg.version}`;
+const base = runtimeArtifactBase(pkg.version);
 const dist = resolve(root, 'dist', 'current');
 const zipPath = resolve(dist, `${base}.zip`);
 const sourceZipPath = resolve(dist, `${base}-source.zip`);
@@ -55,7 +56,7 @@ assertExactSet(
 );
 
 const currentRelease = JSON.parse(await readFile(resolve(dist, 'current-release.json'), 'utf8'));
-if (currentRelease.schema !== 'sitewipe.current-private-release-candidate.v1') {
+if (currentRelease.schema !== 'sitewipe.current-unreleased-candidate.v1') {
   throw new Error('Current release index schema is invalid.');
 }
 if (currentRelease.version !== pkg.version || currentRelease.artifactBase !== base) {
@@ -106,6 +107,9 @@ for (let index = 0; index < expectedSourceEntries.length; index += 1) {
   if (packaged.modifiedAt !== '1980-01-01T00:00:00.000Z') {
     throw new Error(`Non-normalized source ZIP timestamp: ${packaged.path} ${packaged.modifiedAt}`);
   }
+  if (packaged.compressedSize !== packaged.uncompressedSize) {
+    throw new Error(`Source ZIP entry is compressed instead of stored: ${packaged.path}`);
+  }
 }
 console.log(
   JSON.stringify(
@@ -115,6 +119,7 @@ console.log(
       files: entries.length,
       sourceArtifact: `${base}-source.zip`,
       sourceFiles: sourceEntries.length,
+      sourceArchiveCompression: 'stored',
       checksumFilesVerified: checksums.size,
       sourcePackageEquivalence: 'exact'
     },

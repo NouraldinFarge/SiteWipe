@@ -1,8 +1,8 @@
 # SiteWipe
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-`SiteWipe` is the owner-approved custom product identity for a local-first Chrome/Brave Manifest V3 extension that coordinates guarded, target-scoped cleanup across browser APIs. The exact name is already used by unrelated browser extensions, so this selection is not represented as unique or legally cleared. It is not a promise to erase every trace, it has not been published, and the current candidate version `1.11.2` is not an approved public version.
+`SiteWipe` is the owner-approved custom product identity for a local-first Chrome/Brave Manifest V3 extension that coordinates guarded, target-scoped cleanup across browser APIs. The exact name is already used by unrelated browser extensions, so this selection is not represented as unique or legally cleared. It is not a promise to erase every trace. The first-party source is MIT-licensed and intended for public review, while the current candidate version `1.11.4` remains an unreleased prerelease with no supported binary or browser-store listing.
 
 The interesting engineering problem is destructive scope control: a cleanup request must remain inside an authorized registrable site or exact local origin while Chrome exposes cookies, tabs, origin storage, history, downloads, scripting, and network rules through different APIs and lifecycle semantics.
 
@@ -17,7 +17,7 @@ The interesting engineering problem is destructive scope control: a cleanup requ
 - A temporary `declarativeNetRequest` shield whose recovery intent is persisted before mutation and forgotten only after diagnostics prove the owned rule range empty.
 - Central report redaction, short default retention, SHA-256 content checksums, and evidence states that do not turn failed or timed-out verification into zero.
 - Keyboard and screen-reader semantics, live status messages, visible focus, forced-colors support, reduced-motion behavior, and destructive confirmation states.
-- A deterministic runtime/source release builder with explicit closures, root-level `manifest.json`, checksum inventory, runtime SBOM, exact path/byte/timestamp parity, a canonical `dist/current/` index, transactional version updates covering the runtime and every stable release input, and evidence that cannot be rebound automatically to untested bytes.
+- A normalized runtime/source artifact builder with explicit closures, root-level `manifest.json`, checksum inventory, runtime SBOM, exact path/byte/timestamp parity, a stored source ZIP designed for cross-platform byte reproducibility, a canonical `dist/current/` index, transactional version updates covering the runtime and every stable release input, and evidence that cannot be rebound automatically to untested bytes. The compressed runtime ZIP is not claimed byte-identical across operating systems without a recorded two-host comparison.
 
 Automated checks establish design and code-level evidence. Installed-browser behavior, accessibility, media, performance, repository settings, exact public-version approval, name-collision/legal review, and remote provenance remain publication gates until retained evidence exists.
 
@@ -101,7 +101,7 @@ See [`docs/permissions.md`](./docs/permissions.md), [`docs/permission-policy-mat
 
 ## Repository status and licensing
 
-The owner has approved **SiteWipe** as the custom product identity, selected the [MIT License](./LICENSE) for the first-party project source, confirmed the recorded provenance statement, and authorized the first truthful commit and upload to `NouraldinFarge/SiteWipe` as a private staging repository. The package remains `private: true` to prevent accidental npm publication. Public GitHub visibility, a tag or release, store submission, and professional-profile use remain separately gated. Known exact-name marketplace collisions remain disclosed and legal clearance is not claimed.
+The owner has approved **SiteWipe** as the custom product identity, selected the [MIT License](./LICENSE) for the first-party project source, confirmed the recorded provenance statement, and authorized public source visibility at `NouraldinFarge/SiteWipe`. The signed-in owner view reports the repository as public; anonymous requests still return `404` while account-level restoration remains incomplete, so recruiter-visible availability is not yet established. The package remains `private: true` solely to prevent accidental npm publication. A tag, binary release, store submission, and professional-profile promotion remain separately gated by exact-artifact evidence and review. Known exact-name marketplace collisions remain disclosed and legal clearance is not claimed.
 
 Third-party material is not relicensed as first-party work and remains governed by its own terms in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md). The current candidate icon has an editable, project-controlled SVG and reproducible PNG provenance under [`assets/brand`](./assets/brand); authentic installed-product media and final store-brand approval remain open.
 

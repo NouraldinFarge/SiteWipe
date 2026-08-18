@@ -1,6 +1,6 @@
 # Performance evidence
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 No cleanup-speed claim is approved. The fast Node self-test and unit suite do not measure Chrome/Brave startup, service-worker wake behavior, API latency, page storage, real cleanup, or verification.
 

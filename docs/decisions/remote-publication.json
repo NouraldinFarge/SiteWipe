@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "private_staging_creation_and_first_push_authorized",
+  "status": "public_source_configured_anonymous_availability_blocked",
   "repositoryUrl": "https://github.com/NouraldinFarge/SiteWipe",
   "ownerApproved": true,
   "approvedAt": "2026-08-17",
@@ -10,16 +10,26 @@
   "gitAuthorEmail": "144660662+NouraldinFarge@users.noreply.github.com",
   "firstCommitAuthorized": true,
   "privateUploadAuthorized": true,
-  "publicVisibilityAuthorized": false,
-  "branchProtectionVerified": false,
+  "publicVisibilityAuthorized": true,
+  "repositoryCreated": true,
+  "initialPushVerified": true,
+  "ownerViewVisibility": "public",
+  "ownerViewDefaultBranchSha": "29d0a6ea17701ab8892d36472d10120d9f61eb1b",
+  "anonymousHttpStatus": 404,
+  "recruiterVisibleAvailability": false,
+  "branchProtectionVerified": true,
   "requiredChecksVerified": false,
-  "privateVulnerabilityReportingVerified": false,
+  "privateVulnerabilityReportingVerified": true,
   "hostedPrivacyPolicyUrl": null,
+  "releaseEnvironmentName": "private-release-candidate",
+  "requiredReleaseEnvironmentName": "unreleased-candidate",
   "releaseEnvironmentVerified": false,
   "finalPublicationApproval": false,
   "notes": [
-    "The owner confirmed the repository destination, author identity, private staging creation, and first push on 2026-08-17.",
-    "Authorization is limited to a truthful initial commit and first push to a private repository; it does not authorize public visibility, tags, releases, store submission, Pages, Packages, or professional-profile publication.",
-    "A visibility change or first public release requires a new explicit action-time owner approval after the exact candidate and all applicable gates are reviewed."
+    "The owner confirmed the repository destination, author identity, initial commit, source upload, and later public-source visibility on 2026-08-17.",
+    "The signed-in owner view reports a public repository and main at 29d0a6e, but anonymous requests return 404 while account-level restoration remains incomplete; recruiter-visible availability is therefore false.",
+    "The main branch has required CI and CodeQL status contexts, up-to-date checks, conversation resolution, linear history, administrator enforcement, and force-push/deletion denial. It does not require pull requests, and the exact current-head required checks are not verified.",
+    "GitHub Private Vulnerability Reporting, dependency alerts/security updates, secret protection, push protection, and full-SHA Actions policy are enabled in the signed-in settings view.",
+    "Public source visibility does not authorize a supported binary, tag, release, store submission, or professional-profile promotion."
   ]
 }

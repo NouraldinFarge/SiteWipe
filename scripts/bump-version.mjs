@@ -15,6 +15,8 @@ import { resolveCurrentValidationEvidence } from './validation-evidence.mjs';
 
 const updates = new Map();
 const request = process.argv[2] || 'patch';
+const currentStatus =
+  'Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.';
 const pkg = await json('package.json');
 const previousVersion = pkg.version;
 const nextVersion = resolveNextVersion(previousVersion, request);
@@ -46,12 +48,12 @@ for (const [path, before, after] of [
   ],
   ['README.md', `current candidate version \`${previousVersion}\``, `current candidate version \`${nextVersion}\``],
   ['PRIVACY.md', `SiteWipe \`${previousVersion}\``, `SiteWipe \`${nextVersion}\``],
-  ['SECURITY.md', `private \`${previousVersion}\` candidate`, `private \`${nextVersion}\` candidate`],
+  ['SECURITY.md', `public-source \`${previousVersion}\` prerelease`, `public-source \`${nextVersion}\` prerelease`],
   ['src/README.md', `Version \`${previousVersion}\``, `Version \`${nextVersion}\``],
   [
     'docs/architecture.md',
-    `\`${previousVersion}\` remains a private candidate version`,
-    `\`${nextVersion}\` remains a private candidate version`
+    `\`${previousVersion}\` remains a public-source prerelease version`,
+    `\`${nextVersion}\` remains a public-source prerelease version`
   ],
   ['docs/threat-model.md', `SiteWipe \`${previousVersion}\` candidate`, `SiteWipe \`${nextVersion}\` candidate`],
   ['.github/ISSUE_TEMPLATE/bug.yml', `${previousVersion} / SHA-256`, `${nextVersion} / SHA-256`]
@@ -63,8 +65,8 @@ let readiness = await source('docs/release-readiness.md');
 readiness = replaceRequired(readiness, `v${previousVersion},`, `v${nextVersion},`, 'docs/release-readiness.md');
 readiness = replaceRequired(
   readiness,
-  `private \`${previousVersion}\``,
-  `private \`${nextVersion}\``,
+  `Public-source \`${previousVersion}\` prerelease`,
+  `Public-source \`${nextVersion}\` prerelease`,
   'docs/release-readiness.md'
 );
 updates.set('docs/release-readiness.md', readiness);
@@ -101,10 +103,28 @@ delete accessibility.artifactSha256;
 accessibility.reviewerApproval = false;
 queueJson('docs/evidence/accessibility-results.json', accessibility);
 
+const media = await json('docs/evidence/media-inventory.json');
+media.status = 'pending';
+media.authenticScreenshotCount = 0;
+media.demoDurationSeconds = 0;
+media.screenshots = [];
+media.demo = null;
+media.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sha256: null };
+media.storeAssets = {
+  ...media.storeAssets,
+  screenshots1280x800: [],
+  promotionalTile440x280: null,
+  marquee1400x560: null,
+  githubSocialPreview: null
+};
+media.reviewerApproval = false;
+queueJson('docs/evidence/media-inventory.json', media);
+
 const validationEvidence = await resolveCurrentValidationEvidence(projectRoot);
 const automated = await json(validationEvidence.relativePath);
 automated.status = 'version_bumped_pending_validation';
 automated.validatedAt = null;
+automated.releaseState = currentStatus;
 automated.fullCheck.status = 'pending';
 automated.fullCheck.versionContract = {
   status: 'pending',
@@ -124,7 +144,9 @@ automated.artifacts = {
   sourcePackageEquivalence: 'pending',
   checksumFilesVerified: 0,
   consecutiveBuildOutputsCompared: 0,
-  byteIdenticalAcrossConsecutiveBuilds: false
+  byteIdenticalAcrossConsecutiveBuilds: false,
+  runtimeSbom: `${artifactBase}.runtime-sbom.cdx.json`,
+  unsignedProvenanceInput: `${artifactBase}.unsigned-provenance-input.json`
 };
 queueJson(validationEvidence.relativePath, automated);
 
@@ -197,7 +219,7 @@ function promoteUnreleased(value, version, releaseDate) {
   if (nextHeading < 0) throw new Error('CHANGELOG.md is missing a prior version heading.');
   const notes = value.slice(notesStart, nextHeading).trim();
   if (!notes) throw new Error('Add at least one Unreleased changelog entry before bumping the version.');
-  return `${value.slice(0, markerAt)}${marker}\n\n## ${version} — private release-candidate work — ${releaseDate}\n\n${notes}\n${value.slice(nextHeading)}`;
+  return `${value.slice(0, markerAt)}${marker}\n\n## ${version} — public-source prerelease work — ${releaseDate}\n\n${notes}\n${value.slice(nextHeading)}`;
 }
 
 function localCalendarDate(value = new Date()) {

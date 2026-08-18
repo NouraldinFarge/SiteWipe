@@ -18,5 +18,10 @@
     "Do not substitute static file renders or mock results for browser evidence.",
     "Use the owner-approved SiteWipe identity and bind final media to the exact installed artifact."
   ],
-  "reviewerApproval": false
+  "reviewerApproval": false,
+  "artifact": {
+    "version": "1.11.4",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.4.zip",
+    "sha256": null
+  }
 }

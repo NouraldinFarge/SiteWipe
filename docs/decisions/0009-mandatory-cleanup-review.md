@@ -1,8 +1,8 @@
 # ADR 0009: Require a complete per-run cleanup review
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-- Status: Accepted for the private candidate; installed-browser validation pending
+- Status: Accepted for the public-source prerelease; installed-browser validation pending
 - Date: 2026-08-17
 - Supersedes: [ADR 0004](./0004-complete-review-bypass.md) and the shortcut portion of [ADR 0003](./0003-destructive-preflight.md)
 

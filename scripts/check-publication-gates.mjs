@@ -3,11 +3,13 @@ import { createHash } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveCurrentValidationEvidence } from './validation-evidence.mjs';
+import { runtimeArtifactBase } from './versioning.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const blockers = [];
 const pkg = await optionalJson('package.json');
-const expectedRuntimeZip = `sitewipe-private-rc-${pkg?.version || 'unknown'}.zip`;
+const expectedArtifactBase = pkg?.version ? runtimeArtifactBase(pkg.version) : 'sitewipe-unreleased-candidate-unknown';
+const expectedRuntimeZip = `${expectedArtifactBase}.zip`;
 const currentRelease = await optionalJson('dist/current/current-release.json');
 const runtimeArtifact = await optionalBytes(`dist/current/${expectedRuntimeZip}`);
 const runtimeArtifactSha256 = runtimeArtifact ? sha256(runtimeArtifact) : null;
@@ -15,7 +17,8 @@ if (!runtimeArtifact) blockers.push('The exact current runtime artifact is missi
 if (
   currentRelease?.version !== pkg?.version ||
   currentRelease?.runtimeArtifact !== expectedRuntimeZip ||
-  currentRelease?.artifactBase !== `sitewipe-private-rc-${pkg?.version || 'unknown'}`
+  currentRelease?.artifactBase !== expectedArtifactBase ||
+  currentRelease?.schema !== 'sitewipe.current-unreleased-candidate.v1'
 ) {
   blockers.push('The canonical current-release index does not identify the package version and runtime ZIP.');
 }
@@ -162,6 +165,7 @@ if (!Number.isFinite(media?.demoDurationSeconds) || media.demoDurationSeconds < 
   blockers.push('An authentic 60–90 second demo is not approved.');
 if (media?.status !== 'approved' || media?.reviewerApproval !== true)
   blockers.push('Synthetic showcase and store media are not reviewer-approved.');
+requireExactArtifactEvidence('Media evidence', media?.artifact, runtimeArtifactSha256);
 const remote = await optionalJson('docs/decisions/remote-publication.json');
 if (!remote?.ownerApproved || !remote?.repositoryUrl)
   blockers.push('The intended remote and first-publication approval are not recorded.');
@@ -170,8 +174,9 @@ if (!remote?.requiredChecksVerified) blockers.push('The required remote CI and C
 if (!remote?.privateVulnerabilityReportingVerified)
   blockers.push('GitHub private vulnerability reporting is not verified.');
 if (!remote?.hostedPrivacyPolicyUrl) blockers.push('A stable hosted privacy-policy URL is not recorded.');
-if (!remote?.releaseEnvironmentVerified)
-  blockers.push('The manually approved remote release environment is not verified.');
+if (!remote?.releaseEnvironmentVerified || remote?.releaseEnvironmentName !== 'unreleased-candidate') {
+  blockers.push('The protected unreleased-candidate remote environment is not verified.');
+}
 if (!remote?.finalPublicationApproval)
   blockers.push('The owner has not given final approval for the first public push/release/store or portfolio use.');
 const optionsHtml = await readFile(resolve(root, 'src/options/options.html'), 'utf8');
@@ -183,8 +188,8 @@ if (retiredBypassFindings.length) {
 }
 
 const result = {
-  state: 'Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.',
-  publicationRecommendation: blockers.length ? 'blocked' : 'owner-approved-for-publication',
+  state: 'Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.',
+  publicationRecommendation: blockers.length ? 'blocked' : 'owner-approved-for-binary-publication',
   blockerCount: blockers.length,
   blockers
 };

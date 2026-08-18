@@ -1,6 +1,6 @@
 # Capability matrix
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 “Implemented” below means a code path and automated contract exist. It does not mean every browser/version behavior has been validated. The final compatibility matrix must be narrowed to retained Chrome and Brave evidence.
 

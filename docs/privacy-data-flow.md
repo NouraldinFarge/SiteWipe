@@ -1,6 +1,6 @@
 # Privacy data flow
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 This document supplements [`PRIVACY.md`](../PRIVACY.md) with implementation-level flows. It does not replace a future hosted privacy policy.
 

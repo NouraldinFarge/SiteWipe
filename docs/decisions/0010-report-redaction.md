@@ -1,6 +1,6 @@
-# ADR 0004: Centralize report redaction and avoid stable target hashes
+# ADR 0010: Centralize report redaction and avoid stable target hashes
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 - Status: Accepted
 - Date: 2026-08-16

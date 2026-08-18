@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "status": "local_automated_checks_passed",
-  "validatedAt": "2026-08-17T11:20:09-05:00",
-  "releaseState": "Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.",
+  "validatedAt": "2026-08-17T19:59:07-05:00",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
   "environment": {
     "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
     "osArchitecture": "64-bit",
@@ -23,18 +23,18 @@
     "format": "passed",
     "versionContract": {
       "status": "passed",
-      "version": "1.11.2",
+      "version": "1.11.4",
       "runtimeFiles": 50,
-      "runtimeFingerprintSha256": "B96FC72134099A139973D981807E0CFAB2A4452A97A0F3798E09600092AB1537"
+      "runtimeFingerprintSha256": "44B701812A310CD740A62077D75C89DB02C5AF886AA84BE52F66778B02769ADC"
     },
-    "syntaxModules": 96,
+    "syntaxModules": 137,
     "typeCheck": "passed",
     "eslint": "passed",
     "htmlValidation": "passed",
     "cssValidation": "passed",
     "manifest": {
       "status": "passed",
-      "version": "1.11.2",
+      "version": "1.11.4",
       "descriptionCharacters": 128,
       "descriptionMaximum": 132,
       "requiredNamedPermissions": 10,
@@ -48,13 +48,13 @@
     },
     "repositorySecretAndPrivatePathScan": {
       "status": "passed",
-      "repositoryFiles": 202
+      "repositoryFiles": 203
     },
     "dependencyLicenseInventory": {
       "status": "passed",
       "runtimeDependencies": 0,
       "lockedDevelopmentGraph": 406,
-      "lockfileSha256": "D03926D8F543C46BB1BF7DB52832D7D8F269C2F6A44ACB6F3FFB56EDB96829FE",
+      "lockfileSha256": "2263962667EC309427283B3A853C27B2B811169E7B3F49D1BFFFCB2784A3613F",
       "metadataExceptionsResolved": 1
     },
     "projectLicense": {
@@ -156,7 +156,7 @@
     "knownVulnerabilities": 0,
     "runtimeDependencies": 0,
     "lockedDevelopmentGraph": 406,
-    "lockfileSha256": "D03926D8F543C46BB1BF7DB52832D7D8F269C2F6A44ACB6F3FFB56EDB96829FE"
+    "lockfileSha256": "2263962667EC309427283B3A853C27B2B811169E7B3F49D1BFFFCB2784A3613F"
   },
   "scopeAndPrivacyEvidence": {
     "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
@@ -175,40 +175,46 @@
     "installedBraveRun": "pending"
   },
   "gitInitialization": {
-    "status": "private_staging_authorized_pending_first_commit",
+    "status": "owner_view_public_anonymous_availability_blocked",
     "branch": "main",
-    "commitCount": 0,
-    "remoteCount": 0,
+    "commitCount": 1,
+    "remoteCount": 1,
     "tagCount": 0,
     "parentContainerIsGitRepository": false,
     "ignoredLocalDirectoriesVerified": [
       "node_modules/",
       "coverage/",
-      "dist/"
+      "dist/",
+      "browser-profiles/",
+      "playwright-report/",
+      "test-results/"
     ],
-    "note": "The owner selected MIT, confirmed provenance and Git author identity, named NouraldinFarge/SiteWipe, and authorized the first truthful commit and private staging push. This validation record predates that commit and does not authorize public visibility."
+    "note": "Local main and the signed-in GitHub owner view align at 29d0a6ea17701ab8892d36472d10120d9f61eb1b. The owner view reports public visibility, while anonymous HTTP requests return 404 during account restoration; recruiter-visible availability is not claimed. The 1.11.29 branch remains an unmerged draft and is not part of this 1.11.4 hotfix."
   },
   "artifacts": {
     "status": "local_reproducible_build_passed",
-    "runtimeZip": "sitewipe-private-rc-1.11.2.zip",
-    "runtimeZipSha256": "33FE6FEE6BDEC9ED438E9DA1953804E88740A91795F6E1B059F50E4FDB468063",
-    "runtimeZipBytes": 219701,
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.4.zip",
+    "runtimeZipSha256": "9B5E7062061692E1C1A1B39929B991D435FCB94DAD4C7BE85FF846D7D5C05D24",
+    "runtimeZipBytes": 219717,
     "runtimeFiles": 50,
-    "sourceZip": "sitewipe-private-rc-1.11.2-source.zip",
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.4-source.zip",
     "sourceZipSha256": "Recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
-    "sourceFiles": 202,
+    "sourceFiles": 203,
     "sourcePackageEquivalence": "exact",
     "checksumFilesVerified": 7,
-    "consecutiveBuildOutputsCompared": 8,
+    "consecutiveBuildOutputsCompared": 2,
     "byteIdenticalAcrossConsecutiveBuilds": true,
-    "runtimeSbom": "sitewipe-private-rc-1.11.2.runtime-sbom.cdx.json",
-    "unsignedProvenanceInput": "sitewipe-private-rc-1.11.2.unsigned-provenance-input.json",
-    "remoteAttestation": "pending"
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.4.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.4.unsigned-provenance-input.json",
+    "remoteAttestation": "pending",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
   },
   "publicationGate": {
     "command": "npm run check:publication-gates",
     "publicationRecommendation": "blocked",
-    "blockerCount": 20,
+    "blockerCount": 19,
     "originalBlockerCount": 24,
     "closedOriginalBlockers": [
       "The complete-review bypass consent defect was removed in source; no owner approval record was fabricated.",
@@ -221,14 +227,15 @@
       "exact-artifact Chrome and Brave evidence",
       "exact-artifact performance and installed accessibility evidence",
       "authentic approved screenshots and demo",
-      "private-remote CI/CodeQL/security settings, hosted privacy policy, release environment, and attestation"
+      "fresh exact-head CI and CodeQL after anonymous availability is restored",
+      "stable hosted privacy policy, protected unreleased-candidate environment, and attestation"
     ]
   },
   "limitations": [
     "No installed Chrome or Brave assertion was executed for this artifact at the time this record was written.",
     "No browser performance benchmark or installed accessibility run was executed.",
-    "CI, CodeQL, attestation, branch protection, vulnerability reporting, release environment, and remote repository settings are unverified until an approved remote exists.",
-    "The SiteWipe identity, MIT project license, first-party publication rights, asset rights, private-material exclusions, AI-assistance disclosure, and private staging destination are owner-confirmed. Material exact-name marketplace, repository, and domain collisions remain; direct trademark/legal review, renewed exact public-version approval, media, remote controls, and final publication decisions remain open.",
+    "The signed-in owner view verifies branch protection, vulnerability reporting, dependency/security controls, secret scanning, push protection, and Actions policy. Anonymous access still returns 404, the exact hotfix head has no hosted check evidence, and the renamed release environment is not configured.",
+    "The SiteWipe identity, MIT project license, first-party publication rights, asset rights, private-material exclusions, AI-assistance disclosure, and repository destination are owner-confirmed. Material exact-name marketplace, repository, and domain collisions remain; direct trademark/legal review, renewed exact-version approval, media, hosted policy, and final binary/store/promotion decisions remain open.",
     "A local unsigned provenance input is not a GitHub artifact attestation.",
     "Automated tests do not prove complete erasure or installed-browser behavior."
   ]

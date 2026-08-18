@@ -23,7 +23,7 @@ test('version helpers produce deliberate forward-only semantic versions and arti
   assert.equal(resolveNextVersion('1.9.8', 'minor'), '1.10.0');
   assert.equal(resolveNextVersion('1.9.8', 'major'), '2.0.0');
   assert.equal(resolveNextVersion('1.9.8', '1.11.2'), '1.11.2');
-  assert.equal(runtimeArtifactBase('1.9.9'), 'sitewipe-private-rc-1.9.9');
+  assert.equal(runtimeArtifactBase('1.9.9'), 'sitewipe-unreleased-candidate-1.9.9');
   assert.throws(() => assertSemanticVersion('1.09.9'), /leading zeroes/);
   assert.throws(() => resolveNextVersion('1.9.8', '1.9.8'), /must be greater/);
   assert.throws(() => resolveNextVersion('1.9.8', '1.9.7'), /must be greater/);

@@ -1,6 +1,8 @@
 # Private remote, CI, and security plan
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
+
+Historical plan: this file records the original private-staging transition. The repository is now configured public in the signed-in owner view, while anonymous availability remains blocked; current remote facts live in [`docs/evidence/github-settings-audit-2026-08-17.json`](./evidence/github-settings-audit-2026-08-17.json).
 
 This plan does not grant authority by itself. The owner separately authorized creation of `NouraldinFarge/SiteWipe` as a private repository and its first truthful push on 2026-08-17. No public visibility, tag, release, Pages site, Package, store submission, professional-profile publication, setting change, secret, or attestation is authorized by that approval.
 

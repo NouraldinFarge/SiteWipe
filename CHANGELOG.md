@@ -1,10 +1,26 @@
 # Changelog
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 This log distinguishes private engineering candidates from public releases. No version listed here has been published as an approved public release.
 
 ## Unreleased
+
+## 1.11.4 — public-source prerelease work — 2026-08-17
+
+### Local check isolation
+
+- Aligned ESLint's ignore boundary with the repository's generated browser-profile, coverage, artifact, Playwright-report, test-result, dependency, and third-party paths so local quality gates inspect the candidate source instead of disposable test data.
+
+## 1.11.3 — public-source prerelease work — 2026-08-17
+
+### Repository truth and build provenance
+
+- Reconciled the `1.11.2` default-branch baseline with the owner-visible public repository while explicitly preserving the current anonymous `404`, unreleased-binary status, and the separate unmerged `1.11.29` draft candidate.
+- Renamed private-staging package, artifact, CI, and manual-environment labels to unreleased-candidate terminology; linked GitHub Private Vulnerability Reporting from issue/security surfaces; and recorded the read-only repository settings audit without treating unavailable public access as success.
+- Made CI and CodeQL check out and assert the exact pull-request head or event commit, renamed the duplicate report-redaction decision to ADR 0010, and kept the broad 17-gate prerelease work out of this main-compatible hotfix.
+- Switched the complete source ZIP to sorted stored entries with fixed timestamps/modes so its archive bytes have a cross-platform reproducibility contract, while limiting the compressed runtime ZIP claim to exact extracted parity and recorded same-environment comparisons until a two-host check exists.
+- Bound browser, performance, accessibility, media, SBOM, and unsigned-provenance evidence names to each version transaction so prior candidate evidence cannot silently follow new bytes.
 
 ## 1.11.2 — private release-candidate work — 2026-08-17
 

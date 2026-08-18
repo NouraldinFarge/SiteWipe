@@ -1,8 +1,8 @@
 # Architecture
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-Last reviewed: 2026-08-17. `SiteWipe` is the owner-approved custom product identity; `1.11.2` remains a private candidate version rather than an approved public release.
+Last reviewed: 2026-08-17. `SiteWipe` is the owner-approved custom product identity; `1.11.4` remains a public-source prerelease version rather than an approved public binary release.
 
 ## Design objective
 

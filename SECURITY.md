@@ -1,16 +1,14 @@
 # Security Policy
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-There is no supported public release yet. Security review currently applies to the private `1.11.2` candidate and its locally generated artifacts only.
+There is no supported public binary release yet. Security review applies to the public-source `1.11.4` prerelease and its locally generated artifacts.
 
 ## Reporting a vulnerability
 
 Do not disclose a suspected vulnerability, real browsing history, cookies, tokens, local paths, download filenames, extension IDs, or private-window activity in a public issue.
 
-The repository remote and private vulnerability-reporting channel have not yet been created. That missing confidential contact route is a publication blocker. Once the intended GitHub repository exists, the owner must enable GitHub Private Vulnerability Reporting and update this file with the exact verified route before issues are opened to the public.
-
-Until then, report only through a private channel explicitly supplied by the project owner. If no such channel has been supplied, retain the report locally and notify the owner that confidential intake is unavailable; do not guess an email address.
+Use [GitHub Private Vulnerability Reporting](https://github.com/NouraldinFarge/SiteWipe/security/advisories/new) for confidential reports. If that route is unavailable while GitHub account restoration is incomplete, retain the report locally and notify the owner only through a private channel the owner explicitly supplies. Do not guess an email address and do not fall back to a public issue.
 
 ## Useful report contents
 
@@ -38,7 +36,7 @@ Use synthetic domains and filenames. Start from a redacted troubleshooting expor
 
 ## Coordinated handling
 
-The owner should acknowledge a valid private report, reproduce it with synthetic data, preserve evidence, and agree on disclosure timing before publication. No response-time or fix-time SLA is promised while the project remains an unpublished private candidate.
+The owner should acknowledge a valid private report, reproduce it with synthetic data, preserve evidence, and agree on disclosure timing before public disclosure. No response-time or fix-time SLA is promised while the project remains an unreleased prerelease.
 
 Security fixes must add a regression test where feasible, rerun all local gates, repeat installed Chrome/Brave validation when browser behavior is involved, rebuild deterministic artifacts, and invalidate any earlier checksum.
 
