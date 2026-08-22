@@ -1,9 +1,29 @@
 import { readFile } from 'node:fs/promises';
 
 const manifestUrl = new URL('../../src/manifest.json', import.meta.url);
+const DEFAULT_RUNTIME_ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+export function createChromeActionPopupContext(overrides = {}) {
+  const runtimeId = overrides.runtimeId || DEFAULT_RUNTIME_ID;
+  const { runtimeId: _runtimeId, ...contextOverrides } = overrides;
+  return {
+    contextId: 'mock-action-popup-context',
+    contextType: 'POPUP',
+    documentId: 'mock-action-popup-document',
+    documentOrigin: `chrome-extension://${runtimeId}`,
+    documentUrl: `chrome-extension://${runtimeId}/popup/popup.html`,
+    frameId: 0,
+    tabId: -1,
+    windowId: -1,
+    incognito: false,
+    ...clone(contextOverrides)
+  };
+}
 
 export async function createChromeMock(options = {}) {
   const manifest = JSON.parse(await readFile(manifestUrl, 'utf8'));
+  const runtimeId = options.runtimeId || DEFAULT_RUNTIME_ID;
+  const currentWindow = options.currentWindow || { id: 1, incognito: false };
   const calls = [];
   const localState = clone(options.localState || {});
   const sessionState = clone(options.sessionState || {});
@@ -14,6 +34,16 @@ export async function createChromeMock(options = {}) {
   const dnrRules = [...(options.dnrRules || [])].map(clone);
   const namedPermissions = new Set(options.namedPermissions || manifest.permissions || []);
   const originPermissions = new Set(options.originPermissions || []);
+  const configuredRuntimeContexts =
+    options.runtimeContexts === undefined
+      ? [
+          createChromeActionPopupContext({
+            runtimeId,
+            incognito: manifest.incognito === 'split' && Boolean(currentWindow.incognito)
+          })
+        ]
+      : options.runtimeContexts;
+  const runtimeContexts = [...configuredRuntimeContexts].map(clone);
   const alarms = new Map();
 
   const events = {
@@ -21,7 +51,8 @@ export async function createChromeMock(options = {}) {
     runtimeStartup: createEvent(),
     runtimeMessage: createEvent(),
     storageChanged: createEvent(),
-    alarm: createEvent()
+    alarm: createEvent(),
+    permissionAdded: createEvent()
   };
 
   const chrome = {
@@ -37,14 +68,33 @@ export async function createChromeMock(options = {}) {
       dnrRules,
       namedPermissions,
       originPermissions,
+      runtimeContexts,
       alarms
     },
     runtime: {
-      id: options.runtimeId || 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      id: runtimeId,
       onInstalled: events.runtimeInstalled,
       onStartup: events.runtimeStartup,
       onMessage: events.runtimeMessage,
       getManifest: () => clone(manifest),
+      getContexts: async (filter = {}) =>
+        record(
+          calls,
+          'runtime.getContexts',
+          [filter],
+          runtimeContexts.filter(
+            (context) =>
+              (!Array.isArray(filter.contextIds) || filter.contextIds.includes(context.contextId)) &&
+              (!Array.isArray(filter.documentIds) || filter.documentIds.includes(context.documentId)) &&
+              (!Array.isArray(filter.contextTypes) || filter.contextTypes.includes(context.contextType)) &&
+              (!Array.isArray(filter.documentOrigins) || filter.documentOrigins.includes(context.documentOrigin)) &&
+              (!Array.isArray(filter.documentUrls) || filter.documentUrls.includes(context.documentUrl)) &&
+              (!Array.isArray(filter.frameIds) || filter.frameIds.includes(context.frameId)) &&
+              (typeof filter.incognito !== 'boolean' || filter.incognito === context.incognito) &&
+              (!Array.isArray(filter.tabIds) || filter.tabIds.includes(context.tabId)) &&
+              (!Array.isArray(filter.windowIds) || filter.windowIds.includes(context.windowId))
+          )
+        ),
       openOptionsPage: async () => record(calls, 'runtime.openOptionsPage', [], undefined),
       getURL: (path = '') => `chrome-extension://${chrome.runtime.id}/${String(path).replace(/^\//, '')}`
     },
@@ -54,15 +104,20 @@ export async function createChromeMock(options = {}) {
       onChanged: events.storageChanged
     },
     permissions: {
+      onAdded: events.permissionAdded,
       contains: async (request = {}) => {
         record(calls, 'permissions.contains', [request]);
-        return everyPresent(request.permissions, namedPermissions) && everyPresent(request.origins, originPermissions);
+        return (
+          everyPresent(request.permissions, namedPermissions) &&
+          everyHostPermissionPresent(request.origins, originPermissions)
+        );
       },
       request: async (request = {}) => {
         record(calls, 'permissions.request', [request]);
         if (options.permissionRequestResult === false) return false;
         for (const permission of request.permissions || []) namedPermissions.add(permission);
         for (const origin of request.origins || []) originPermissions.add(origin);
+        events.permissionAdded.emit(clone(request));
         return true;
       },
       remove: async (request = {}) => {
@@ -71,7 +126,11 @@ export async function createChromeMock(options = {}) {
         for (const origin of request.origins || []) originPermissions.delete(origin);
         return true;
       },
-      getAll: async () => ({ permissions: [...namedPermissions], origins: [...originPermissions] })
+      getAll: async () =>
+        record(calls, 'permissions.getAll', [], {
+          permissions: [...namedPermissions],
+          origins: [...originPermissions]
+        })
     },
     alarms: {
       onAlarm: events.alarm,
@@ -197,7 +256,15 @@ export async function createChromeMock(options = {}) {
       open: async (details) => record(calls, 'sidePanel.open', [details], undefined)
     },
     windows: {
-      getCurrent: async () => clone(options.currentWindow || { id: 1, incognito: false })
+      getCurrent: async () => clone(options.currentWindow || { id: 1, incognito: false }),
+      get: async (windowId) => {
+        record(calls, 'windows.get', [windowId]);
+        const current = options.currentWindow || { id: 1, incognito: false };
+        return clone({
+          id: windowId,
+          incognito: current.id === windowId ? Boolean(current.incognito) : false
+        });
+      }
     },
     action: {
       setBadgeText: async (details) => record(calls, 'action.setBadgeText', [details], undefined),
@@ -323,6 +390,15 @@ function matchesTabQuery(tab, queryInfo) {
 
 function everyPresent(values, set) {
   return (values || []).every((value) => set.has(value));
+}
+
+function everyHostPermissionPresent(values, set) {
+  return (values || []).every((value) => {
+    if (set.has(value) || set.has('<all_urls>') || set.has('*://*/*')) return true;
+    if (String(value).startsWith('http://') && set.has('http://*/*')) return true;
+    if (String(value).startsWith('https://') && set.has('https://*/*')) return true;
+    return false;
+  });
 }
 
 function record(calls, api, args, result) {

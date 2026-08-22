@@ -6,7 +6,7 @@ Designing a fail-closed consent boundary for destructive browser cleanup
 
 ## One-line summary
 
-SiteWipe is a private Manifest V3 engineering project that explores how to review, authorize, constrain, recover, and report multi-API browser-data cleanup for one site boundary without claiming complete erasure.
+SiteWipe is a public-source Manifest V3 prerelease engineering project that explores how to review, authorize, constrain, recover, and report multi-API browser-data cleanup for one site boundary without claiming complete erasure.
 
 ## Problem
 
@@ -15,7 +15,7 @@ Chromium does not expose one uniform “delete this site” transaction. Cookies
 ## Engineering response
 
 - Bundled and pinned the full Public Suffix List, including PRIVATE tenant rules, with fail-closed unknown/public-suffix behavior and exact local-origin support.
-- Split work into a read-only preflight and a mandatory complete per-run review. Standard and Expert modes both require explicit final approval; older shortcut settings/messages/session records are rejected.
+- Split work into a read-only preflight and a preflight-bound authorization transaction. Detailed review remains the default in Standard and Expert; an explicitly warned, default-off direct setting prepares the same hidden snapshot/lease before one SiteWipe action. Older quick/bypass messages and unbound session records remain rejected.
 - Bound a random, five-minute, single-use approval to target, settings, associated scope, browser context, impacts, permission ownership, acknowledgements, and completed file IDs, then independently revalidated detailed-review mode before orchestration.
 - Added per-adapter target checks and fresh origin/tab/file revalidation instead of trusting preview data as mutation authority.
 - Preserved interruption responsibility with durable temporary-permission leases and persist-before-mutate DNR recovery records.

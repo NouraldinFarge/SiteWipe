@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "status": "failed",
+  "attemptedAt": "2026-08-21T16:20:00-05:00",
+  "attemptedAtApproximate": true,
+  "artifact": {
+    "version": "1.11.39",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.39.zip",
+    "sha256": "BAF78DEF05AC5E6960CD5FD98C0FF0CBDDA71688C6F0259C0A0C2A9E5D56A337"
+  },
+  "priorExactArtifactEvidence": {
+    "version": "1.11.38",
+    "record": "browser-validation-2026-08-21-v1.11.38.json",
+    "status": "historical_not_current"
+  },
+  "chrome": {
+    "status": "failed",
+    "version": "151.0.7922.172",
+    "operatingSystem": "Windows 11",
+    "disposableProfile": true,
+    "assertions": [
+      {
+        "id": "chrome-standard-popup-context-identity-failure-2026-08-21",
+        "status": "failed",
+        "outcome": "safe_failure_before_review_or_cleanup_authority",
+        "claimScope": "Two repeat attempts to open the installed SiteWipe 1.11.39 Standard detailed review for disposable synthetic example.com fixtures in a normal Chrome window.",
+        "observedAt": "2026-08-21T16:20:00-05:00",
+        "observedAtApproximate": true,
+        "artifactSha256": "BAF78DEF05AC5E6960CD5FD98C0FF0CBDDA71688C6F0259C0A0C2A9E5D56A337",
+        "environment": {
+          "browser": "Chrome",
+          "version": "151.0.7922.172",
+          "operatingSystem": "Windows 11",
+          "disposableProfile": true,
+          "syncEnabled": false,
+          "incognito": false
+        },
+        "fixturePrecondition": {
+          "fixtureVersion": "sitewipe-synthetic-v1",
+          "port": 43822,
+          "canonicalTarget": "example.com",
+          "cleanupMode": "standard",
+          "selectedHostSeeded": true,
+          "includedSubdomainHostSeeded": true,
+          "lookalikeControlHostSeeded": true,
+          "embeddedPartitionHostSeeded": true,
+          "selectedHost": {
+            "host": "selected.example.com",
+            "localStorageKeys": 8,
+            "sessionStorageKeys": 8,
+            "indexedDbDatabases": 1,
+            "matchingCaches": 0,
+            "matchingServiceWorkers": 0,
+            "cookieNames": ["sitewipe_fixture"]
+          },
+          "includedSubdomainHost": {
+            "host": "sub.selected.example.com",
+            "localStorageKeys": 8,
+            "sessionStorageKeys": 8,
+            "indexedDbDatabases": 1,
+            "matchingCaches": 0,
+            "matchingServiceWorkers": 0,
+            "cookieNames": ["sitewipe_fixture"]
+          },
+          "lookalikeControlHost": {
+            "host": "selected.example.com.evil.invalid",
+            "localStorageKeys": 8,
+            "sessionStorageKeys": 8,
+            "indexedDbDatabases": 1,
+            "matchingCaches": 0,
+            "matchingServiceWorkers": 0,
+            "cookieNames": ["sitewipe_fixture"]
+          },
+          "embeddedPartitionHost": {
+            "host": "chips.localhost",
+            "localStorageKeys": 8,
+            "sessionStorageKeys": 8,
+            "indexedDbDatabases": 1,
+            "matchingCaches": 0,
+            "matchingServiceWorkers": 0,
+            "cookieNames": ["sitewipe_partitioned"]
+          }
+        },
+        "attempt": {
+          "attemptCount": 2,
+          "sourceHost": "selected.example.com",
+          "detectedCanonicalTarget": "example.com",
+          "popupReady": true,
+          "privateAccess": false,
+          "reviewButtonActivated": true,
+          "detailedReviewDisplayed": false,
+          "nativePermissionPromptReached": false,
+          "nativePermissionGranted": false,
+          "message": "The popup document preparing Chrome target access could not be verified. Reopen SiteWipe."
+        },
+        "postFailureInspection": {
+          "inspectionSurface": "Installed SiteWipe Options page",
+          "activeCleanupJobObserved": false,
+          "interruptedCleanupJobObserved": false,
+          "latestReportObserved": false,
+          "activeSiteWipeShieldObserved": false,
+          "ownedDnrRulesObserved": 0,
+          "temporaryTargetAccessLeaseObserved": false,
+          "temporaryExactGrantObserved": false,
+          "incognitoEnabled": false,
+          "downloadedFileDeletionEnabled": false
+        },
+        "fixturePostcondition": {
+          "cleanupMutationObserved": false,
+          "fixtureTabsStillOpen": true,
+          "storageValuesResnapshottedAfterFailure": false,
+          "interpretation": "The attempt failed before the detailed review, native permission prompt, or cleanup admission. No post-failure fixture resnapshot is claimed."
+        },
+        "protectedDownload": {
+          "sizeBytes": 63,
+          "sha256": "8312D39537A75D42D87048ABDC1AC605C9754DFAABB401FCFBAA2D211D63764A",
+          "rehashObservedAfterFailure": true,
+          "preserved": true,
+          "deleted": false,
+          "localPathDisclosed": false
+        },
+        "sourceDiagnosis": {
+          "classification": "installed_api_contract_mismatch",
+          "summary": "Chrome 151 omitted the optional MessageSender.documentId for this action-popup sender, consistent with Chromium's no-source-tab routing path; SiteWipe 1.11.39 required it before preparing missing target access.",
+          "evidenceBoundary": "This diagnosis comes from source and official API/Chromium inspection; it is not represented as a browser UI observation."
+        },
+        "limitations": [
+          "This is a failed partial installed result, not a successful cleanup or Chrome compatibility result.",
+          "The failure occurred before the detailed review and before Chrome displayed the four-pattern permission prompt.",
+          "The post-failure fixture data was not manually resnapshotted; only absence of an admitted cleanup and the directly inspected extension state are recorded.",
+          "This attempt does not establish Expert mode, direct mode, incognito, Brave, accessibility, performance, compatibility, or store-media readiness.",
+          "No private extension identifier, disposable-profile location, downloaded-file location, or other local filesystem path is included in this public evidence record."
+        ]
+      }
+    ]
+  },
+  "brave": {
+    "status": "pending",
+    "version": null,
+    "operatingSystem": null,
+    "disposableProfile": null,
+    "assertions": []
+  },
+  "syntheticInAppBrowser": {
+    "status": "pending",
+    "attemptedAt": null,
+    "environment": "ChatGPT in-app Browser",
+    "fixture": "HTTP-served SiteWipe UI with synthetic browser-API mocks",
+    "assertions": [],
+    "qualifiesAsInstalledExtensionEvidence": false,
+    "limitations": [
+      "Does not load the runtime ZIP or a chrome-extension:// origin.",
+      "Does not exercise native host-permission prompts, incognito spanning, MV3 worker lifecycle, or privileged browser-data mutation APIs.",
+      "Cannot satisfy Chrome, Brave, installed accessibility, exact-artifact performance, compatibility, or store-media approval fields."
+    ]
+  },
+  "automationAttempt": {
+    "status": "failed",
+    "attemptedAt": "2026-08-21T16:20:00-05:00",
+    "attemptedAtApproximate": true,
+    "controller": "ChatGPT Computer Use",
+    "scope": "Two installed exact-artifact Chrome attempts to prepare the Standard detailed review for disposable synthetic example.com fixtures, followed by bounded read-only Options inspection.",
+    "result": "Both attempts stopped before review with the popup-document verification message; no native permission prompt, job, report, lease, shield, owned DNR rule, or cleanup mutation was observed.",
+    "limitations": [
+      "This retained failure observation is not an installed-browser matrix pass.",
+      "No user authentication, daily browser profile, private extension identifier, or local path is included in public evidence."
+    ]
+  },
+  "requiredMatrix": [
+    "fresh install and upgrade migration",
+    "default detailed Standard and Expert review displays mode, exact and broader site access, associated/local/private/protected/PWA/file/persistent-shield/permission-requesting/uncertain scope, impacts, effects, warnings, limitations, and acknowledgements",
+    "the default-off Skip detailed cleanup review completely setting requires explicit confirmation, persists in Standard and Expert, and uses only preflight-bound settings_direct authority",
+    "hidden read-only direct preparation and durable prompt_pending lease complete before Clean now is enabled; one SiteWipe cleanup action runs only after fresh final revalidation, while a native browser site-access confirmation may remain an additional browser interaction",
+    "detailed review still requires explicit final approval, and no stale, raw, caller-controlled, or legacy quick/bypass cleanup route exists",
+    "settings, target/associated scope, source/private context, browser private-access, and complete impact/review snapshot changes reject the token before mutation",
+    "normal-only authority never expands into private discovery, injection, overlays, tab changes/closure, or verification",
+    "exact required and relevant broader/all-site pre-existing host access is disclosed truthfully and preserved, unrelated host-permission canaries are omitted, and only preflight-classified temporary exact patterns enter release calls",
+    "PRIVATE-suffix sibling and lookalike isolation",
+    "normal and private-window access disabled/enabled; private-source settings_direct requires browser-controlled Allow in incognito and pre-existing exact target host access",
+    "partitioned cookies and every exposed storage fixture",
+    "downloaded-file exact live identity/state/target revalidation preserves file and record on uncertainty; detailed mode requires its typed phrase while settings_direct truthfully records that the phrase was skipped",
+    "worker termination, browser restart, popup closure, late DNR install after timeout, and orphan DNR repair",
+    "live cleanup rejects settings/reset/shield/maintenance/local-reset changes; Standard and first Expert entry keep embedded discovery off and remove webNavigation; settings backup import is bounded and confirmed",
+    "ten consecutive runs, timeouts, partial failures, and report expiry",
+    "protected data and unrelated controls remain unchanged"
+  ],
+  "limitations": [
+    "This record documents one exact-artifact installed failure and cannot satisfy any later-version publication gate.",
+    "The cleanup did not reach its detailed review or native permission prompt, so no successful cleanup, report, accessibility, performance, compatibility, or media result is claimed.",
+    "Chrome evidence cannot be reused as Brave evidence.",
+    "ChatGPT in-app Browser synthetic UI results are not installed-extension evidence and remain isolated in their separate evidence object."
+  ],
+  "reviewerApproval": false
+}

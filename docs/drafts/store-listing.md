@@ -8,9 +8,9 @@ SiteWipe
 
 Known exact-name listings already exist. This draft does not claim uniqueness, trademark clearance, or acceptance by the Chrome Web Store.
 
-## Short description (128 characters)
+## Short description (123 characters)
 
-Review browser-exposed data for one site, approve the scope, then clear it with local reports, recovery, and best-effort checks.
+Review one-site browser cleanup or use an explicitly enabled saved direct-cleanup setting, with local reports and recovery.
 
 ## Single purpose
 
@@ -18,9 +18,9 @@ Let the user review and attempt guarded cleanup of browser-exposed data for one 
 
 ## Long description
 
-SiteWipe prepares a read-only scope and impact review for one registrable site—or an explicitly enabled exact local origin—before cleanup. Every Standard and Expert run shows the normalized target, included scope, selected and unsupported categories, known and unknown impacts, temporary site access, request shielding, report retention, limitations, and verification boundary. Cleanup starts only after a separate final approval.
+SiteWipe performs a read-only scope and impact preflight for one registrable site—or an explicitly enabled exact local origin—before cleanup. Detailed review is the default in Standard and Expert and shows the normalized target, included scope, categories, known/unknown impacts, temporary site access, request shielding, report retention, limitations, and verification boundary before final approval. A separately warned, default-off setting can skip that detailed screen in either mode; the same hidden preflight and single-use binding complete before **Clean now** becomes available. Chrome/Brave may still add a native permission confirmation, and private-source direct cleanup requires **Allow in incognito** plus pre-existing exact target access.
 
-Depending on reviewed settings and browser support, SiteWipe can attempt target-matched cleanup across cookies, origin storage and cache, live-page storage, tabs, history URLs, and download-list records. Expert options can expand the reviewed scope and can optionally remove preflight-captured completed files after a separate typed confirmation. File deletion is irreversible and off by default.
+Depending on preflight-bound settings and browser support, SiteWipe can attempt target-matched cleanup across cookies, origin storage and cache, live-page storage, tabs, history URLs, and download-list records. Expert options can expand scope and can optionally remove preflight-captured completed files. Detailed mode requires a separate typed confirmation; explicitly enabled direct mode skips that per-run phrase but retains exact file-ID binding and immediate live-record revalidation. File deletion is irreversible and off by default.
 
 Processing is designed to stay on the device. The reviewed runtime contains no project analytics, advertising, telemetry, developer-controlled server, or remote executable code. Reports are redacted by default; report history is off; the latest eligible report expires after 30 minutes; completed reports are not persisted whenever private-window access is enabled or private context is observed.
 
@@ -41,7 +41,7 @@ Browser APIs are incomplete and asynchronous. “Verification evidence” means 
 - Side panel: show detailed local reports, limitations, and exports.
 - Alarms: enforce local expiry and retry safe recovery after MV3 suspension.
 - Optional web navigation: discover embedded frames only when Expert mode requests and receives that optional permission.
-- Optional site access: the manifest declares HTTP/HTTPS ceilings, but each cleanup requests only the exact missing patterns displayed in the final review; the native prompt is not cleanup consent.
+- Optional site access: the manifest declares HTTP/HTTPS ceilings, but each cleanup requests only exact missing patterns bound by its preflight. Detailed mode displays them; direct mode prepares the lease before **Clean now** and may encounter an additional native prompt. Private-source direct cleanup requires pre-existing exact access.
 
 ## User-data/limited-use disclosure draft
 

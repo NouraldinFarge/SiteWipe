@@ -1,5 +1,5 @@
 import {
-  downloadMatchesCleanupTarget,
+  downloadMatchesReviewedCleanupTarget,
   historyItemMatchesCleanupTarget,
   listCleanupTargets
 } from '../shared/target-scope.js';
@@ -64,7 +64,7 @@ export async function discoverMatchingDownloads(target, options = {}) {
     evidence.downloads.recordsObserved += results.length;
     if (results.length >= Number(queries[queryIndex].limit || 0)) evidence.downloads.queryResultCapReached = true;
     for (const item of results) {
-      if (!downloadMatchesCleanupTarget(item, target)) continue;
+      if (!downloadMatchesReviewedCleanupTarget(item, target, options.incognitoAccess === true)) continue;
       seen.set(String(item.id), item);
       if (seen.size >= MAX_DOWNLOAD_MATCHES) {
         evidence.downloads.matchCapReached = true;

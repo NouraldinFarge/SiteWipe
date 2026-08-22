@@ -7,7 +7,6 @@ const EMPTY_PAYLOAD_TYPES = new Set([
   MESSAGE_TYPES.getState,
   MESSAGE_TYPES.getPopupState,
   MESSAGE_TYPES.getOptionsState,
-  MESSAGE_TYPES.getReportState,
   MESSAGE_TYPES.getReport,
   MESSAGE_TYPES.getHistory,
   MESSAGE_TYPES.clearHistory,
@@ -15,12 +14,10 @@ const EMPTY_PAYLOAD_TYPES = new Set([
   MESSAGE_TYPES.resetSettings,
   MESSAGE_TYPES.clearDebugLog,
   MESSAGE_TYPES.getIncognitoStatus,
-  MESSAGE_TYPES.openSidePanel,
   MESSAGE_TYPES.clearActiveShield,
   MESSAGE_TYPES.repairActiveShield,
   MESSAGE_TYPES.getShieldDiagnostics,
   MESSAGE_TYPES.expireActiveShield,
-  MESSAGE_TYPES.forgetLatestReport,
   MESSAGE_TYPES.getActiveJob,
   MESSAGE_TYPES.cancelActiveJob,
   MESSAGE_TYPES.clearActiveJobRecord,
@@ -35,8 +32,9 @@ const MAX_INPUT_LENGTH = 4096;
 const MAX_ASSOCIATED_GROUPS_LENGTH = 25_000;
 const MAX_CONFIRMATION_LENGTH = 1024;
 const APPROVAL_TOKEN_PATTERN = /^[a-f0-9]{48}$/;
+const POPUP_PREPARATION_CAPABILITY_PATTERN = /^[a-f0-9]{64}$/;
 
-export function validateMessageEnvelope(message, sender, runtimeId) {
+export function validateMessageEnvelope(message, sender, runtimeId, validationOptions = {}) {
   if (!isPlainObject(message)) fail('Messages must be plain objects.');
   const protocolVersion = message.protocolVersion ?? MESSAGE_PROTOCOL_VERSION;
   if (protocolVersion !== MESSAGE_PROTOCOL_VERSION) {
@@ -58,7 +56,7 @@ export function validateMessageEnvelope(message, sender, runtimeId) {
 
   const payload = message.payload === undefined ? {} : message.payload;
   if (!isPlainObject(payload)) fail('Message payload must be a plain object.');
-  validatePayload(type, payload);
+  validatePayload(type, payload, validationOptions);
   return {
     protocolVersion,
     requestId,
@@ -86,7 +84,7 @@ function validateSender(sender, runtimeId, type) {
   if (!fromExtensionPage && !fromInjectedTargetPage) fail('Message sender context is not trusted.');
 }
 
-function validatePayload(type, payload) {
+function validatePayload(type, payload, validationOptions = {}) {
   if (EMPTY_PAYLOAD_TYPES.has(type)) {
     assertKeys(payload, []);
     return;
@@ -104,14 +102,70 @@ function validatePayload(type, payload) {
       if (typeof payload.sourceIncognito !== 'boolean') fail('sourceIncognito must be a boolean.');
       return;
     case MESSAGE_TYPES.cancelCleanupReview:
-      assertKeys(payload, ['approvalToken']);
+      assertKeys(payload, ['approvalToken', 'promptNotStarted', 'popupContextId', 'popupPreparationCapability']);
       assertApprovalToken(payload.approvalToken);
+      assertPopupPreparationBinding(payload);
+      if (payload.promptNotStarted != null && typeof payload.promptNotStarted !== 'boolean') {
+        fail('promptNotStarted must be a boolean.');
+      }
+      return;
+    case MESSAGE_TYPES.settleCleanupPermissionPrompt:
+      assertKeys(payload, [
+        'approvalToken',
+        'handoffNonce',
+        'permissionLeaseId',
+        'outcome',
+        'popupContextId',
+        'popupPreparationCapability'
+      ]);
+      assertApprovalToken(payload.approvalToken);
+      assertPermissionLeaseId(payload.handoffNonce);
+      assertPermissionLeaseId(payload.permissionLeaseId);
+      assertPopupPreparationBinding(payload);
+      if (!['denied', 'abandoned'].includes(payload.outcome)) {
+        fail('permission prompt outcome must be denied or abandoned.');
+      }
+      return;
+    case MESSAGE_TYPES.armCleanupApproval:
+      assertKeys(payload, [
+        'approvalToken',
+        'handoffNonce',
+        'approval',
+        'sourceWindowId',
+        'sourceIncognito',
+        'popupContextId',
+        'popupPreparationCapability'
+      ]);
+      assertApprovalToken(payload.approvalToken);
+      assertPermissionLeaseId(payload.handoffNonce);
+      assertNullableWindowId(payload.sourceWindowId);
+      if (typeof payload.sourceIncognito !== 'boolean') fail('sourceIncognito must be a boolean.');
+      assertPopupPreparationBinding(payload);
+      validateApproval(payload.approval);
+      return;
+    case MESSAGE_TYPES.resumeArmedCleanup:
+      assertKeys(payload, ['handoffNonce', 'popupContextId', 'popupPreparationCapability']);
+      assertPermissionLeaseId(payload.handoffNonce);
+      assertPopupPreparationBinding(payload);
       return;
     case MESSAGE_TYPES.runDeepClean:
-      assertKeys(payload, ['approvalToken', 'approval', 'sourceWindowId', 'sourceIncognito']);
+      assertKeys(
+        payload,
+        validationOptions.allowInternalArmedCleanup === true
+          ? ['approvalToken', 'approval', 'sourceWindowId', 'sourceIncognito']
+          : [
+              'approvalToken',
+              'approval',
+              'sourceWindowId',
+              'sourceIncognito',
+              'popupContextId',
+              'popupPreparationCapability'
+            ]
+      );
       assertApprovalToken(payload.approvalToken);
       assertNullableWindowId(payload.sourceWindowId);
       if (typeof payload.sourceIncognito !== 'boolean') fail('sourceIncognito must be a boolean.');
+      if (validationOptions.allowInternalArmedCleanup !== true) assertPopupPreparationBinding(payload);
       validateApproval(payload.approval);
       return;
     case MESSAGE_TYPES.validateAssociatedGroups:
@@ -121,6 +175,20 @@ function validatePayload(type, payload) {
     case MESSAGE_TYPES.saveSettings:
       assertKeys(payload, ['settings']);
       if (!isPlainObject(payload.settings)) fail('settings must be a plain object.');
+      return;
+    case MESSAGE_TYPES.getReportState:
+      assertKeys(payload, ['reportId', 'windowId']);
+      assertReportId(payload.reportId);
+      assertWindowId(payload.windowId);
+      return;
+    case MESSAGE_TYPES.openSidePanel:
+      assertKeys(payload, ['reportId', 'windowId']);
+      assertReportId(payload.reportId);
+      assertWindowId(payload.windowId);
+      return;
+    case MESSAGE_TYPES.forgetLatestReport:
+      assertKeys(payload, ['reportId']);
+      assertReportId(payload.reportId);
       return;
     default:
       fail('No payload contract exists for this message type.');
@@ -140,8 +208,8 @@ function validateApproval(value) {
   for (const key of ['reviewedScope', 'associatedTargets', 'localOrIpTarget', 'protectedWebOrigins']) {
     if (typeof value[key] !== 'boolean') fail(`approval.${key} must be a boolean.`);
   }
-  if (value.approvalMode !== 'detailed_review') {
-    fail('approval.approvalMode must be detailed_review.');
+  if (!['detailed_review', 'settings_direct'].includes(value.approvalMode)) {
+    fail('approval.approvalMode must be detailed_review or settings_direct.');
   }
   assertString(value.fileConfirmationText, 'approval.fileConfirmationText', 0, MAX_CONFIRMATION_LENGTH);
 }
@@ -149,6 +217,35 @@ function validateApproval(value) {
 function assertApprovalToken(value) {
   if (typeof value !== 'string' || !APPROVAL_TOKEN_PATTERN.test(value)) {
     fail('approvalToken is invalid.');
+  }
+}
+
+function assertPopupPreparationBinding(value) {
+  if (
+    typeof value.popupContextId !== 'string' ||
+    value.popupContextId !== value.popupContextId.trim() ||
+    !value.popupContextId ||
+    value.popupContextId.length > 256
+  ) {
+    fail('popupContextId is invalid.');
+  }
+  if (
+    typeof value.popupPreparationCapability !== 'string' ||
+    !POPUP_PREPARATION_CAPABILITY_PATTERN.test(value.popupPreparationCapability)
+  ) {
+    fail('popupPreparationCapability is invalid.');
+  }
+}
+
+function assertPermissionLeaseId(value) {
+  if (typeof value !== 'string' || !/^[a-zA-Z0-9._:-]{8,128}$/.test(value)) {
+    fail('permissionLeaseId is invalid.');
+  }
+}
+
+function assertReportId(value) {
+  if (typeof value !== 'string' || !value.trim() || value.length > 256) {
+    fail('reportId must be a non-empty string no longer than 256 characters.');
   }
 }
 
@@ -162,6 +259,10 @@ function validateRequestId(value) {
 function assertNullableWindowId(value) {
   if (value !== null && (!Number.isInteger(value) || value < 0))
     fail('sourceWindowId must be a non-negative integer or null.');
+}
+
+function assertWindowId(value) {
+  if (!Number.isInteger(value) || value < 0) fail('windowId must be a non-negative integer.');
 }
 
 function assertString(value, name, minimum, maximum) {

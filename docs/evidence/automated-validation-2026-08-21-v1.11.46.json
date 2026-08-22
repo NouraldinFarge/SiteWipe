@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 1,
+  "status": "local_automated_checks_passed",
+  "validatedAt": "2026-08-21T23:57:00-05:00",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
+  "environment": {
+    "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
+    "osArchitecture": "64-bit",
+    "processArchitecture": "x64",
+    "node": "v24.18.0",
+    "npm": "11.16.0"
+  },
+  "baseline": {
+    "beforeState": "The 1.11.45 record remains unchanged in automated-validation-2026-08-21-v1.11.45.json.",
+    "baselineVersion": "1.11.45",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-21-v1.11.45.json"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "passed",
+    "format": "passed",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.11.46",
+      "runtimeFiles": 55,
+      "runtimeFingerprintSha256": "74AB50F0429AFB18317452903D06F5C36D4EA83F8CB8A0FD779FAA3406F80978",
+      "stableReleaseInputFingerprintSha256": "3BB36594AA238BF7AAD0E84CB4D4B7696811589EC8F26DF5EEF4E1EE86AA9831"
+    },
+    "syntaxModules": 535,
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "htmlValidation": "passed",
+    "cssValidation": "passed",
+    "manifest": {
+      "status": "passed",
+      "version": "1.11.46",
+      "descriptionCharacters": 123,
+      "descriptionMaximum": 132,
+      "requiredNamedPermissions": 10,
+      "optionalNamedPermissions": 1,
+      "requiredHostPatterns": 0,
+      "optionalHostPatterns": 2
+    },
+    "remoteCodeAndRuntimeSecretScan": {
+      "status": "passed",
+      "runtimeFiles": 55
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 265
+    },
+    "dependencyLicenseInventory": {
+      "status": "passed",
+      "runtimeDependencies": 0,
+      "lockedDevelopmentGraph": 406,
+      "lockfileSha256": "D349AF7FAF226FA2546F3B182AF99E2D96A4A16B8F67E235385158A23F793D15",
+      "metadataExceptionsResolved": 1
+    },
+    "projectLicense": {
+      "status": "passed",
+      "spdxIdentifier": "MIT",
+      "licenseFileSha256": "86ECA68E8C1B0498315252BD01B6190F01500EE720C333D00793DD947F5B6511"
+    },
+    "thirdPartyNoticeAndPslHash": "passed",
+    "iconSourceAndPngProvenance": "passed",
+    "documentation": {
+      "status": "passed",
+      "markdownFiles": 47
+    },
+    "githubActionPins": {
+      "status": "passed",
+      "references": 10
+    },
+    "runtimeAllowlist": {
+      "status": "passed",
+      "runtimeFiles": 55,
+      "sourceOnlyFiles": 3
+    },
+    "legacyReleaseSelfTest": "passed",
+    "nodeTests": {
+      "tests": 563,
+      "suites": 0,
+      "passed": 563,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "seed": 20260817,
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "passed",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    },
+    "all": {
+      "statements": 88.07,
+      "branches": 74.67,
+      "functions": 91.36,
+      "lines": 88.07
+    },
+    "shared": {
+      "statements": 99.14,
+      "branches": 83,
+      "functions": 98.26,
+      "lines": 99.14
+    },
+    "background": {
+      "statements": 80.27,
+      "branches": 73.96,
+      "functions": 91.75,
+      "lines": 80.27
+    },
+    "serviceWorker": {
+      "statements": 85.78,
+      "branches": 78.33,
+      "functions": 98.76,
+      "lines": 85.78
+    },
+    "cleanupAuthorization": {
+      "statements": 100,
+      "branches": 86.15,
+      "functions": 100,
+      "lines": 100
+    },
+    "interpretation": "Coverage is a navigation aid, not a safety score. Local source coverage exceeds every enforced repository-wide floor; installed MV3 lifecycle, browser-privilege, and exact-artifact evidence is still required."
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts",
+    "status": "passed",
+    "installedPackages": 387,
+    "auditedPackagesIncludingRoot": 388,
+    "lifecycleScriptsDisabled": true,
+    "deprecationWarnings": [
+      "prebuild-install@7.1.3 is no longer maintained",
+      "glob@10.5.0 is an unsupported transitive development-tool version"
+    ],
+    "interpretation": "The deprecation warnings are development-tool maintenance findings. They did not create a current npm audit advisory, but they remain visible upgrade work."
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=moderate --json",
+    "status": "passed",
+    "auditedAt": "2026-08-21T23:26:59-05:00",
+    "knownVulnerabilities": 0,
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "runtimeDependencies": 0,
+    "lockedDevelopmentGraph": 406,
+    "lockfileSha256": "D349AF7FAF226FA2546F3B182AF99E2D96A4A16B8F67E235385158A23F793D15"
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "passed",
+    "redactionCanaries": "passed",
+    "privateContextPersistenceRefusal": "passed",
+    "deterministicThirtyMinuteExpiry": "passed"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "passed",
+    "syntheticInAppBrowser": "passed_synthetic_only",
+    "installedChromeRun": "pending",
+    "installedBraveRun": "pending"
+  },
+  "gitInitialization": {
+    "status": "pending_exact_candidate_validation",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "Exact candidate commit, clean checkout, remote checks, and repository state require fresh validation."
+  },
+  "artifacts": {
+    "status": "local_reproducible_build_passed",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.46.zip",
+    "runtimeZipSha256": "20BC7908D896A499362051D1D8DD114AC51B4AD26671CCD41CC99D7764417331",
+    "runtimeZipBytes": 302740,
+    "runtimeFiles": 55,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.46-source.zip",
+    "sourceZipSha256": "Recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
+    "sourceFiles": 265,
+    "sourcePackageEquivalence": "exact",
+    "checksumFilesVerified": 7,
+    "consecutiveBuildOutputsCompared": 8,
+    "byteIdenticalAcrossConsecutiveBuilds": true,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.46.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.46.unsigned-provenance-input.json",
+    "remoteAttestation": "pending",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "blocked",
+    "blockerCount": 31,
+    "originalBlockerCount": 36,
+    "closedOriginalBlockers": [
+      "Local version, source, runtime artifact, checksum, and package-equivalence integrity verification now passes.",
+      "The exact current dependency inventory and audit are complete.",
+      "The exact lockfile audit records zero vulnerabilities at every severity.",
+      "The CycloneDX development SBOM is regenerated and integrity-bound to 1.11.46.",
+      "Current automated checks, coverage, reproducibility, and package-equivalence evidence now pass."
+    ],
+    "remainingClasses": [
+      "The local technical provenance record remains incomplete.",
+      "Installed exact-artifact Chrome and Brave validation remains pending.",
+      "Exact-artifact performance and installed accessibility evidence remains pending.",
+      "Authentic media and store-asset evidence remains pending.",
+      "Remote CI, CodeQL, hosted privacy-policy binding, and final owner publication approvals remain pending."
+    ]
+  },
+  "postWriteValidation": {
+    "validatedAt": "2026-08-22T00:01:00-05:00",
+    "status": "passed",
+    "format": "passed",
+    "versionContract": "passed",
+    "dependencyLicenseInventory": "passed",
+    "projectLicense": "passed",
+    "thirdPartyNoticesAndPsl": "passed",
+    "candidateIcon": "passed",
+    "documentation": "passed",
+    "releaseArtifactVerification": {
+      "status": "passed",
+      "runtimeFiles": 55,
+      "sourceFiles": 265,
+      "checksumFilesVerified": 7,
+      "sourcePackageEquivalence": "exact"
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 265
+    },
+    "focusedExpiryAndFixtureTests": {
+      "tests": 73,
+      "passed": 73,
+      "failed": 0,
+      "skipped": 0
+    },
+    "targetedEvidenceContractTests": {
+      "tests": 7,
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0
+    },
+    "diffCheck": "passed"
+  },
+  "limitations": [
+    "Local automated and synthetic in-app Browser checks do not prove complete erasure, installed-browser behavior, native prompts, MV3 suspension, incognito spanning, exact-artifact performance, or installed accessibility.",
+    "Chrome evidence cannot be reused as Brave evidence, and ChatGPT in-app Browser evidence is not installed-extension evidence.",
+    "No downloaded file was opened or deleted during the final-source synthetic validation."
+  ],
+  "developmentSbom": {
+    "command": "npm run sbom",
+    "status": "passed",
+    "path": "dist/sitewipe-development-sbom.cdx.json",
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.6",
+    "componentVersion": "1.11.46",
+    "components": 329,
+    "dependencyNodes": 388,
+    "bytes": 807991,
+    "sha256": "9F997198896B585FAED8BC0C521C769F1E8A8A27EF6811630FF10DF95FD31C34",
+    "generatedAt": "2026-08-22T04:53:48.02Z"
+  }
+}

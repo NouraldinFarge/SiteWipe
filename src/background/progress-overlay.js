@@ -1,14 +1,16 @@
 import { urlMatchesTarget } from './domain.js';
+import { tabIsWithinReviewedPrivateScope } from '../shared/target-scope.js';
+import { PROGRESS_OVERLAY_MAX_TABS } from '../shared/constants.js';
 import { mapWithConcurrency, readableMessage } from './operation-control.js';
 import { addSection } from './report.js';
 
-const MAX_PROGRESS_OVERLAY_TABS = 120;
 const PROGRESS_OVERLAY_CONCURRENCY = 8;
 const OVERLAY_MESSAGE_TYPE = 'sitewipe.progressOverlay.render.v1';
 
 export function createCleanupProgressOverlay(target, report, options = {}) {
   const enabled = options.progressOverlay === true && Boolean(chrome.tabs && chrome.scripting?.executeScript);
-  const scope = normalizeOverlayScope(options.overlayScope);
+  const cancelButtonEnabled = enabled && options.progressOverlayCancelButton === true;
+  const scope = normalizeOverlayScope(options.overlayScope, options.sourceWindowId);
   const channelId = createOverlayChannelId();
   const stats = {
     enabled,
@@ -23,13 +25,14 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
     injectionErrors: 0,
     lastPercent: 0,
     lastLabel: '',
-    cancelButtonEnabled: options.progressOverlayCancelButton === true,
+    cancelButtonEnabled,
     directInjections: 0,
     receiverUpdates: 0,
     sampleErrors: []
   };
   const visibleTabIds = new Set();
-  let cachedTabIds = null;
+  const reviewedWindowByTabId = new Map();
+  let cachedTabs = null;
   let lastPayloadKey = '';
 
   async function render(action, percent, label, detail) {
@@ -43,7 +46,7 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
       domain: target.domain,
       at: Date.now(),
       watchdogMs: 15_000,
-      cancelEnabled: options.progressOverlayCancelButton === true,
+      cancelEnabled: cancelButtonEnabled,
       channelId
     };
     const payloadKey = `${action}:${safePercent}:${payload.label}:${payload.detail}`;
@@ -59,9 +62,9 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
     let tabs;
     try {
       if (action === 'hide' && visibleTabIds.size) {
-        tabs = [...visibleTabIds].map((id) => ({ id }));
-      } else if (scope !== 'target_tabs' && cachedTabIds && stats.showUpdates > 1 && stats.showUpdates % 4 !== 1) {
-        tabs = [...cachedTabIds].map((id) => ({ id }));
+        tabs = [...visibleTabIds].map((id) => ({ id, windowId: reviewedWindowByTabId.get(id) }));
+      } else if (scope !== 'target_tabs' && cachedTabs && stats.showUpdates > 1 && stats.showUpdates % 4 !== 1) {
+        tabs = cachedTabs.map((tab) => ({ ...tab }));
       } else {
         const queryInfo =
           scope === 'current_window'
@@ -73,8 +76,17 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
         const candidates = queried
           .filter((tab) => isProgressOverlayInjectableTab(tab, options.incognitoAccess))
           .filter((tab) => overlayScopeAllowsTab(tab, target, scope));
-        const capped = candidates.slice(0, MAX_PROGRESS_OVERLAY_TABS);
-        cachedTabIds = new Set(capped.map((tab) => tab.id).filter((id) => Number.isInteger(id)));
+        // Prefer already-visible, still-eligible tabs within this update's fixed
+        // ceiling. Tracked tabs that temporarily leave scope remain tracked for
+        // final cleanup; their page-side watchdog removes stale UI independently.
+        const prioritizedCandidates = [
+          ...candidates.filter((tab) => visibleTabIds.has(tab.id)),
+          ...candidates.filter((tab) => !visibleTabIds.has(tab.id))
+        ];
+        const capped = prioritizedCandidates.slice(0, PROGRESS_OVERLAY_MAX_TABS);
+        cachedTabs = capped
+          .filter((tab) => Number.isInteger(tab.id))
+          .map((tab) => ({ id: tab.id, windowId: Number.isInteger(tab.windowId) ? tab.windowId : null }));
         tabs = capped;
         stats.tabsConsidered += queried.length;
         stats.tabsSkipped +=
@@ -96,13 +108,20 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
     await mapWithConcurrency(tabs, PROGRESS_OVERLAY_CONCURRENCY, async (tab) => {
       if (!Number.isInteger(tab.id)) return;
       try {
-        if (scope === 'target_tabs') {
-          const liveTab = await chrome.tabs.get(tab.id);
-          if (!liveTab?.url || !urlMatchesTarget(liveTab.url, target)) {
-            stats.tabsSkipped += 1;
-            visibleTabIds.delete(tab.id);
-            return;
-          }
+        const expectedWindowId = reviewedOverlayWindowId(tab, options, reviewedWindowByTabId);
+        let liveTab;
+        try {
+          liveTab = await chrome.tabs.get(tab.id);
+        } catch {
+          // Tabs commonly disappear while SiteWipe is closing the reviewed
+          // target. That is a normal revalidation skip, not an overlay error
+          // and must not degrade an otherwise successful cleanup report.
+          skipOverlayTab(tab.id, stats, visibleTabIds, reviewedWindowByTabId);
+          return;
+        }
+        if (!liveTabAllowsProgressOverlay(liveTab, target, scope, options.incognitoAccess, expectedWindowId)) {
+          skipOverlayTab(tab.id, stats, visibleTabIds, reviewedWindowByTabId);
+          return;
         }
         let deliveredToReceiver = false;
         if (visibleTabIds.has(tab.id) && chrome.tabs.sendMessage) {
@@ -117,6 +136,16 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
             stats.receiverUpdates += 1;
           } catch {
             // A navigation removes the isolated-world receiver. Reinstall it below.
+            try {
+              liveTab = await chrome.tabs.get(tab.id);
+            } catch {
+              skipOverlayTab(tab.id, stats, visibleTabIds, reviewedWindowByTabId);
+              return;
+            }
+            if (!liveTabAllowsProgressOverlay(liveTab, target, scope, options.incognitoAccess, expectedWindowId)) {
+              skipOverlayTab(tab.id, stats, visibleTabIds, reviewedWindowByTabId);
+              return;
+            }
           }
         }
         if (!deliveredToReceiver) {
@@ -131,13 +160,22 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
         if (action === 'hide') {
           hiddenThisRound += 1;
           visibleTabIds.delete(tab.id);
+          reviewedWindowByTabId.delete(tab.id);
         } else {
           shownThisRound += 1;
           visibleTabIds.add(tab.id);
+          if (scope === 'current_window' && Number.isInteger(expectedWindowId)) {
+            reviewedWindowByTabId.set(tab.id, expectedWindowId);
+          }
         }
       } catch (error) {
+        if (isMissingTabError(error)) {
+          skipOverlayTab(tab.id, stats, visibleTabIds, reviewedWindowByTabId);
+          return;
+        }
         stats.injectionErrors += 1;
         visibleTabIds.delete(tab.id);
+        reviewedWindowByTabId.delete(tab.id);
         if (stats.sampleErrors.length < 12) {
           stats.sampleErrors.push({
             action,
@@ -179,9 +217,11 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
         {
           ...stats,
           completionStatus: status,
-          maxTabsPerUpdate: MAX_PROGRESS_OVERLAY_TABS,
+          maxTabsPerUpdate: PROGRESS_OVERLAY_MAX_TABS,
+          perUpdateCapDoesNotGuaranteeSimultaneousVisibleTotal: true,
+          watchdogMs: 15_000,
           note: enabled
-            ? 'SiteWipe injects a small bottom-right progress overlay into accessible http/https tabs while cleanup is running, then reuses a versioned isolated-world receiver for phase updates instead of reinjecting the renderer each time. It removes both the overlay and receiver at the end. Chrome blocks injection on restricted pages such as chrome://, extension pages, the Web Store, unloaded/discarded pages, and incognito pages when incognito access is not allowed.'
+            ? 'SiteWipe targets at most 120 accessible http/https tabs per overlay update while cleanup is running, then reuses a versioned isolated-world receiver for phase updates instead of reinjecting the renderer each time. It removes tracked overlays and receivers at the end. Tab eligibility can change between updates, so a stale overlay may remain until its approximately 15-second watchdog removes the UI and listener; the per-update cap is not a guaranteed simultaneous-visible total. Chrome blocks injection on restricted pages such as chrome://, extension pages, the Web Store, unloaded/discarded pages, and incognito pages when incognito access is not allowed.'
             : 'Progress overlay is disabled in settings or chrome.scripting/chrome.tabs is unavailable.'
         }
       );
@@ -194,8 +234,9 @@ function createOverlayChannelId() {
   return `overlay-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function normalizeOverlayScope(value) {
-  return ['all_tabs', 'current_window', 'target_tabs'].includes(value) ? value : 'target_tabs';
+function normalizeOverlayScope(value, sourceWindowId) {
+  if (!['all_tabs', 'current_window', 'target_tabs'].includes(value)) return 'target_tabs';
+  return value === 'current_window' && !Number.isInteger(sourceWindowId) ? 'target_tabs' : value;
 }
 
 function overlayScopeAllowsTab(tab, target, scope) {
@@ -203,9 +244,34 @@ function overlayScopeAllowsTab(tab, target, scope) {
   return true;
 }
 
+function reviewedOverlayWindowId(tab, options, reviewedWindowByTabId) {
+  if (Number.isInteger(options.sourceWindowId)) return options.sourceWindowId;
+  if (Number.isInteger(reviewedWindowByTabId.get(tab.id))) return reviewedWindowByTabId.get(tab.id);
+  return Number.isInteger(tab.windowId) ? tab.windowId : null;
+}
+
+function liveTabAllowsProgressOverlay(liveTab, target, scope, incognitoAccess, expectedWindowId) {
+  if (!isProgressOverlayInjectableTab(liveTab, incognitoAccess)) return false;
+  if (scope === 'target_tabs') return urlMatchesTarget(liveTab.url, target);
+  if (scope === 'current_window') {
+    return Number.isInteger(expectedWindowId) && liveTab.windowId === expectedWindowId;
+  }
+  return scope === 'all_tabs';
+}
+
+function skipOverlayTab(tabId, stats, visibleTabIds, reviewedWindowByTabId) {
+  stats.tabsSkipped += 1;
+  visibleTabIds.delete(tabId);
+  reviewedWindowByTabId.delete(tabId);
+}
+
+function isMissingTabError(error) {
+  return /(?:no|unknown) tab with id\b/i.test(readableMessage(error));
+}
+
 function isProgressOverlayInjectableTab(tab, incognitoAccess) {
   if (!tab || !Number.isInteger(tab.id)) return false;
-  if (tab.incognito && !incognitoAccess) return false;
+  if (!tabIsWithinReviewedPrivateScope(tab, incognitoAccess === true)) return false;
   if (tab.discarded) return false;
   const url = String(tab.url || '');
   return url.startsWith('http://') || url.startsWith('https://');
@@ -227,34 +293,36 @@ export function renderSiteWipeProgressOverlay(payload) {
   const listenerKey = '__sitewipe_cleanup_progress_overlay_listener__';
   const channelKey = '__sitewipe_cleanup_progress_overlay_channel__';
   const messageType = 'sitewipe.progressOverlay.render.v1';
-  let existing = document.getElementById(hostId);
+  const existing = document.getElementById(hostId);
 
   if (
     payload?.action !== 'hide' &&
     typeof payload?.channelId === 'string' &&
     typeof chrome !== 'undefined' &&
-    chrome.runtime?.onMessage &&
-    !window[listenerKey]
+    chrome.runtime?.onMessage
   ) {
     window[channelKey] = payload.channelId;
-    const listener = (message, sender) => {
-      if (
-        message?.protocolVersion !== 1 ||
-        message?.type !== messageType ||
-        message?.channelId !== window[channelKey] ||
-        sender?.id !== chrome.runtime.id
-      ) {
+    if (!window[listenerKey]) {
+      const listener = (message, sender) => {
+        if (
+          message?.protocolVersion !== 1 ||
+          message?.type !== messageType ||
+          message?.channelId !== window[channelKey] ||
+          sender?.id !== chrome.runtime.id
+        ) {
+          return false;
+        }
+        renderSiteWipeProgressOverlay(message.payload);
         return false;
-      }
-      renderSiteWipeProgressOverlay(message.payload);
-      return false;
-    };
-    window[listenerKey] = listener;
-    chrome.runtime.onMessage.addListener(listener);
+      };
+      window[listenerKey] = listener;
+      chrome.runtime.onMessage.addListener(listener);
+    }
   }
 
   if (payload?.action === 'hide') {
     clearTimeout(window[timerKey]);
+    delete window[timerKey];
     if (window[listenerKey] && chrome.runtime?.onMessage?.removeListener) {
       chrome.runtime.onMessage.removeListener(window[listenerKey]);
     }
@@ -263,11 +331,9 @@ export function renderSiteWipeProgressOverlay(payload) {
     if (existing) {
       existing.style.opacity = '0';
       existing.style.transform = 'translateY(8px) scale(0.98)';
-      setTimeout(() => {
-        existing.remove();
-        delete window[rootKey];
-      }, 240);
+      existing.remove();
     }
+    delete window[rootKey];
     return;
   }
 
@@ -277,7 +343,6 @@ export function renderSiteWipeProgressOverlay(payload) {
     // access to the isolated-world root reference or cancel capability.
     host.remove();
     host = null;
-    existing = null;
   }
   if (!host) {
     host = document.createElement('div');
@@ -458,15 +523,19 @@ export function renderSiteWipeProgressOverlay(payload) {
   clearTimeout(window[timerKey]);
   window[timerKey] = setTimeout(
     () => {
+      if (window[listenerKey] && chrome.runtime?.onMessage?.removeListener) {
+        chrome.runtime.onMessage.removeListener(window[listenerKey]);
+      }
+      delete window[listenerKey];
+      delete window[channelKey];
+      delete window[timerKey];
       const el = document.getElementById(hostId);
       if (el) {
         el.style.opacity = '0';
         el.style.transform = 'translateY(8px) scale(0.98)';
-        setTimeout(() => {
-          el.remove();
-          delete window[rootKey];
-        }, 240);
+        el.remove();
       }
+      delete window[rootKey];
     },
     Math.max(8_000, Number(payload?.watchdogMs) || 15_000)
   );

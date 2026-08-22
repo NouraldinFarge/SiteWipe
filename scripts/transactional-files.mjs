@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { lstat, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { link, lstat, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, relative, resolve, sep } from 'node:path';
 
 export async function recoverFileTransaction(root, transactionName = 'sitewipe-version-bump') {
@@ -18,7 +18,9 @@ export async function recoverFileTransaction(root, transactionName = 'sitewipe-v
     }
   } else {
     for (const entry of [...entries].reverse()) {
-      if (await isFile(entry.backup)) {
+      if (entry.operation === 'create') {
+        await removeCreatedTarget(entry);
+      } else if (await isFile(entry.backup)) {
         await removeFileIfPresent(entry.target);
         await rename(entry.backup, entry.target);
       }
@@ -30,19 +32,31 @@ export async function recoverFileTransaction(root, transactionName = 'sitewipe-v
   return { recovered: true, committed, entries: entries.length };
 }
 
-export async function transactionalWriteFiles(root, updates, transactionName = 'sitewipe-version-bump') {
+export async function transactionalWriteFiles(
+  root,
+  updates,
+  transactionName = 'sitewipe-version-bump',
+  { createOnlyPaths = new Set() } = {}
+) {
   await recoverFileTransaction(root, transactionName);
   const transactionId = randomUUID();
   const entries = [];
+  const normalizedCreateOnlyPaths = new Set([...createOnlyPaths].map((repoPath) => normalizedRepoPath(root, repoPath)));
   for (const [repoPath, value] of updates) {
     const target = resolveInsideRoot(root, repoPath);
-    const info = await lstat(target);
-    if (!info.isFile() || info.isSymbolicLink()) {
+    const normalizedPath = relative(root, target).split(sep).join('/');
+    const operation = normalizedCreateOnlyPaths.has(normalizedPath) ? 'create' : 'replace';
+    const info = await lstatIfPresent(target);
+    if (operation === 'create' && info) {
+      throw new Error(`Transactional create target already exists and will not be overwritten: ${repoPath}`);
+    }
+    if (operation === 'replace' && (!info || !info.isFile() || info.isSymbolicLink())) {
       throw new Error(`Transactional update target must be a regular existing file: ${repoPath}`);
     }
     const suffix = `.sitewipe-${transactionId}`;
     entries.push({
-      repoPath: relative(root, target).split(sep).join('/'),
+      repoPath: normalizedPath,
+      operation,
       target,
       temp: resolve(dirname(target), `.${basename(target)}${suffix}.tmp`),
       backup: resolve(dirname(target), `.${basename(target)}${suffix}.bak`),
@@ -60,18 +74,26 @@ export async function transactionalWriteFiles(root, updates, transactionName = '
       entries: entries.map((entry) => ({
         target: relative(root, entry.target).split(sep).join('/'),
         temp: relative(root, entry.temp).split(sep).join('/'),
-        backup: relative(root, entry.backup).split(sep).join('/')
+        backup: relative(root, entry.backup).split(sep).join('/'),
+        operation: entry.operation
       }))
     };
     await writeFile(journalTemp, `${JSON.stringify(journal, null, 2)}\n`, { flag: 'wx' });
     await rename(journalTemp, paths.journal);
 
     for (const entry of entries) {
-      await rename(entry.target, entry.backup);
-      await rename(entry.temp, entry.target);
+      if (entry.operation === 'create') {
+        await link(entry.temp, entry.target);
+      } else {
+        await rename(entry.target, entry.backup);
+        await rename(entry.temp, entry.target);
+      }
     }
     await writeFile(paths.marker, `${transactionId}\n`, { flag: 'wx' });
-    for (const entry of entries) await removeFileIfPresent(entry.backup);
+    for (const entry of entries) {
+      await removeFileIfPresent(entry.temp);
+      await removeFileIfPresent(entry.backup);
+    }
     await removeFileIfPresent(paths.journal);
     await removeFileIfPresent(paths.marker);
     return { filesUpdated: entries.length, transactionId };
@@ -117,8 +139,14 @@ function normalizeJournalEntry(root, entry) {
   return {
     target: resolveInsideRoot(root, entry?.target),
     temp: resolveInsideRoot(root, entry?.temp),
-    backup: resolveInsideRoot(root, entry?.backup)
+    backup: resolveInsideRoot(root, entry?.backup),
+    operation: entry?.operation === 'create' ? 'create' : 'replace'
   };
+}
+
+function normalizedRepoPath(root, path) {
+  const absolute = resolveInsideRoot(root, path);
+  return relative(root, absolute).split(sep).join('/');
 }
 
 function resolveInsideRoot(root, path) {
@@ -138,6 +166,25 @@ async function isFile(path) {
     if (error?.code === 'ENOENT') return false;
     throw error;
   }
+}
+
+async function lstatIfPresent(path) {
+  try {
+    return await lstat(path);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+async function removeCreatedTarget(entry) {
+  const target = await lstatIfPresent(entry.target);
+  if (!target) return;
+  const temp = await lstatIfPresent(entry.temp);
+  if (!temp || !target.ino || target.dev !== temp.dev || target.ino !== temp.ino) {
+    throw new Error(`Cannot safely roll back transactional file creation: ${entry.target}`);
+  }
+  await removeFileIfPresent(entry.target);
 }
 
 async function removeFileIfPresent(path) {

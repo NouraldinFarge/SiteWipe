@@ -1,10 +1,14 @@
 export const APP = Object.freeze({
   name: 'SiteWipe',
-  version: '1.11.2',
+  version: '1.11.46',
   maxReports: 10
 });
 
 export const MESSAGE_PROTOCOL_VERSION = 1;
+
+// Shared by the runtime overlay and the mandatory pre-run disclosure so the
+// reviewed cross-tab ceiling cannot drift from the implemented ceiling.
+export const PROGRESS_OVERLAY_MAX_TABS = 120;
 
 export const STORAGE_KEYS = Object.freeze({
   settings: 'sitewipe.settings.v1',
@@ -26,6 +30,9 @@ export const MESSAGE_TYPES = Object.freeze({
   getReportState: 'sitewipe.getReportState',
   prepareCleanupReview: 'sitewipe.prepareCleanupReview',
   cancelCleanupReview: 'sitewipe.cancelCleanupReview',
+  settleCleanupPermissionPrompt: 'sitewipe.settleCleanupPermissionPrompt',
+  armCleanupApproval: 'sitewipe.armCleanupApproval',
+  resumeArmedCleanup: 'sitewipe.resumeArmedCleanup',
   runDeepClean: 'sitewipe.runDeepClean',
   getReport: 'sitewipe.getReport',
   getHistory: 'sitewipe.getHistory',
@@ -52,6 +59,7 @@ export const MESSAGE_TYPES = Object.freeze({
 });
 
 export const DEFAULT_SETTINGS = Object.freeze({
+  skipCleanupReview: false,
   keepHistory: false,
   reducedMotion: false,
   highContrast: false,
@@ -106,11 +114,12 @@ const CLEANUP_MATRIX_IMPLEMENTATION = Object.freeze([
     status: 'fully supported'
   },
   {
-    type: 'Mandatory cleanup review',
-    api: 'Read-only impact preflight + session-scoped single-use reviewed approval',
+    type: 'Detailed review or saved direct-cleanup authorization',
+    api: 'Read-only impact preflight + session-scoped single-use mode-bound authorization',
     targeted:
-      'Every Standard and Expert cleanup displays the normalized scope, associated/private effects, attempted and protected categories, impact counts, limitations, and any file deletion before a final explicit approval',
-    incognito: 'Required when private-window access is enabled; private reports remain transient',
+      'Default Standard and Expert runs display the complete scope before approval; the explicit Skip detailed cleanup review completely setting instead binds the same fresh target/settings/private/impact evidence to one Clean now activation',
+    incognito:
+      'Private access remains browser-controlled; private-source direct cleanup requires exact target access already granted, and private reports remain transient',
     status: 'fully supported'
   },
   {

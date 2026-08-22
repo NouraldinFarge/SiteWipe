@@ -1,6 +1,11 @@
 import { urlMatchesTarget } from './domain.js';
 import { reviewedFileIds } from '../shared/cleanup-review.js';
-import { matchingOriginFromUrl, matchingOriginsForHost, tabMatchesCleanupTarget } from '../shared/target-scope.js';
+import {
+  matchingOriginFromUrl,
+  matchingOriginsForHost,
+  tabMatchesReviewedCleanupTarget,
+  tabIsWithinReviewedPrivateScope
+} from '../shared/target-scope.js';
 import {
   buildCookieDiscoveryQueries,
   cookieHost,
@@ -9,7 +14,7 @@ import {
   MAX_COOKIE_DISCOVERY_QUERIES,
   safeGetCookies,
   safeGetCookieStores,
-  storeLooksIncognito
+  classifyCookieStorePrivateScope
 } from './cookies.js';
 import {
   createOperationBudget,
@@ -60,7 +65,9 @@ export async function inspectCleanupImpact(target, options = {}) {
           const tabs = await chrome.tabs.query({});
           operationBudget.observeRecords(tabs?.length || 0, 'preflight tab discovery results');
           const matching = (tabs || []).filter(
-            (tab) => Number.isInteger(tab?.id) && tabMatchesCleanupTarget(tab, target)
+            (tab) =>
+              Number.isInteger(tab?.id) &&
+              tabMatchesReviewedCleanupTarget(tab, target, options.incognitoAccess === true)
           );
           impact.matchingTabs = matching.length;
           impact.matchingPrivateTabs = matching.filter((tab) => tab.incognito).length;
@@ -170,9 +177,14 @@ export async function discoverCleanupScope(target, report, options = {}) {
   try {
     await throwIfCancellationRequested(options.shouldCancel, 'tab discovery');
     options.operationBudget?.claimQuery('tab discovery');
-    allTabs = await chrome.tabs.query({});
-    options.operationBudget?.observeRecords(allTabs?.length || 0, 'tab discovery results');
-    matchingTabs = allTabs.filter((tab) => tab.id && tabMatchesCleanupTarget(tab, target));
+    const queriedTabs = await chrome.tabs.query({});
+    options.operationBudget?.observeRecords(queriedTabs?.length || 0, 'tab discovery results');
+    allTabs = (queriedTabs || []).filter((tab) =>
+      tabIsWithinReviewedPrivateScope(tab, options.incognitoAccess === true)
+    );
+    matchingTabs = allTabs.filter(
+      (tab) => tab.id && tabMatchesReviewedCleanupTarget(tab, target, options.incognitoAccess === true)
+    );
     for (const tab of matchingTabs) {
       addOriginFromUrl(origins, tab.url, target);
       addPartitionTopLevelSiteFromUrl(partitionTopLevelSites, tab.url);
@@ -247,15 +259,26 @@ export async function discoverCleanupScope(target, report, options = {}) {
       for (const store of cookieStores) {
         await throwIfCancellationRequested(options.shouldCancel, 'the next cookie store');
         options.operationBudget?.check('the next cookie store');
-        const isIncognitoStore = await storeLooksIncognito(store, options);
+        const privateScope = await classifyCookieStorePrivateScope(store, options);
+        const isIncognitoStore = privateScope === 'incognito';
         const storeInfo = {
           storeId: store.id,
           incognito: isIncognitoStore,
+          privateScope,
           tabIds: store.tabIds?.length || 0,
           candidates: 0
         };
         storeStats.push(storeInfo);
-        if (isIncognitoStore && !options.incognitoAccess) continue;
+        if (!options.incognitoAccess && privateScope !== 'regular') {
+          if (privateScope === 'unknown') {
+            cookieQueryFailures.push({
+              source: 'cookie-store-private-scope',
+              storeId: store.id,
+              message: 'Cookie-store private scope could not be verified, so the store was skipped.'
+            });
+          }
+          continue;
+        }
 
         const queries = buildCookieDiscoveryQueries(target, store.id, origins, partitionTopLevelSites, options);
         discoveryEvidence.cookies.queriesPlanned += queries.length;

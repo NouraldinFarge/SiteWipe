@@ -1,9 +1,10 @@
 {
   "schemaVersion": 1,
-  "status": "approved",
-  "reviewedAt": "2026-08-17",
+  "status": "owner_approved_technical_revalidation_pending",
+  "reviewedAt": "2026-08-21",
   "reviewer": "owner confirmation and local automated/source audit",
-  "technicalStatus": "passed",
+  "technicalStatus": "pending_validation",
+  "technicalValidatedAt": null,
   "ownerApproval": true,
   "ownerApprovedAt": "2026-08-17",
   "ownerConfirmation": {
@@ -19,41 +20,39 @@
   "privateMaterialExclusionReviewed": true,
   "technicalEvidence": {
     "sourceClosurePrivatePathScan": {
-      "status": "passed",
-      "repositoryFiles": 202
+      "status": "pending",
+      "repositoryFiles": null
     },
     "runtimePackage": {
-      "status": "passed",
-      "runtimeFiles": 50,
-      "npmRuntimeDependencies": 0
+      "status": "pending",
+      "runtimeFiles": 55,
+      "npmRuntimeDependencies": null
     },
     "dependencyLicenseInventory": {
-      "status": "passed",
-      "lockedDevelopmentPackages": 406,
-      "legacyMetadataExceptionsResolved": 1,
-      "developmentSbomGeneration": "passed"
+      "status": "pending",
+      "lockedDevelopmentPackages": null,
+      "legacyMetadataExceptionsResolved": null,
+      "developmentSbomGeneration": "pending"
     },
     "thirdPartyNoticesAndPsl": {
-      "status": "passed",
-      "components": ["Public Suffix List data", "Public Suffix List conformance corpus"]
+      "status": "pending",
+      "components": []
     },
     "candidateIcon": {
-      "status": "passed",
+      "status": "pending",
       "editableSource": "assets/brand/icon-source.svg",
-      "generatedPngsVerified": 4,
-      "externalAssets": 0
+      "generatedPngsVerified": null,
+      "externalAssets": null
     },
     "sourceArchiveControls": {
-      "status": "passed",
-      "rejectsPrivateMaterialPatterns": true,
-      "rejectsSymbolicLinksAndDirectoryJunctions": true,
-      "exactSourceClosureRequired": true
+      "status": "pending",
+      "rejectsPrivateMaterialPatterns": null,
+      "rejectsSymbolicLinksAndDirectoryJunctions": null,
+      "exactSourceClosureRequired": null
     }
   },
   "notes": [
-    "Technical inventory exists in docs/provenance.md and passed all local source, asset, notice, dependency-license, and package-closure controls.",
-    "All 406 locked packages are development-only; the runtime ZIP contains no npm dependencies. One legacy missing lockfile license field is bound to the installed package's MIT declaration and exact license-text hash.",
-    "The owner confirmed the exact provenance statement on 2026-08-17 and selected MIT for the first-party project source.",
-    "This approval does not convert Public Suffix List material or development dependencies into first-party work, provide trademark clearance, prove installed-browser behavior, or authorize public visibility."
+    "The owner confirmation and first-party rights decision remain recorded.",
+    "Every technical provenance result was reset by the version transaction and must be regenerated for the current source closure before publication."
   ]
 }

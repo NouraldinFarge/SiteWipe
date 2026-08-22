@@ -40,6 +40,10 @@
     <main>
       <h1>Disposable SiteWipe fixture</h1>
       <p id="identity">Synthetic data only. Do not use this fixture in a daily browser profile.</p>
+      <p id="probeNotice" hidden>
+        <strong>Read-only partition probe.</strong> This route snapshots existing fixture state and suppresses fixture
+        controls that create, reset, or download data.
+      </p>
       <p>
         <button id="seed" type="button">Seed this origin</button>
         <button id="snapshot" type="button">Snapshot exposed state</button>
@@ -49,6 +53,7 @@
       <pre id="result" role="status" aria-live="polite">Waiting for a fixture action.</pre>
       <section id="partitionFixture" hidden>
         <h2>Third-party partition fixture</h2>
+        <p id="partitionInstructions"></p>
         <iframe id="partitionFrame" title="Synthetic partitioned-cookie fixture"></iframe>
       </section>
     </main>

@@ -24,11 +24,17 @@
           </div>
           <div>
             <div class="brand-title">SiteWipe</div>
-            <div class="brand-subtitle">Detailed cleanup workspace</div>
+            <div class="brand-subtitle">Local cleanup reports</div>
           </div>
         </div>
         <button id="openOptions" class="btn icon ghost" type="button" aria-label="Open options">⚙</button>
       </header>
+
+      <section class="workspace-intro" aria-labelledby="workspaceTitle">
+        <p class="eyebrow">Report workspace</p>
+        <h1 id="workspaceTitle">Review what SiteWipe could verify.</h1>
+        <p>Inspect the latest cleanup, understand browser limits, and export a privacy-safer copy.</p>
+      </section>
 
       <nav class="segmented" role="tablist" aria-label="Side panel sections">
         <button
@@ -82,65 +88,215 @@
       </nav>
 
       <section id="reportTab" class="tab-panel active" role="tabpanel" aria-labelledby="reportTabButton" tabindex="0">
-        <div class="button-row">
-          <button id="exportReport" class="btn secondary" type="button">Export full JSON (sensitive)</button
-          ><button id="exportRedactedReport" class="btn ghost" type="button">Export redacted JSON</button
-          ><button id="exportHtmlReport" class="btn ghost" type="button">Export redacted HTML</button
-          ><button id="exportTextReport" class="btn ghost" type="button">Export full text (sensitive)</button
-          ><button id="exportRedactedTextReport" class="btn ghost" type="button">Export redacted text</button
-          ><button id="copyTroubleshooting" class="btn ghost" type="button">
-            Copy redacted troubleshooting summary</button
-          ><button id="verifyDigest" class="btn ghost" type="button">Verify checksum</button>
+        <div id="reportOverview" class="stack">
+          <div class="empty-state">Waiting for an exact report selection from the popup…</div>
         </div>
-        <input
-          id="reportFilter"
-          class="input report-filter"
-          type="search"
-          placeholder="Filter report sections, warnings, and errors…"
-          aria-label="Filter report"
-        />
+        <article id="reportTools" class="card panel-card export-card" aria-labelledby="reportActionsHeading" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Share safely</p>
+              <h2 id="reportActionsHeading">Export a redacted copy</h2>
+            </div>
+            <span class="privacy-chip">Redaction first</span>
+          </div>
+          <p class="section-copy">
+            Redacted exports remove detected domains, URLs, filenames, paths, and other sensitive values before the file
+            leaves SiteWipe.
+          </p>
+          <div class="primary-action-grid">
+            <button id="exportRedactedReport" class="btn primary" type="button" disabled>Export redacted JSON</button>
+            <button id="exportHtmlReport" class="btn secondary" type="button" disabled>Export redacted HTML</button>
+          </div>
+          <div class="utility-actions">
+            <button id="exportRedactedTextReport" class="btn ghost" type="button" disabled>Export redacted text</button
+            ><button id="copyTroubleshooting" class="btn ghost" type="button" disabled>Copy support summary</button
+            ><button id="verifyDigest" class="btn ghost" type="button" disabled>Verify checksum</button>
+          </div>
+          <details class="sensitive-disclosure">
+            <summary id="reportSensitiveSummary">Full stored exports — review before sharing</summary>
+            <div class="sensitive-disclosure-body">
+              <p id="storedReportPrivacyNote">
+                Full stored exports may contain browsing details. Prefer a redacted export unless you need the exact
+                locally stored data.
+              </p>
+              <div class="button-row">
+                <button
+                  id="exportReport"
+                  class="btn sensitive"
+                  type="button"
+                  aria-describedby="storedReportPrivacyNote"
+                  disabled
+                >
+                  Export full stored JSON</button
+                ><button
+                  id="exportTextReport"
+                  class="btn sensitive"
+                  type="button"
+                  aria-describedby="storedReportPrivacyNote"
+                  disabled
+                >
+                  Export full stored text
+                </button>
+              </div>
+            </div>
+          </details>
+        </article>
+        <div id="reportFilterWrap" class="filter-wrap" hidden>
+          <label for="reportFilter">Search this report</label>
+          <input
+            id="reportFilter"
+            class="input report-filter"
+            type="search"
+            placeholder="Search metrics, limits, and execution details…"
+            autocomplete="off"
+          />
+        </div>
         <div id="reportContainer" class="stack"></div>
       </section>
       <section id="matrixTab" class="tab-panel" role="tabpanel" aria-labelledby="matrixTabButton" tabindex="0" hidden>
         <article class="card panel-card">
-          <div class="section-title"><span>Cleanup capability matrix</span><small>Honest API support</small></div>
-          <div id="matrixContainer" class="matrix"></div>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Browser capability</p>
+              <h2 id="matrixHeading">What SiteWipe can reach</h2>
+            </div>
+            <span class="privacy-chip neutral">API truth</span>
+          </div>
+          <p class="section-copy">
+            Search or narrow by support level, then expand a capability to inspect its browser mechanism, target scope,
+            and private-window behavior.
+          </p>
+          <div class="matrix-controls" role="group" aria-label="Filter cleanup capabilities">
+            <div class="filter-wrap compact">
+              <label for="matrixFilter">Search capabilities</label>
+              <input
+                id="matrixFilter"
+                class="input"
+                type="search"
+                placeholder="Search names, APIs, and behavior…"
+                autocomplete="off"
+              />
+            </div>
+            <div class="filter-wrap compact">
+              <label for="matrixStatusFilter">Support level</label>
+              <select id="matrixStatusFilter" class="input">
+                <option value="all">All support levels</option>
+                <option value="supported">Fully supported</option>
+                <option value="partial">Implemented, partial, optional, or pending</option>
+                <option value="unavailable">Unavailable, manual-only, or skipped</option>
+              </select>
+            </div>
+          </div>
+          <p id="matrixCount" class="matrix-count" role="status" aria-live="polite" aria-atomic="true"></p>
+          <div
+            id="matrixContainer"
+            class="matrix"
+            role="list"
+            aria-labelledby="matrixHeading"
+            aria-describedby="matrixCount"
+          ></div>
         </article>
       </section>
       <section id="historyTab" class="tab-panel" role="tabpanel" aria-labelledby="historyTabButton" tabindex="0" hidden>
         <article class="card panel-card">
-          <div class="section-title">
-            <span>Recent cleanups</span
-            ><button id="clearHistory" class="btn danger" type="button">Delete stored report history</button>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Local retention</p>
+              <h2>Recent cleanups</h2>
+            </div>
+            <span id="historyCount" class="privacy-chip neutral">0 reports</span>
           </div>
-          <div class="button-row">
-            <button id="exportHistory" class="btn secondary" type="button">Export full history JSON (sensitive)</button
-            ><button id="exportRedactedHistory" class="btn ghost" type="button">Export redacted history JSON</button
-            ><button id="exportHistoryText" class="btn ghost" type="button">Export redacted history text</button>
+          <div id="historyTools" class="history-tools" hidden>
+            <div class="primary-action-grid history-export-grid">
+              <button id="exportRedactedHistory" class="btn primary" type="button" disabled>
+                Export redacted history JSON</button
+              ><button id="exportHistoryText" class="btn secondary" type="button" disabled>
+                Export redacted history text
+              </button>
+            </div>
+            <details class="sensitive-disclosure">
+              <summary id="historySensitiveSummary">Full stored history — review before sharing</summary>
+              <div class="sensitive-disclosure-body">
+                <p id="storedHistoryPrivacyNote">
+                  A full history export may contain browsing details from every retained report.
+                </p>
+                <button
+                  id="exportHistory"
+                  class="btn sensitive"
+                  type="button"
+                  aria-describedby="storedHistoryPrivacyNote"
+                  disabled
+                >
+                  Export full stored history JSON
+                </button>
+              </div>
+            </details>
+            <div class="history-management">
+              <div>
+                <strong>History storage</strong>
+                <span>Deletes retained history only; the current report remains until its own retention ends.</span>
+              </div>
+              <button id="clearHistory" class="btn danger" type="button" hidden>Delete stored history</button>
+            </div>
           </div>
-          <input
-            id="historyFilter"
-            class="input report-filter"
-            type="search"
-            placeholder="Filter cleanup history…"
-            aria-label="Filter cleanup history"
-          />
+          <div id="historyFilterWrap" class="filter-wrap compact" hidden>
+            <label for="historyFilter">Search retained reports</label>
+            <input
+              id="historyFilter"
+              class="input report-filter"
+              type="search"
+              placeholder="Search targets, outcomes, and metrics…"
+              autocomplete="off"
+            />
+          </div>
           <div id="historyContainer" class="history-list"></div>
         </article>
       </section>
       <section id="privacyTab" class="tab-panel" role="tabpanel" aria-labelledby="privacyTabButton" tabindex="0" hidden>
-        <article class="card panel-card">
-          <div class="section-title"><span>Hard limitations</span><small>What no extension can erase</small></div>
-          <p class="privacy-copy">
-            SiteWipe removes only data exposed through Chrome/Brave extension APIs. It cannot erase ISP logs, DNS
-            resolver logs, router logs, VPN provider logs, operating-system logs, antivirus or endpoint-security logs,
-            enterprise monitoring, firewall records, remote website/CDN logs, account activity on a website, payment
-            records, receipts, screenshots, backups, browser sync copies already uploaded elsewhere, data outside
-            Chrome/Brave, memory artifacts, or hidden browser internals. Files on disk are preserved unless the separate
-            irreversible Expert option for preflight-bound completed downloads is enabled; failed or uncertain file
-            removals retain their browser download record for recovery.
-          </p>
-        </article>
+        <div class="privacy-stack">
+          <article class="card panel-card privacy-lead">
+            <p class="eyebrow">Scope boundary</p>
+            <h2>SiteWipe works only through exposed Chrome/Brave extension APIs.</h2>
+            <p class="privacy-copy">
+              An unavailable browser surface is a platform limit, not evidence that an attempted cleanup failed. The
+              report keeps runtime errors and unavailable categories separate.
+            </p>
+          </article>
+          <article class="card panel-card">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Outside extension reach</p>
+                <h2>Data SiteWipe cannot erase</h2>
+              </div>
+            </div>
+            <ul class="boundary-list">
+              <li><strong>Network providers</strong><span>ISP, DNS resolver, router, and VPN provider logs</span></li>
+              <li>
+                <strong>Device and organization records</strong
+                ><span>Operating-system, antivirus, endpoint-security, enterprise-monitoring, and firewall logs</span>
+              </li>
+              <li>
+                <strong>Remote services and accounts</strong
+                ><span>Website/CDN logs, site-account activity, payment records, and receipts</span>
+              </li>
+              <li>
+                <strong>Copies and captures</strong
+                ><span>Screenshots, backups, and browser Sync copies already uploaded elsewhere</span>
+              </li>
+              <li>
+                <strong>Other software and internals</strong
+                ><span>Data outside Chrome/Brave, memory artifacts, and hidden browser internals</span>
+              </li>
+            </ul>
+          </article>
+          <article class="boundary-note" aria-labelledby="downloadBoundaryTitle">
+            <strong id="downloadBoundaryTitle">Downloaded files stay on disk by default.</strong>
+            <p>
+              File removal requires the separate irreversible Expert option and is limited to preflight-bound completed
+              downloads. Failed or uncertain removals preserve their browser download record for recovery.
+            </p>
+          </article>
+        </div>
       </section>
       <div id="panelStatus" class="toast panel-status" role="status" aria-live="polite" aria-atomic="true" hidden></div>
     </main>

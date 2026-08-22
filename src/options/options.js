@@ -1,8 +1,43 @@
 import { APP, MESSAGE_TYPES, STORAGE_KEYS } from '../shared/constants.js';
 import { sendMessage, formatError, onceDomReady, onStorageChange } from '../shared/messaging.js';
 import { isExpertCleanupMode } from '../shared/cleanup-mode.js';
+import {
+  assertSettingsBackupFileSize,
+  buildSettingsImportCandidate,
+  buildSettingsImportConfirmation,
+  createSettingsBackup,
+  getSettingsImportRisks,
+  parseSettingsBackupText
+} from '../shared/settings-backup.js';
+import {
+  observeOptionalPermission,
+  reconcileNewOptionalPermissionGrant,
+  requestOptionalPermissionWithProvenance
+} from './permission-lifecycle.js';
 
 let currentSettings = null;
+let webNavigationPermissionObservation = null;
+let cleanupJobRunning = false;
+let activeJobCanClear = false;
+let authoritativeStateReady = false;
+let shieldControlAvailability = Object.freeze({ clear: false, repair: false });
+
+const AUTHORITATIVE_CONTROL_SELECTOR = [
+  '#mainContent input',
+  '#mainContent select',
+  '#mainContent textarea',
+  '#mainContent button'
+].join(', ');
+
+const JOB_GUARDED_CONTROL_IDS = Object.freeze([
+  'skipCleanupReview',
+  'importSettings',
+  'clearShield',
+  'repairShield',
+  'runMaintenanceNow',
+  'resetExtensionState',
+  'resetSettings'
+]);
 
 const EXPERT_CONTROL_IDS = Object.freeze([
   'includeProtectedWebOrigins',
@@ -14,6 +49,7 @@ const EXPERT_CONTROL_IDS = Object.freeze([
   'broadDiscoveryFallback',
   'postWipeSessionBlock',
   'postWipeShieldExpiresMinutes',
+  'overlayScope',
   'resetMutedTabs',
   'unpinTargetTabs',
   'opfsScrub',
@@ -30,7 +66,12 @@ const SETTING_DEPENDENCIES = Object.freeze({
 });
 
 const REFRESH_STORAGE_KEYS = new Set(Object.values(STORAGE_KEYS));
-const refreshFromStorage = debounce(() => refresh(), 80);
+let pendingSettingsPanelRefresh = false;
+const refreshFromStorage = debounce(() => {
+  const renderSettingsPanel = pendingSettingsPanelRefresh;
+  pendingSettingsPanelRefresh = false;
+  void refresh({ renderSettingsPanel });
+}, 80);
 
 const PERMISSIONS = [
   [
@@ -63,6 +104,10 @@ const PERMISSIONS = [
     'Stores SiteWipe settings, optional local cleanup reports, and optional debug logs in chrome.storage.local.'
   ],
   [
+    'alarms',
+    'Schedules extension-local maintenance for abandoned reviews, stale cleanup-job recovery, temporary report expiry, and timed request-shield expiry. It does not schedule website-data cleanup.'
+  ],
+  [
     'declarativeNetRequest',
     'Installs temporary session rules to block the target while cleanup runs, and optionally keeps a post-wipe target block until browser restart.'
   ],
@@ -76,13 +121,19 @@ const PERMISSIONS = [
 onceDomReady(init);
 
 async function init() {
+  setupSectionNavigation();
   wireSettingAccessibility();
+  setOptionsLoading();
   bindControls();
   renderPermissionCards();
-  await refresh();
+  const initialState = await refresh();
+  if (initialState) setOptionsReady();
   onStorageChange((changes, area) => {
     if (area !== 'local') return;
-    if (Object.keys(changes || {}).some((key) => REFRESH_STORAGE_KEYS.has(key))) refreshFromStorage();
+    const changedKeys = Object.keys(changes || {}).filter((key) => REFRESH_STORAGE_KEYS.has(key));
+    if (!changedKeys.length) return;
+    pendingSettingsPanelRefresh ||= changedKeys.includes(STORAGE_KEYS.settings);
+    refreshFromStorage();
   });
 }
 
@@ -111,6 +162,23 @@ function wireSettingAccessibility() {
 }
 
 function bindControls() {
+  document.querySelector('#retryOptionsLoad').addEventListener('click', retryOptionsLoad);
+  document.querySelector('#skipCleanupReview').addEventListener('change', async (event) => {
+    if (!requireAuthoritativeState()) return;
+    const control = event.currentTarget;
+    if (cleanupJobRunning) {
+      control.checked = currentSettings?.skipCleanupReview === true;
+      document.querySelector('#activeJobText').focus();
+      toast('The cleanup-review preference cannot change while a cleanup job is running.', 'info');
+      return;
+    }
+    if (control.checked && !confirmSkipCleanupReview()) {
+      control.checked = false;
+      toast('Detailed cleanup review remains enabled.', 'info');
+      return;
+    }
+    await saveFromForm(event);
+  });
   for (const id of [
     'keepHistory',
     'aggressiveCookieSweep',
@@ -145,29 +213,35 @@ function bindControls() {
     document.querySelector(`#${id}`).addEventListener('change', saveFromForm);
   }
   document.querySelector('#redactReports').addEventListener('change', async (event) => {
+    if (!requireAuthoritativeState()) return;
     const control = event.currentTarget;
     if (!control.checked && !confirmSensitiveReportStorage()) {
       control.checked = true;
       toast('Report redaction remains enabled.', 'info');
       return;
     }
-    await saveFromForm();
+    await saveFromForm(event);
   });
   document.querySelector('#overlayScope').addEventListener('change', saveFromForm);
   document.querySelector('#reportRetentionDays').addEventListener('change', saveFromForm);
   document.querySelector('#latestReportRetentionMinutes').addEventListener('change', async (event) => {
+    if (!requireAuthoritativeState()) return;
     const control = event.currentTarget;
     if (Number(control.value) === 0 && !confirmSensitiveReportStorage()) {
       control.value = String(currentSettings?.latestReportRetentionMinutes ?? 30);
       toast('The latest report will still expire automatically.', 'info');
       return;
     }
-    await saveFromForm();
+    await saveFromForm(event);
   });
   document.querySelector('#postWipeShieldExpiresMinutes').addEventListener('change', saveFromForm);
-  document.querySelector('#cleanupMode').addEventListener('change', async () => {
+  document.querySelector('#cleanupMode').addEventListener('change', async (event) => {
+    if (!requireAuthoritativeState()) return;
     applyCleanupMode(valueOf('cleanupMode'));
-    await saveFromForm();
+    if (isExpertCleanupMode(valueOf('cleanupMode'))) {
+      document.querySelector('#advancedCleanupGroup').open = true;
+    }
+    await saveFromForm(event);
   });
   document.querySelector('#associatedDomainGroups').addEventListener('input', debounce(validateAssociatedGroups, 300));
   document.querySelector('#associatedDomainGroups').addEventListener('change', async () => {
@@ -183,32 +257,54 @@ function bindControls() {
   document.querySelector('#clearDebug').addEventListener('click', clearDebugLog);
   document.querySelector('#runSelfTests').addEventListener('click', runSelfTests);
   document.querySelector('#exportSettings').addEventListener('click', exportSettingsBackup);
-  document
-    .querySelector('#importSettings')
-    .addEventListener('click', () => document.querySelector('#settingsImportFile').click());
+  document.querySelector('#importSettings').addEventListener('click', () => {
+    if (!requireAuthoritativeState()) return;
+    document.querySelector('#settingsImportFile').click();
+  });
   document.querySelector('#settingsImportFile').addEventListener('change', importSettingsBackup);
   document.querySelector('#copySettingsSummary').addEventListener('click', copySettingsSummary);
   document.querySelector('#resetSettings').addEventListener('click', resetSettings);
 }
 
-async function refresh() {
+async function refresh({ renderSettingsPanel = true } = {}) {
   try {
-    const state = await sendMessage(MESSAGE_TYPES.getOptionsState);
-    renderSettings(state.settings || {});
+    const [state, permissionObservation] = await Promise.all([
+      sendMessage(MESSAGE_TYPES.getOptionsState),
+      observeOptionalPermission('webNavigation')
+    ]);
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new Error('SiteWipe did not return its authoritative Options state.');
+    }
+    if (!state.settings || typeof state.settings !== 'object' || Array.isArray(state.settings)) {
+      throw new Error('SiteWipe did not return authoritative settings.');
+    }
+    if (typeof state.incognitoAccess !== 'boolean') {
+      throw new Error('SiteWipe could not verify private-window access.');
+    }
+    if (typeof permissionObservation !== 'boolean') {
+      throw new Error('SiteWipe could not verify optional browser-permission state.');
+    }
+    webNavigationPermissionObservation = permissionObservation;
+    if (renderSettingsPanel) renderSettings(state.settings);
     renderIncognito(state.incognitoAccess);
     renderDebug(state.debugLog || []);
     renderActiveShield(state.activeShield, state.shieldDiagnostics);
     renderActiveJob(state.activeJob);
     renderMaintenanceStatus(state.maintenanceStatus);
     await validateAssociatedGroups();
+    return state;
   } catch (error) {
-    toast(formatError(error), 'error');
+    const message = formatError(error);
+    setOptionsLoadFailed(message);
+    toast(message, 'error');
+    return null;
   }
 }
 
 function renderSettings(settings) {
   currentSettings = settings || {};
   setValue('cleanupMode', settings.cleanupMode || 'standard');
+  setChecked('skipCleanupReview', settings.skipCleanupReview);
   setChecked('keepHistory', settings.keepHistory);
   setValue('reportRetentionDays', String(settings.reportRetentionDays ?? 7));
   setValue('latestReportRetentionMinutes', String(settings.latestReportRetentionMinutes ?? 0));
@@ -247,6 +343,185 @@ function renderSettings(settings) {
   document.body.classList.toggle('reduced-motion', Boolean(settings.reducedMotion));
   document.body.classList.toggle('high-contrast', Boolean(settings.highContrast));
   applyCleanupMode(settings.cleanupMode);
+  renderSettingsSummary(settings);
+}
+
+function renderSettingsSummary(settings) {
+  const mode = isExpertCleanupMode(settings?.cleanupMode) ? 'Expert' : 'Standard';
+  const modeBadge = document.querySelector('#cleanupModeBadge');
+  modeBadge.textContent = `Mode: ${mode}`;
+  modeBadge.className = `badge ${mode === 'Expert' ? 'warning' : 'success'}`;
+
+  const direct = settings?.skipCleanupReview === true;
+  const reviewBadge = document.querySelector('#reviewModeBadge');
+  reviewBadge.textContent = direct ? 'Review: skipped by setting' : 'Review: required';
+  reviewBadge.className = `badge ${direct ? 'warning' : 'success'}`;
+}
+
+function setOptionsLoading({ afterFailure = false } = {}) {
+  authoritativeStateReady = false;
+  document.body.classList.add('options-loading');
+  document.body.classList.remove('options-load-failed');
+  document.querySelector('#mainContent').setAttribute('aria-busy', 'true');
+  setAuthoritativeControlsLocked(true);
+  const region = document.querySelector('#optionsLoadError');
+  const title = document.querySelector('#optionsLoadErrorTitle');
+  const detail = document.querySelector('#optionsLoadErrorDetail');
+  const retry = document.querySelector('#retryOptionsLoad');
+  region.hidden = !afterFailure;
+  if (afterFailure) {
+    title.textContent = 'Trying to load settings again…';
+    detail.textContent = 'Settings and actions remain locked until SiteWipe verifies current browser state.';
+  }
+  retry.disabled = true;
+  retry.setAttribute('aria-disabled', 'true');
+  setSettingsState(afterFailure ? 'Retrying… · controls locked' : 'Loading settings…', 'working');
+}
+
+function setOptionsLoadFailed(message) {
+  authoritativeStateReady = false;
+  document.body.classList.remove('options-loading');
+  document.body.classList.add('options-load-failed');
+  document.querySelector('#mainContent').setAttribute('aria-busy', 'false');
+  setAuthoritativeControlsLocked(true);
+  const region = document.querySelector('#optionsLoadError');
+  const title = document.querySelector('#optionsLoadErrorTitle');
+  const detail = document.querySelector('#optionsLoadErrorDetail');
+  const retry = document.querySelector('#retryOptionsLoad');
+  title.textContent = 'Settings could not be loaded';
+  detail.textContent = `SiteWipe kept every setting and action locked because the current browser state could not be verified. ${message}`;
+  region.hidden = false;
+  retry.disabled = false;
+  retry.setAttribute('aria-disabled', 'false');
+  renderUnavailableOptionsStatus();
+  setSettingsState('Load failed · controls locked', 'error');
+}
+
+function renderUnavailableOptionsStatus() {
+  for (const [id, label] of [
+    ['cleanupModeBadge', 'Mode: unavailable'],
+    ['reviewModeBadge', 'Review: unavailable'],
+    ['incognitoBadge', 'Private: unavailable']
+  ]) {
+    const badge = document.querySelector(`#${id}`);
+    badge.textContent = label;
+    badge.className = 'badge danger';
+  }
+  document.querySelector('#activeShieldText').textContent = 'Shield state is unavailable until settings reload.';
+  document.querySelector('#maintenanceText').textContent = 'Maintenance state is unavailable until settings reload.';
+  document.querySelector('#activeJobText').textContent = 'Cleanup-job state is unavailable until settings reload.';
+}
+
+function setOptionsReady({ afterRetry = false } = {}) {
+  authoritativeStateReady = true;
+  document.body.classList.remove('options-loading', 'options-load-failed');
+  document.querySelector('#mainContent').setAttribute('aria-busy', 'false');
+  document.querySelector('#optionsLoadError').hidden = true;
+  setAuthoritativeControlsLocked(false);
+  setSettingsState('Settings ready', 'ready');
+  if (afterRetry) {
+    toast('Settings loaded. Options controls are ready.', 'success');
+    document.querySelector('#mainContent').focus();
+  }
+}
+
+async function retryOptionsLoad() {
+  setOptionsLoading({ afterFailure: true });
+  const state = await refresh();
+  if (state) setOptionsReady({ afterRetry: true });
+}
+
+function setAuthoritativeControlsLocked(locked) {
+  for (const control of document.querySelectorAll(AUTHORITATIVE_CONTROL_SELECTOR)) {
+    if (control.id === 'retryOptionsLoad') continue;
+    control.disabled = locked;
+    control.setAttribute('aria-disabled', String(locked));
+  }
+  if (!locked) {
+    applyCleanupMode(currentSettings?.cleanupMode);
+    applyCleanupJobControlState();
+  }
+}
+
+function requireAuthoritativeState() {
+  if (authoritativeStateReady && currentSettings) return true;
+  toast('Settings and actions stay locked until SiteWipe can verify the current browser state.', 'error');
+  document.querySelector('#retryOptionsLoad')?.focus();
+  return false;
+}
+
+function setSettingsState(label, tone = 'ready') {
+  const badge = document.querySelector('#settingsStateBadge');
+  if (!badge) return;
+  badge.textContent = label;
+  badge.className = `badge ${tone === 'success' || tone === 'ready' ? 'success' : tone === 'error' ? 'danger' : ''}`;
+}
+
+function setupSectionNavigation() {
+  const links = [...document.querySelectorAll('.rail-nav a[href^="#"]')];
+  const sections = [...document.querySelectorAll('[data-options-section]')];
+  let explicitSectionId = null;
+  let explicitSectionSeen = false;
+  const setCurrent = (id) => {
+    for (const link of links) {
+      const active = link.getAttribute('href') === `#${id}`;
+      if (active) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
+    }
+  };
+  const activateExplicitSection = (id) => {
+    if (explicitSectionId !== id) explicitSectionSeen = false;
+    explicitSectionId = id;
+    setCurrent(id);
+  };
+  const explicitSectionIsVisible = () => {
+    if (!explicitSectionId) return false;
+    const section = document.getElementById(explicitSectionId);
+    if (!section) return false;
+    const rect = section.getBoundingClientRect();
+    const viewportHeight = globalThis.innerHeight || document.documentElement.clientHeight;
+    return rect.bottom > 68 && rect.top < viewportHeight;
+  };
+  const revealHashTarget = () => {
+    const id = globalThis.location?.hash?.slice(1);
+    const target = id ? document.getElementById(id) : null;
+    if (!target) return;
+    target.closest('details')?.setAttribute('open', '');
+    const section = target.matches('[data-options-section]') ? target : target.closest('[data-options-section]');
+    if (section?.id) activateExplicitSection(section.id);
+  };
+  for (const link of links) {
+    link.addEventListener('click', () => {
+      const id = link.getAttribute('href').slice(1);
+      activateExplicitSection(id);
+    });
+  }
+  globalThis.addEventListener?.('hashchange', revealHashTarget);
+  revealHashTarget();
+  if (typeof IntersectionObserver !== 'function') return;
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (explicitSectionId) {
+        if (explicitSectionIsVisible()) {
+          explicitSectionSeen = true;
+          setCurrent(explicitSectionId);
+          return;
+        }
+        if (!explicitSectionSeen) {
+          setCurrent(explicitSectionId);
+          return;
+        }
+        explicitSectionId = null;
+        explicitSectionSeen = false;
+      }
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible?.target?.id) setCurrent(visible.target.id);
+    },
+    { rootMargin: '-18% 0px -68% 0px', threshold: [0.01, 0.2, 0.5] }
+  );
+  for (const section of sections) observer.observe(section);
 }
 
 function renderIncognito(allowed) {
@@ -259,10 +534,10 @@ function renderPermissionCards() {
   const root = document.querySelector('#permissionCards');
   root.innerHTML = PERMISSIONS.map(
     ([title, body]) => `
-    <article class="permission-card">
-      <strong>${escapeHtml(title)}</strong>
+    <details class="permission-card">
+      <summary><strong>${escapeHtml(title)}</strong><span aria-hidden="true"></span></summary>
       <p>${escapeHtml(body)}</p>
-    </article>
+    </details>
   `
   ).join('');
 }
@@ -284,10 +559,14 @@ function renderDebug(entries) {
     .join('\n');
 }
 
-async function saveFromForm() {
+async function saveFromForm(event) {
+  if (!requireAuthoritativeState()) return;
+  const changedControlId = event?.currentTarget?.id || '';
   applySettingDependencies();
+  setSettingsState('Saving…', 'working');
   const settings = {
     cleanupMode: valueOf('cleanupMode'),
+    skipCleanupReview: isChecked('skipCleanupReview'),
     keepHistory: isChecked('keepHistory'),
     reportRetentionDays: valueOf('reportRetentionDays'),
     latestReportRetentionMinutes: valueOf('latestReportRetentionMinutes'),
@@ -324,40 +603,88 @@ async function saveFromForm() {
     highContrast: isChecked('highContrast'),
     debugLog: isChecked('debugLog')
   };
+  let framePermissionDenied = false;
+  let framePermissionGrant = null;
   try {
-    if (settings.embeddedFrameDiscovery) {
-      const granted = await chrome.permissions.request({
-        permissions: ['webNavigation']
+    if (!isExpertCleanupMode(settings.cleanupMode)) {
+      settings.embeddedFrameDiscovery = false;
+      setChecked('embeddedFrameDiscovery', false);
+    }
+    const explicitlyEnablingFrameDiscovery =
+      settings.embeddedFrameDiscovery && currentSettings?.embeddedFrameDiscovery !== true;
+    if (explicitlyEnablingFrameDiscovery) {
+      framePermissionGrant = await requestOptionalPermissionWithProvenance('webNavigation', {
+        observedBeforeGesture: webNavigationPermissionObservation
       });
-      if (!granted) {
+      if (!framePermissionGrant.granted) {
+        framePermissionDenied = true;
         settings.embeddedFrameDiscovery = false;
         setChecked('embeddedFrameDiscovery', false);
-        toast('Embedded-frame discovery remains off because optional webNavigation access was not granted.', 'info');
+        document.querySelector('#embeddedFrameDiscovery').focus();
       }
     }
     const response = await sendMessage(MESSAGE_TYPES.saveSettings, { settings });
-    if (!settings.embeddedFrameDiscovery) {
-      await chrome.permissions.remove({ permissions: ['webNavigation'] }).catch(() => false);
-    }
+    const authoritativeSettings = response.settings || null;
+    webNavigationPermissionObservation = await observeOptionalPermission('webNavigation');
+    const framePermissionReconciliation = await reconcileNewOptionalPermissionGrant({
+      permission: 'webNavigation',
+      granted: framePermissionGrant?.granted === true && webNavigationPermissionObservation !== false,
+      grantProvenance: framePermissionGrant?.grantProvenance,
+      authoritativeStateKnown: Boolean(authoritativeSettings),
+      authoritativeFeatureEnabled: authoritativeFrameDiscoveryEnabled(authoritativeSettings)
+    });
     renderSettings(response.settings || settings);
-    toast('Settings saved.', 'success');
+    const permissionWarning = optionalPermissionReconciliationNeedsAttention(framePermissionReconciliation)
+      ? ' Optional webNavigation access could not be reconciled automatically; review SiteWipe extension permissions.'
+      : '';
+    toast(
+      framePermissionDenied
+        ? 'Settings saved. Embedded-frame discovery remains off because optional webNavigation access was not granted.'
+        : `Settings saved.${permissionWarning}`,
+      framePermissionDenied || permissionWarning ? 'info' : 'success'
+    );
+    setSettingsState(framePermissionDenied || permissionWarning ? 'Saved · check access' : 'Saved', 'success');
   } catch (error) {
-    toast(formatError(error), 'error');
+    const refreshedState = await refresh();
+    const framePermissionReconciliation = await reconcileNewOptionalPermissionGrant({
+      permission: 'webNavigation',
+      granted: framePermissionGrant?.granted === true && webNavigationPermissionObservation !== false,
+      grantProvenance: framePermissionGrant?.grantProvenance,
+      authoritativeStateKnown: Boolean(refreshedState?.settings),
+      authoritativeFeatureEnabled: authoritativeFrameDiscoveryEnabled(refreshedState?.settings)
+    });
+    const permissionWarning = optionalPermissionReconciliationNeedsAttention(framePermissionReconciliation)
+      ? ' Optional webNavigation access was preserved because Chrome does not prove whether this request created the grant; review extension permissions if the feature remains off.'
+      : '';
+    toast(`${formatError(error)}${permissionWarning}`, 'error');
+    setSettingsState('Save needs attention', 'error');
+    if (changedControlId) document.querySelector(`#${changedControlId}`)?.focus();
   }
+}
+
+function authoritativeFrameDiscoveryEnabled(settings) {
+  return Boolean(isExpertCleanupMode(settings?.cleanupMode) && settings?.embeddedFrameDiscovery === true);
+}
+
+function optionalPermissionReconciliationNeedsAttention(result) {
+  return [
+    'authoritative_state_unknown',
+    'grant_provenance_unknown',
+    'release_not_confirmed',
+    'release_uncertain'
+  ].includes(result?.reason);
 }
 
 function renderActiveShield(shield, diagnostics = null) {
   const text = document.querySelector('#activeShieldText');
-  const clearButton = document.querySelector('#clearShield');
-  const repairButton = document.querySelector('#repairShield');
   const actualRules = diagnostics?.siteWipeRuleCount || 0;
   const orphanRules = diagnostics?.orphanRuleIds?.length || 0;
   const missingRules = diagnostics?.missingTrackedRuleIds?.length || 0;
   if (!shield && !actualRules) {
     text.textContent =
       'No active SiteWipe request shield is recorded, and no SiteWipe session DNR rules are currently installed.';
-    clearButton.disabled = true;
-    repairButton.disabled = true;
+    shieldControlAvailability = Object.freeze({ clear: false, repair: false });
+    applyCleanupJobControlState();
     return;
   }
   const expiry = shield?.expiresAt ? ` Expires: ${formatDateTime(shield.expiresAt)}.` : '';
@@ -368,23 +695,60 @@ function renderActiveShield(shield, diagnostics = null) {
     ? ` Installed SiteWipe DNR rules: ${actualRules}. Orphan rules: ${orphanRules}. Missing tracked rules: ${missingRules}. ${diagnostics.note || ''}`
     : '';
   text.textContent = `${shieldText}${diagText}`;
-  clearButton.disabled = !shield && !actualRules;
-  repairButton.disabled = diagnostics ? diagnostics.healthy && !actualRules : false;
+  shieldControlAvailability = Object.freeze({
+    clear: Boolean(shield || actualRules),
+    repair: diagnostics ? !(diagnostics.healthy && !actualRules) : true
+  });
+  applyCleanupJobControlState();
 }
 
 function renderActiveJob(job) {
   const text = document.querySelector('#activeJobText');
-  const button = document.querySelector('#clearActiveJob');
+  cleanupJobRunning = job?.status === 'running';
+  activeJobCanClear = Boolean(job && !cleanupJobRunning);
+  applyCleanupJobControlState();
   if (!job) {
     text.textContent = 'No active or interrupted SiteWipe cleanup job is recorded.';
-    button.disabled = true;
+    delete text.dataset.state;
     return;
   }
   const status = job.status || 'unknown';
   const percent = Number.isFinite(Number(job.percent)) ? `${Math.round(Number(job.percent))}%` : 'unknown progress';
   const target = job.targetDomain || 'target';
-  text.textContent = `${target}: ${status} · ${percent} · ${job.label || job.phase || 'No phase'}${job.updatedAt ? ` · updated ${job.updatedAt}` : ''}`;
-  button.disabled = status === 'running';
+  const detail = job.detail ? ` ${job.detail}` : '';
+  const safeguards = cleanupJobRunning
+    ? ' Cleanup-review changes, settings import/reset, local-state reset, request-shield changes, and manual maintenance are disabled until this cleanup stops.'
+    : '';
+  text.textContent = `${target}: ${status} · ${percent} · ${job.label || job.phase || 'No phase'}.${detail}${job.updatedAt ? ` Updated ${formatDateTime(job.updatedAt)}.` : ''}${safeguards}`;
+  text.dataset.state = status;
+}
+
+function applyCleanupJobControlState() {
+  const focusedControlIsGuarded = JOB_GUARDED_CONTROL_IDS.some(
+    (id) => document.activeElement === document.querySelector(`#${id}`)
+  );
+  const stateLocked = !authoritativeStateReady;
+  document.querySelector('#clearShield').disabled =
+    stateLocked || cleanupJobRunning || !shieldControlAvailability.clear;
+  document.querySelector('#repairShield').disabled =
+    stateLocked || cleanupJobRunning || !shieldControlAvailability.repair;
+  document.querySelector('#clearActiveJob').disabled = stateLocked || !activeJobCanClear;
+  for (const id of [
+    'skipCleanupReview',
+    'importSettings',
+    'runMaintenanceNow',
+    'resetExtensionState',
+    'resetSettings'
+  ]) {
+    const control = document.querySelector(`#${id}`);
+    control.disabled = stateLocked || cleanupJobRunning;
+    control.setAttribute('aria-disabled', String(control.disabled));
+  }
+  for (const id of ['clearShield', 'repairShield', 'clearActiveJob']) {
+    const control = document.querySelector(`#${id}`);
+    control.setAttribute('aria-disabled', String(control.disabled));
+  }
+  if (cleanupJobRunning && focusedControlIsGuarded) document.querySelector('#activeJobText').focus();
 }
 
 function renderMaintenanceStatus(status) {
@@ -420,6 +784,7 @@ function renderMaintenanceStatus(status) {
 }
 
 async function runMaintenanceNow() {
+  if (!requireAuthoritativeState()) return;
   try {
     const response = await sendMessage(MESSAGE_TYPES.runMaintenanceNow);
     renderMaintenanceStatus(response.maintenanceStatus);
@@ -431,6 +796,7 @@ async function runMaintenanceNow() {
 }
 
 async function resetExtensionState() {
+  if (!requireAuthoritativeState()) return;
   if (
     !globalThis.confirm(
       'Reset all SiteWipe-local state? This permanently deletes local reports, debug logs, job status, settings, and any active SiteWipe request shield. It does not restore or delete website data.'
@@ -447,6 +813,7 @@ async function resetExtensionState() {
 }
 
 async function clearActiveJobRecord() {
+  if (!requireAuthoritativeState()) return;
   try {
     const response = await sendMessage(MESSAGE_TYPES.clearActiveJobRecord);
     renderActiveJob(response.activeJob || null);
@@ -508,6 +875,7 @@ async function validateAssociatedGroups() {
 }
 
 async function clearActiveShield() {
+  if (!requireAuthoritativeState()) return;
   try {
     const response = await sendMessage(MESSAGE_TYPES.clearActiveShield);
     renderActiveShield(response.shield || null, response.shieldDiagnostics || null);
@@ -521,6 +889,7 @@ async function clearActiveShield() {
 }
 
 async function repairActiveShield() {
+  if (!requireAuthoritativeState()) return;
   try {
     const response = await sendMessage(MESSAGE_TYPES.repairActiveShield);
     renderActiveShield(response.shield || null, response.shieldDiagnostics || response.after || null);
@@ -534,6 +903,7 @@ async function repairActiveShield() {
 }
 
 async function clearReports() {
+  if (!requireAuthoritativeState()) return;
   if (
     !globalThis.confirm(
       'Delete all extension-local cleanup reports? This removes the latest report and optional report history and cannot be undone.'
@@ -549,6 +919,7 @@ async function clearReports() {
 }
 
 async function runSelfTests() {
+  if (!requireAuthoritativeState()) return;
   const output = document.querySelector('#selfTestOutput');
   output.textContent = 'Running self-tests…';
   try {
@@ -568,61 +939,68 @@ async function runSelfTests() {
 }
 
 function exportSettingsBackup() {
-  const settings = currentSettings || {};
-  const payload = {
-    schema: 'sitewipe.settings.export.v1',
-    app: 'SiteWipe',
-    appVersion: APP.version,
-    exportedAt: new Date().toISOString(),
-    note: 'Contains SiteWipe extension settings only. It does not include cleanup reports, debug logs, active jobs, shields, bookmarks, passwords, or browser website data.',
-    settings
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: 'application/json'
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `sitewipe-settings-${Date.now()}.json`;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
-  const output = document.querySelector('#settingsPortabilityOutput');
-  if (output) output.textContent = `Settings exported at ${payload.exportedAt}.`;
-  toast('Settings exported.', 'success');
+  if (!requireAuthoritativeState()) return;
+  try {
+    const payload = createSettingsBackup(currentSettings || {}, { appVersion: APP.version });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sitewipe-settings-${Date.now()}.json`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    const output = document.querySelector('#settingsPortabilityOutput');
+    if (output) output.textContent = `Settings exported at ${payload.exportedAt}.`;
+    toast('Settings exported.', 'success');
+  } catch (error) {
+    const output = document.querySelector('#settingsPortabilityOutput');
+    if (output) output.textContent = formatError(error);
+    toast(formatError(error), 'error');
+  }
 }
 
 async function importSettingsBackup(event) {
   const input = event?.target;
+  if (!requireAuthoritativeState()) {
+    if (input) input.value = '';
+    return;
+  }
   const file = input?.files?.[0];
   if (!file) return;
+  if (cleanupJobRunning) {
+    input.value = '';
+    document.querySelector('#activeJobText').focus();
+    toast('Settings cannot be imported while a cleanup job is running.', 'info');
+    return;
+  }
   try {
+    assertSettingsBackupFileSize(file);
     const text = await file.text();
-    const parsed = JSON.parse(text);
-    const settings = parsed?.settings && typeof parsed.settings === 'object' ? parsed.settings : parsed;
-    if (!settings || typeof settings !== 'object' || Array.isArray(settings))
-      throw new Error('The selected file does not contain a settings object.');
-    const keys = Object.keys(settings).filter(
-      (key) => !['schema', 'app', 'appVersion', 'exportedAt', 'note'].includes(key)
-    );
-    if (!keys.length) throw new Error('No settings keys were found in the selected file.');
-    const importsUnredactedReports =
-      settings.redactReports === false || String(settings.redactReports).trim().toLowerCase() === 'false';
-    const importsIndefiniteLatestReport = Number(settings.latestReportRetentionMinutes) === 0;
-    if ((importsUnredactedReports || importsIndefiniteLatestReport) && !confirmSensitiveReportStorage()) {
-      toast('Settings import canceled; privacy-safe report settings were not changed.', 'info');
+    const backup = parseSettingsBackupText(text);
+    const candidateSettings = buildSettingsImportCandidate(currentSettings || {}, backup.settings);
+    const preview = buildSettingsImportConfirmation({
+      ...backup,
+      risks: getSettingsImportRisks(candidateSettings)
+    });
+    if (!globalThis.confirm(preview)) {
+      const output = document.querySelector('#settingsPortabilityOutput');
+      if (output) output.textContent = 'Settings import canceled. Every current setting remains unchanged.';
+      toast('Settings import canceled; current settings were not changed.', 'info');
       return;
     }
     const response = await sendMessage(MESSAGE_TYPES.saveSettings, {
-      settings
+      settings: backup.settings
     });
     renderSettings(response.settings || {});
     await validateAssociatedGroups();
     const output = document.querySelector('#settingsPortabilityOutput');
     if (output)
-      output.textContent = `Imported settings from ${file.name} at ${new Date().toISOString()}. Unknown keys, invalid values, and unsafe types were ignored by the background sanitizer.`;
-    toast('Settings imported and sanitized.', 'success');
+      output.textContent = `Imported ${backup.recognizedKeys.length} recognized setting${backup.recognizedKeys.length === 1 ? '' : 's'} from ${file.name} at ${new Date().toISOString()}. ${backup.unknownKeyCount} unknown field${backup.unknownKeyCount === 1 ? ' was' : 's were'} ignored. Values also passed through the background sanitizer.`;
+    toast('Settings imported, confirmed, and sanitized.', 'success');
     await refresh();
   } catch (error) {
     const output = document.querySelector('#settingsPortabilityOutput');
@@ -639,7 +1017,14 @@ function confirmSensitiveReportStorage() {
   );
 }
 
+function confirmSkipCleanupReview() {
+  return globalThis.confirm(
+    'Skip the detailed cleanup review completely for future cleanups? This applies in Standard and Expert mode. One popup cleanup action can immediately begin all currently enabled cleanup effects. Expert options can delete matched downloaded files or affect broader site data, and private-window data can be included when incognito access is enabled. Chrome or Brave may still require its own permission prompt. Choose Cancel to keep detailed review enabled.'
+  );
+}
+
 async function copySettingsSummary() {
+  if (!requireAuthoritativeState()) return;
   const s = currentSettings || {};
   const lines = [
     'SiteWipe settings summary',
@@ -647,7 +1032,7 @@ async function copySettingsSummary() {
     `Keep history: ${Boolean(s.keepHistory)}`,
     `Redact stored reports: ${Boolean(s.redactReports)}`,
     `Cleanup mode: ${s.cleanupMode || 'standard'}`,
-    'Detailed per-run cleanup review: always required',
+    `Skip detailed cleanup review completely: ${Boolean(s.skipCleanupReview)}`,
     `Verification pass: ${Boolean(s.verificationPass)}`,
     `Temporary request shield: ${Boolean(s.temporaryDnrShield)}`,
     `Post-wipe session block: ${Boolean(s.postWipeSessionBlock)}`,
@@ -675,6 +1060,7 @@ async function copySettingsSummary() {
 }
 
 async function clearDebugLog() {
+  if (!requireAuthoritativeState()) return;
   try {
     const response = await sendMessage(MESSAGE_TYPES.clearDebugLog);
     renderDebug(response.debugLog || []);
@@ -685,6 +1071,7 @@ async function clearDebugLog() {
 }
 
 async function resetSettings() {
+  if (!requireAuthoritativeState()) return;
   if (
     !globalThis.confirm(
       'Reset SiteWipe settings to the privacy-safe defaults? Your current settings cannot be restored.'
@@ -718,16 +1105,21 @@ function setValue(id, value) {
 
 function applyCleanupMode(mode) {
   const expert = isExpertCleanupMode(mode);
+  if (!expert) {
+    setChecked('embeddedFrameDiscovery', false);
+    setValue('overlayScope', 'target_tabs');
+  }
   for (const id of EXPERT_CONTROL_IDS) {
     const control = document.querySelector(`#${id}`);
     if (!control) continue;
-    control.disabled = !expert;
+    control.disabled = !authoritativeStateReady || !expert;
+    control.setAttribute('aria-disabled', String(control.disabled));
     control.closest('.setting-row')?.classList.toggle('expert-disabled', !expert);
   }
   const help = document.querySelector('#cleanupModeHelp');
   if (help) {
     help.textContent = expert
-      ? 'Expert mode enables expanded and destructive options. Every run still requires a fresh detailed scope and impact review before cleanup can start.'
+      ? 'Expert mode enables expanded and destructive options. The separate cleanup-review setting remains available and controls whether the detailed per-run screen is shown.'
       : 'Standard mode keeps cleanup targeted to the selected site. Expanded, heavy, and destructive options are disabled until you choose Expert mode.';
   }
   applySettingDependencies();
@@ -742,7 +1134,7 @@ function applySettingDependencies() {
       const control = document.querySelector(`#${childId}`);
       if (!control) continue;
       const expertOnly = EXPERT_CONTROL_IDS.includes(childId);
-      const disabled = !parentEnabled || (expertOnly && !expert);
+      const disabled = !authoritativeStateReady || !parentEnabled || (expertOnly && !expert);
       control.disabled = disabled;
       control.closest('.setting-row')?.classList.toggle('dependency-disabled', !parentEnabled);
       control.setAttribute('aria-disabled', String(disabled));

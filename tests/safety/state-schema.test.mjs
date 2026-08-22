@@ -50,6 +50,53 @@ test('cleanup job state machine allows only explicit transitions', () => {
   );
 });
 
+test('nonce-bound cleanup jobs persist only opaque popup context and capability digest', () => {
+  const handoff = {
+    approvalHandoffNonce: 'terminal-handoff-nonce',
+    admissionPhase: 'handoff_admitting',
+    popupContextId: 'opaque popup/context #151',
+    popupPreparationCapabilityDigest: 'c'.repeat(64),
+    popupPreparationCapability: 'd'.repeat(64)
+  };
+  const normalized = normalizeCleanupJob(job('running', handoff));
+  assert.equal(normalized.popupContextId, handoff.popupContextId);
+  assert.equal(normalized.popupPreparationCapabilityDigest, handoff.popupPreparationCapabilityDigest);
+  assert.equal(
+    Object.hasOwn(normalized, 'popupPreparationCapability'),
+    false,
+    'raw popup authority must never persist'
+  );
+  assert.equal(normalizeCleanupJob(job('running', { ...handoff, popupContextId: undefined })), null);
+  assert.equal(normalizeCleanupJob(job('running', { ...handoff, popupPreparationCapabilityDigest: undefined })), null);
+  assert.equal(
+    normalizeCleanupJob(job('running', { ...handoff, popupPreparationCapabilityDigest: 'd'.repeat(48) })),
+    null
+  );
+
+  const terminal = assertCleanupJobTransition(
+    normalized,
+    job('completed', {
+      ...handoff,
+      admissionPhase: 'admitted',
+      completedAt: updatedAt
+    })
+  );
+  assert.equal(terminal.popupContextId, handoff.popupContextId);
+  assert.equal(terminal.popupPreparationCapabilityDigest, handoff.popupPreparationCapabilityDigest);
+  assert.throws(
+    () =>
+      assertCleanupJobTransition(
+        normalized,
+        job('completed', {
+          ...handoff,
+          admissionPhase: 'admitted',
+          popupPreparationCapabilityDigest: 'e'.repeat(64)
+        })
+      ),
+    /cannot discard or replace its approval handoff identity/
+  );
+});
+
 test('active shield schema accepts only SiteWipe-owned rule IDs and valid modes/timestamps', () => {
   const shield = normalizeActiveShield({
     domain: 'example.com',

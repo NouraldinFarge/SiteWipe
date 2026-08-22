@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "auditedAt": "2026-08-17T19:48:09-05:00",
+  "auditMode": "read-only signed-in GitHub owner UI plus anonymous HTTP checks",
+  "repository": {
+    "url": "https://github.com/NouraldinFarge/SiteWipe",
+    "ownerViewVisibility": "public",
+    "anonymousHttpStatus": 404,
+    "recruiterVisibleAvailability": false,
+    "defaultBranch": "main",
+    "ownerViewMainSha": "29d0a6ea17701ab8892d36472d10120d9f61eb1b",
+    "localMainShaBeforeHotfix": "29d0a6ea17701ab8892d36472d10120d9f61eb1b",
+    "broadDraftBranch": "agent/fix-private-codeql",
+    "broadDraftHead": "798af46d17dc91659cfc2208c30d0c319d7c44c1",
+    "broadDraftMerged": false
+  },
+  "general": {
+    "issuesEnabled": true,
+    "pullRequestsEnabled": true,
+    "issueCreation": "all users with repository visibility",
+    "pullRequestCreation": "all users with repository visibility",
+    "releaseImmutabilityEnabled": false,
+    "mergeCommitsEnabled": false,
+    "squashMergingEnabled": true,
+    "rebaseMergingEnabled": true,
+    "suggestPullRequestUpdates": true,
+    "autoMergeEnabled": true,
+    "deleteHeadBranchesAfterMerge": true,
+    "preserveInGitHubArchiveProgram": true
+  },
+  "mainBranchProtection": {
+    "rulePresent": true,
+    "requirePullRequest": false,
+    "requireStatusChecks": true,
+    "requireBranchUpToDate": true,
+    "requiredChecks": [
+      "Static, safety, tests, coverage, and package parity",
+      "Analyze JavaScript"
+    ],
+    "requiredCheckSource": "github-actions",
+    "requireConversationResolution": true,
+    "requireSignedCommits": false,
+    "requireLinearHistory": true,
+    "requireDeployments": false,
+    "applyRulesToAdministrators": true,
+    "allowForcePushes": false,
+    "allowDeletions": false
+  },
+  "actions": {
+    "policy": "owner actions plus selected non-owner actions",
+    "githubAuthoredActionsAllowed": true,
+    "marketplaceVerifiedCreatorsAllowed": false,
+    "fullLengthActionShaRequired": true,
+    "artifactAndLogRetentionDays": 90,
+    "forkWorkflowApproval": "first-time contributors",
+    "defaultTokenPermissions": "read repository contents and packages",
+    "actionsMayCreateOrApprovePullRequests": false
+  },
+  "security": {
+    "privateVulnerabilityReportingEnabled": true,
+    "dependencyGraphEnabled": true,
+    "automaticDependencySubmissionEnabled": false,
+    "dependabotAlertsEnabled": true,
+    "dependabotRulesEnabled": 1,
+    "dependabotMalwareAlertsEnabled": false,
+    "dependabotSecurityUpdatesEnabled": true,
+    "dependabotGroupedSecurityUpdatesEnabled": false,
+    "dependabotVersionUpdatesConfigured": false,
+    "codeqlMode": "advanced setup",
+    "codeqlLastScanShown": "2026-08-17; exact current head not established by this settings view",
+    "secretProtectionEnabled": true,
+    "pushProtectionEnabled": true,
+    "copilotAutofixEnabled": true,
+    "aiFindingsEnabled": false
+  },
+  "releaseEnvironment": {
+    "currentName": "private-release-candidate",
+    "requiredReviewer": "NouraldinFarge",
+    "preventSelfReview": false,
+    "administratorBypassAllowed": true,
+    "deploymentBranches": "protected branches only",
+    "matchingBranches": ["main"],
+    "environmentSecretCount": 0,
+    "hotfixWorkflowName": "unreleased-candidate",
+    "migrationRequiredBeforeHotfixMerge": true
+  },
+  "openRisks": [
+    "Anonymous repository and security-route requests return 404 during account-level restoration.",
+    "The main protection rule does not require a pull request before merging.",
+    "The renamed unreleased-candidate workflow environment does not yet exist remotely and must be protected before merge.",
+    "The current release environment permits owner self-review and administrator bypass.",
+    "Dependabot malware alerts and grouped security updates are disabled; version updates have no configuration.",
+    "Release immutability is disabled.",
+    "The settings view does not prove that CodeQL passed for the exact current main head."
+  ],
+  "remoteMutationsPerformed": []
+}

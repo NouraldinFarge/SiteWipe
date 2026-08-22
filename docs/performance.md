@@ -1,6 +1,6 @@
 # Performance evidence
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
 No cleanup-speed claim is approved. The fast Node self-test and unit suite do not measure Chrome/Brave startup, service-worker wake behavior, API latency, page storage, real cleanup, or verification.
 
@@ -23,7 +23,7 @@ Run the benchmark only in disposable, unsigned test profiles with the loopback f
 For each scale:
 
 1. Run Standard mode at least ten times from a clean fixture reset.
-2. Run Expert mode at least ten times with each risky option through the mandatory complete review, including every applicable acknowledgement and downloaded-file confirmation.
+2. Run Expert mode at least ten times with each risky option in default detailed review, including every applicable acknowledgement and downloaded-file confirmation, and repeat a separately identified ten-run sample with the explicitly enabled direct setting. Direct runs must finish hidden preflight before **Clean now**, truthfully omit the typed phrase, and retain the same preflight-bound file IDs/live revalidation.
 3. Force one service-worker termination and one browser restart recovery case.
 4. Repeat a smoke subset in the exact Brave version under claim.
 5. Verify unrelated controls and the SiteWipe DNR range after each run.

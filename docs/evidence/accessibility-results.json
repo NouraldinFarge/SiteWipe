@@ -1,18 +1,16 @@
 {
   "schemaVersion": 1,
   "status": "pending_installed_validation",
-  "reviewedAt": "2026-08-16",
+  "reviewedAt": null,
   "sourceContracts": {
-    "status": "passed",
-    "namedTests": 6,
-    "coverage": [
-      "programmatic labels and described controls",
-      "ARIA tab pattern and keyboard bindings",
-      "required and invalid destructive controls",
-      "reduced motion, forced colors, target size, and CTA contrast",
-      "explicit confirmation before disabling report redaction",
-      "mandatory Standard/Expert per-run review, retired-setting absence, acknowledgement semantics, final-approval labeling, and native-prompt caveat"
-    ]
+    "status": "pending",
+    "reviewedAt": null,
+    "binding": {
+      "version": "1.11.46",
+      "releaseInputFingerprintSha256": null
+    },
+    "namedTests": null,
+    "coverage": []
   },
   "installedChecks": {
     "axe": "pending",
@@ -28,8 +26,8 @@
   },
   "browserVersions": {},
   "artifact": {
-    "version": "1.11.2",
-    "runtimeZip": "sitewipe-private-rc-1.11.2.zip",
+    "version": "1.11.46",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.46.zip",
     "sha256": null
   },
   "reviewerApproval": false

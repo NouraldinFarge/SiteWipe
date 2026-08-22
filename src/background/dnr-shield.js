@@ -28,6 +28,11 @@ const DNR_RESOURCE_TYPES = [
 
 const DEFAULT_DNR_UPDATE_TIMEOUT_MS = 15000;
 const DNR_TIMEOUT = Symbol('sitewipe-dnr-timeout');
+const pendingDnrMutationOperations = new Set();
+
+export function hasPendingSiteWipeDnrMutation() {
+  return pendingDnrMutationOperations.size > 0;
+}
 
 /**
  * Builds only rules inside SiteWipe's reserved session-rule range.
@@ -58,7 +63,7 @@ export function buildTemporaryDnrShieldRules(target) {
  * Atomically replaces SiteWipe-owned session rules. A timeout never means the
  * browser rejected the operation; callers must retain recovery state.
  * @param {chrome.declarativeNetRequest.Rule[]} rules
- * @param {{timeoutMs?: number}} [options]
+ * @param {{timeoutMs?: number, onMutationSettled?:(settlement: Record<string, unknown>) => (Promise<void> | void)}} [options]
  */
 export async function replaceSiteWipeDnrShieldRules(rules, options = {}) {
   if (!chrome.declarativeNetRequest?.updateSessionRules) throw new Error('chrome.declarativeNetRequest is unavailable');
@@ -67,7 +72,12 @@ export async function replaceSiteWipeDnrShieldRules(rules, options = {}) {
     removeRuleIds: [...SITEWIPE_DNR_RULE_IDS],
     addRules
   });
-  return withDnrTimeout(operation, options.timeoutMs, 'DNR shield replace');
+  try {
+    return await withDnrTimeout(operation, options.timeoutMs, 'DNR shield replace');
+  } catch (error) {
+    trackTimedOutDnrMutation(operation, error, options.onMutationSettled);
+    throw error;
+  }
 }
 
 /**
@@ -89,7 +99,12 @@ export async function clearSiteWipeDnrRules(ruleIds = SITEWIPE_DNR_RULE_IDS, opt
   const operation = chrome.declarativeNetRequest.updateSessionRules({
     removeRuleIds: ids
   });
-  await withDnrTimeout(operation, options.timeoutMs, 'DNR shield clear');
+  try {
+    await withDnrTimeout(operation, options.timeoutMs, 'DNR shield clear');
+  } catch (error) {
+    trackTimedOutDnrMutation(operation, error, options.onMutationSettled);
+    throw error;
+  }
   return { ok: true, ruleIds: ids };
 }
 
@@ -164,6 +179,24 @@ export async function installTemporaryDnrShield(target, report, options = {}) {
     });
     return { installed: false, uncertain: false, ruleIds: [] };
   }
+  if (options.incognitoAccess !== true) {
+    report.summary.temporaryDnrShieldSkippedForNormalOnlyReview = true;
+    addSection(report, 'dnrShield', 'Request shield skipped for normal-only safety', 'skipped', {
+      reason:
+        'The reviewed cleanup excludes private-window scope. SiteWipe cannot bind shared DNR session rules to normal windows only, so it installs no request shield and cannot affect private target traffic if browser private-access settings change during the run.',
+      requestedTemporaryShield: options.temporaryDnrShield !== false,
+      requestedPostWipeShield: Boolean(options.postWipeSessionBlock)
+    });
+    return { installed: false, uncertain: false, ruleIds: [], skippedForNormalOnlyReview: true };
+  }
+  if (hasPendingSiteWipeDnrMutation()) {
+    addUnavailable(
+      report,
+      'Temporary request shield',
+      'A previous SiteWipe DNR mutation is still settling. SiteWipe refused to install a newer shield that the older operation could overwrite.'
+    );
+    return { installed: false, uncertain: false, ruleIds: [], blockedByPendingMutation: true };
+  }
   if (!chrome.declarativeNetRequest?.updateSessionRules) {
     addUnavailable(
       report,
@@ -193,22 +226,24 @@ export async function installTemporaryDnrShield(target, report, options = {}) {
     ruleIds,
     urlFilters,
     mode: options.postWipeSessionBlock ? 'post-wipe-session' : 'cleanup-only',
+    pendingMutation: false,
     expiresAt: shieldExpiresAt,
-    startedAt: new Date().toISOString()
+    startedAt: new Date().toISOString(),
+    jobId: options.shieldJobId || null
   };
 
   let operationPromise = null;
   try {
     // This write is part of the safety boundary: do not start the browser
     // mutation if its recovery intent cannot be persisted first.
-    await options.onShieldPrepared({ ...baseRecord, lifecycle: 'installing' });
+    await options.onShieldPrepared({ ...baseRecord, lifecycle: 'installing', pendingMutation: true });
     operationPromise = chrome.declarativeNetRequest.updateSessionRules({
       removeRuleIds: [...SITEWIPE_DNR_RULE_IDS],
       addRules: rules
     });
     await withDnrTimeout(operationPromise, options.dnrTimeoutMs, 'DNR shield replace');
     if (typeof options.onShieldInstalled === 'function') {
-      await options.onShieldInstalled({ ...baseRecord, lifecycle: 'active' });
+      await options.onShieldInstalled({ ...baseRecord, lifecycle: 'active', pendingMutation: false });
     }
     report.summary.temporaryDnrShieldInstalled = true;
     report.summary.postWipeSessionBlockKept = Boolean(options.postWipeSessionBlock);
@@ -232,9 +267,10 @@ export async function installTemporaryDnrShield(target, report, options = {}) {
     const typedError = /** @type {Error & {operationMayContinue?: boolean}} */ (error);
     const uncertain = Boolean(typedError?.operationMayContinue && operationPromise);
     if (uncertain && typeof options.onShieldUncertain === 'function') {
-      await options.onShieldUncertain({ ...baseRecord, lifecycle: 'unknown' }).catch(() => {});
+      await options.onShieldUncertain({ ...baseRecord, lifecycle: 'unknown', pendingMutation: true }).catch(() => {});
     }
-    if (!uncertain) {
+    if (uncertain) trackPendingInstallSettlement(operationPromise, options);
+    if (!uncertain && operationPromise) {
       await reconcileFailedInstall(options).catch(() => {});
     }
     addError(report, 'Install temporary request shield', error);
@@ -270,22 +306,45 @@ export async function finalizeTemporaryDnrShield(shield, report, options = {}) {
     if (settlement.state === 'fulfilled') shield.installed = true;
     if (settlement.state === 'rejected') shield.installed = false;
 
-    // Unknown installs are never kept as a post-wipe feature. Clear the entire
-    // owned range so the fail-safe outcome is no residual block.
-    const reconciliation = await reconcileOwnedRange(options);
-    report.summary.temporaryDnrShieldRemoved = reconciliation.cleared;
+    // Unknown installs are never kept as a post-wipe feature. Do not start a
+    // second rule mutation while the original install can still settle: both
+    // calls share the owned range, and a worker loss between their settlements
+    // would otherwise strand an untracked late mutation. The install's tracked
+    // settlement callback schedules exclusive maintenance, which performs the
+    // clear under a fresh durable marker only after this promise is terminal.
+    const installStillPending = settlement.state === 'pending';
+    if (installStillPending) {
+      if (typeof options.onShieldUncertain === 'function') {
+        await options.onShieldUncertain({ lifecycle: 'unknown', pendingMutation: true }).catch(() => {});
+      }
+      const diagnostics = await getSiteWipeDnrDiagnostics(null);
+      report.summary.temporaryDnrShieldRemoved = false;
+      addSection(report, 'dnrShieldFinal', 'Request-shield reconciliation awaits browser settlement', 'partial', {
+        operationSettlement: settlement.state,
+        activeRuleIdsAfterReconciliation: diagnostics.activeRuleIds,
+        pointInTimeRangeEmpty: diagnostics.available && !diagnostics.error && diagnostics.activeRuleIds.length === 0,
+        recoveryRecordRetained: true,
+        note: 'The original install call is still pending. SiteWipe retained its recovery marker and deferred the clear so two unresolved browser mutations cannot overlap.'
+      });
+      return;
+    }
+
+    const reconciliation = await reconcileOwnedRange(options, {
+      forgetIfCleared: true
+    });
+    const recoveryComplete = reconciliation.cleared;
+    report.summary.temporaryDnrShieldRemoved = recoveryComplete;
     addSection(
       report,
       'dnrShieldFinal',
-      reconciliation.cleared
-        ? 'Uncertain request shield reconciled'
-        : 'Request-shield reconciliation remains incomplete',
-      reconciliation.cleared ? 'success' : 'partial',
+      recoveryComplete ? 'Uncertain request shield reconciled' : 'Request-shield reconciliation remains incomplete',
+      recoveryComplete ? 'success' : 'partial',
       {
         operationSettlement: settlement.state,
         activeRuleIdsAfterReconciliation: reconciliation.activeRuleIds,
-        recoveryRecordRetained: !reconciliation.cleared,
-        note: reconciliation.cleared
+        pointInTimeRangeEmpty: reconciliation.pointInTimeRangeEmpty,
+        recoveryRecordRetained: !recoveryComplete,
+        note: recoveryComplete
           ? 'The complete SiteWipe-owned session-rule range is empty and the local recovery record was cleared.'
           : 'The browser did not prove the SiteWipe-owned range empty. Recovery state remains so maintenance can retry without losing track of a possible block.'
       }
@@ -303,19 +362,32 @@ export async function finalizeTemporaryDnrShield(shield, report, options = {}) {
   }
 
   try {
-    await clearSiteWipeDnrRules(shield.ruleIds, {
-      timeoutMs: options.dnrTimeoutMs
+    if (typeof options.onShieldRemovalPrepared === 'function') {
+      await options.onShieldRemovalPrepared({ reason: 'finalize-temporary-shield', shield });
+    }
+    const clearResult = await clearSiteWipeDnrRules(shield.ruleIds, {
+      timeoutMs: options.dnrTimeoutMs,
+      onMutationSettled: options.onShieldMutationSettled
     });
+    if (clearResult?.ok !== true) {
+      throw new Error('Chrome did not accept the SiteWipe request-shield removal. Recovery state was retained.');
+    }
     const diagnostics = await getSiteWipeDnrDiagnostics(null);
-    if (diagnostics.activeRuleIds.length)
-      throw new Error('SiteWipe request-shield rules remain after the removal call. Recovery state was retained.');
+    if (diagnostics.available !== true || diagnostics.error || diagnostics.activeRuleIds.length) {
+      throw new Error(
+        'SiteWipe could not prove its request-shield range empty after removal. Recovery state was retained.'
+      );
+    }
     if (typeof options.onShieldCleared === 'function') await options.onShieldCleared();
     report.summary.temporaryDnrShieldRemoved = true;
     addSection(report, 'dnrShieldFinal', 'Temporary request shield removed', 'success', { ruleIds: shield.ruleIds });
   } catch (error) {
     report.summary.temporaryDnrShieldRemoved = false;
     if (typeof options.onShieldUncertain === 'function') {
-      await options.onShieldUncertain({ lifecycle: 'unknown' }).catch(() => {});
+      const typedError = /** @type {Error & {operationMayContinue?: boolean}} */ (error);
+      await options
+        .onShieldUncertain({ lifecycle: 'unknown', pendingMutation: Boolean(typedError?.operationMayContinue) })
+        .catch(() => {});
     }
     addError(report, 'Remove temporary request shield', error);
   }
@@ -327,19 +399,33 @@ async function reconcileFailedInstall(options) {
   return result;
 }
 
-async function reconcileOwnedRange(options) {
+async function reconcileOwnedRange(options, { forgetIfCleared = true } = {}) {
   try {
+    if (typeof options.onShieldRemovalPrepared === 'function') {
+      await options.onShieldRemovalPrepared({ reason: 'reconcile-owned-range' });
+    }
     await clearSiteWipeDnrRules(SITEWIPE_DNR_RULE_IDS, {
-      timeoutMs: options.dnrTimeoutMs
+      timeoutMs: options.dnrTimeoutMs,
+      onMutationSettled: options.onShieldMutationSettled
     });
   } catch {
     // A timed-out removal may still complete. Diagnostics below decides whether
     // it is safe to clear the persistent recovery record.
   }
   const diagnostics = await getSiteWipeDnrDiagnostics(null);
-  const cleared = diagnostics.available && !diagnostics.error && diagnostics.activeRuleIds.length === 0;
-  if (cleared && typeof options.onShieldCleared === 'function') await options.onShieldCleared();
-  return { cleared, activeRuleIds: diagnostics.activeRuleIds, diagnostics };
+  const pointInTimeRangeEmpty = diagnostics.available && !diagnostics.error && diagnostics.activeRuleIds.length === 0;
+  const pendingMutation = hasPendingSiteWipeDnrMutation();
+  const cleared = pointInTimeRangeEmpty && !pendingMutation;
+  if (cleared && forgetIfCleared && typeof options.onShieldCleared === 'function') {
+    await options.onShieldCleared();
+  }
+  return {
+    cleared,
+    pointInTimeRangeEmpty,
+    pendingMutation,
+    activeRuleIds: diagnostics.activeRuleIds,
+    diagnostics
+  };
 }
 
 async function observeSettlement(promise, timeoutMs = 30000) {
@@ -352,6 +438,52 @@ async function observeSettlement(promise, timeoutMs = 30000) {
     new Promise((resolve) => setTimeout(() => resolve({ state: 'pending' }), safeTimeout(timeoutMs, 30000)))
   ]);
   return result;
+}
+
+function trackPendingInstallSettlement(operationPromise, options) {
+  if (!operationPromise || typeof operationPromise.then !== 'function') return;
+  pendingDnrMutationOperations.add(operationPromise);
+  void Promise.resolve(operationPromise)
+    .then(
+      () => ({ state: 'fulfilled' }),
+      (error) => ({ state: 'rejected', error: readableMessage(error) })
+    )
+    .then(async (settlement) => {
+      pendingDnrMutationOperations.delete(operationPromise);
+      if (typeof options.onShieldMutationSettled === 'function') {
+        await options.onShieldMutationSettled(settlement);
+        return;
+      }
+      await reconcileOwnedRange(options);
+    })
+    .catch(() => {
+      // A failed settlement callback is not evidence that every follow-up DNR
+      // mutation has settled or that safety proof completed. Keep the durable
+      // pending record and marker conservative; a later exclusive maintenance
+      // pass or browser-session boundary owns reconciliation.
+    });
+}
+
+function trackTimedOutDnrMutation(operationPromise, error, onMutationSettled) {
+  const typedError = /** @type {Error & {operationMayContinue?: boolean}} */ (error);
+  if (!typedError?.operationMayContinue || !operationPromise || typeof operationPromise.then !== 'function') return;
+  if (pendingDnrMutationOperations.has(operationPromise)) return;
+  pendingDnrMutationOperations.add(operationPromise);
+  void Promise.resolve(operationPromise)
+    .then(
+      () => ({ state: 'fulfilled' }),
+      (settlementError) => ({ state: 'rejected', error: readableMessage(settlementError) })
+    )
+    .then(async (settlement) => {
+      pendingDnrMutationOperations.delete(operationPromise);
+      if (typeof onMutationSettled === 'function') await onMutationSettled(settlement);
+    })
+    .catch(() => {
+      // The browser mutation itself has settled; callback failure must not make
+      // it look pending forever in this worker. Durable recovery state remains
+      // responsible for any reconciliation that the callback could not run.
+      pendingDnrMutationOperations.delete(operationPromise);
+    });
 }
 
 async function withDnrTimeout(promise, timeoutMs, label) {

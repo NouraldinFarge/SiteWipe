@@ -1,8 +1,8 @@
 # Candidate icon source
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-`icon-source.svg` is the editable master for the current private-candidate icon. It uses only original geometric paths and project-selected solid/gradient colors; it embeds no font, photo, stock graphic, external URL, or third-party logo.
+`icon-source.svg` is the editable master for the current public-source prerelease icon. It uses only original geometric paths and project-selected solid/gradient colors; it embeds no font, photo, stock graphic, external URL, or third-party logo.
 
 The design preserves the private prototype's coherent high-level idea—a boundary shield and clean-sweep mark—while replacing inherited PNG-only files whose authoring provenance was not established. The owner has selected the SiteWipe identity; final visual/ownership approval of this mark remains separate.
 

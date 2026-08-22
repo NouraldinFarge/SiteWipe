@@ -3,7 +3,8 @@ import { getRegistrableDomain } from '../shared/public-suffix.js';
 import { findProtectedBrowserServiceTargets } from '../shared/safety.js';
 import { scrubSensitiveText } from '../shared/report-redaction.js';
 
-export const PERMISSION_LEASE_SCHEMA_VERSION = 1;
+export const PERMISSION_LEASE_SCHEMA_VERSION = 2;
+export const PERMISSION_PROMPT_PENDING_TTL_MS = 30 * 60 * 1000;
 const MAX_PERMISSION_ORIGINS = 128;
 /** @type {Promise<unknown>} */
 let permissionLeaseMutation = Promise.resolve();
@@ -57,6 +58,7 @@ export async function preparePermissionLease(
       createdAt: new Date(nowMs).toISOString(),
       updatedAt: new Date(nowMs).toISOString(),
       reviewExpiresAt: normalizedReviewExpiresAt,
+      promptPendingUntil: null,
       releaseAttemptCount: 0,
       lastReleaseAttemptAt: null,
       lastError: null
@@ -66,20 +68,174 @@ export async function preparePermissionLease(
   });
 }
 
-export async function markPermissionLeaseActive(storageLocal, leaseId, now = () => Date.now()) {
+export async function markPermissionLeaseActive(storageLocal, leaseId, now = () => Date.now(), expectedBinding = null) {
   return serializePermissionLeaseMutation(async () => {
     assertStorageArea(storageLocal);
     const lease = await getPermissionLease(storageLocal);
     if (!lease || lease.id !== String(leaseId || '')) return null;
+    const binding = normalizePermissionLeaseBinding(expectedBinding);
+    if (lease.status !== 'prompt_pending' || !binding || !permissionLeaseBindingMatches(lease, binding)) return null;
     const nowMs = Number(now());
     if (!Number.isFinite(nowMs)) throw new Error('Permission lease clock is unavailable.');
     const updated = {
       ...lease,
       status: 'active_cleanup',
+      promptPendingUntil: null,
       updatedAt: new Date(Math.max(nowMs, Date.parse(lease.createdAt))).toISOString()
     };
     await storageLocal.set({ [STORAGE_KEYS.permissionLease]: updated });
     return updated;
+  });
+}
+
+function normalizePermissionLeaseBinding(value) {
+  try {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const requestedOrigins = normalizeOrigins(value.requestedOrigins, { strict: true });
+    const preexistingOrigins = normalizeOrigins(value.preexistingOrigins, { strict: true });
+    const temporaryOrigins = normalizeOrigins(value.temporaryOrigins, { strict: true });
+    const reviewExpiresAt = normalizeTimestamp(value.reviewExpiresAt);
+    if (!requestedOrigins.length || !temporaryOrigins.length || !reviewExpiresAt) return null;
+    const requested = new Set(requestedOrigins);
+    const preexisting = new Set(preexistingOrigins);
+    const temporary = new Set(temporaryOrigins);
+    if (
+      preexistingOrigins.some((origin) => !requested.has(origin) || temporary.has(origin)) ||
+      temporaryOrigins.some((origin) => !requested.has(origin)) ||
+      requestedOrigins.some((origin) => !preexisting.has(origin) && !temporary.has(origin))
+    ) {
+      return null;
+    }
+    return { requestedOrigins, preexistingOrigins, temporaryOrigins, reviewExpiresAt };
+  } catch {
+    return null;
+  }
+}
+
+function permissionLeaseBindingMatches(lease, binding) {
+  return (
+    arraysEqual(lease.requestedOrigins, binding.requestedOrigins) &&
+    arraysEqual(lease.preexistingOrigins, binding.preexistingOrigins) &&
+    arraysEqual(lease.temporaryOrigins, binding.temporaryOrigins) &&
+    lease.reviewExpiresAt === binding.reviewExpiresAt
+  );
+}
+
+export async function markPermissionLeasePromptPending(
+  storageLocal,
+  leaseId,
+  now = () => Date.now(),
+  promptTtlMs = PERMISSION_PROMPT_PENDING_TTL_MS
+) {
+  return serializePermissionLeaseMutation(async () => {
+    assertStorageArea(storageLocal);
+    const lease = await getPermissionLease(storageLocal);
+    if (!lease || lease.id !== String(leaseId || '')) return null;
+    if (!['prepared', 'prompt_pending'].includes(lease.status)) return null;
+    const nowMs = Number(now());
+    const ttlMs = Number(promptTtlMs);
+    if (!Number.isFinite(nowMs) || !Number.isSafeInteger(ttlMs) || ttlMs <= 0) {
+      throw new Error('Permission-prompt tracking clock is unavailable.');
+    }
+    const promptPendingUntil = new Date(nowMs + ttlMs).toISOString();
+    const updated = {
+      ...lease,
+      status: 'prompt_pending',
+      updatedAt: new Date(Math.max(nowMs, Date.parse(lease.createdAt))).toISOString(),
+      promptPendingUntil
+    };
+    await storageLocal.set({ [STORAGE_KEYS.permissionLease]: updated });
+    return updated;
+  });
+}
+
+/**
+ * Restores the exact prompt-pending lease after a concurrent review
+ * invalidation finished reconciling it just as the worker received the final
+ * popup click. The caller supplies the immutable, normalized review binding;
+ * an unrelated lease is never overwritten.
+ *
+ * @param {any} storageLocal
+ * @param {{
+ *   id?: string,
+ *   requestedOrigins?: string[],
+ *   preexistingOrigins?: string[],
+ *   createdAt?: string | null,
+ *   reviewExpiresAt?: string | null,
+ *   now?: () => number
+ * }} [leaseBinding]
+ */
+export async function restorePermissionLeasePromptOwnership(storageLocal, leaseBinding = {}) {
+  const {
+    id,
+    requestedOrigins = [],
+    preexistingOrigins = [],
+    createdAt = null,
+    reviewExpiresAt = null,
+    now = () => Date.now()
+  } = leaseBinding;
+  return serializePermissionLeaseMutation(async () => {
+    assertStorageArea(storageLocal);
+    const leaseId = String(id || '');
+    if (!/^[a-zA-Z0-9._:-]{8,128}$/.test(leaseId)) {
+      throw new Error('Permission lease identifier is invalid.');
+    }
+    const requested = normalizeOrigins(requestedOrigins, { strict: true });
+    const preexistingSet = new Set(normalizeOrigins(preexistingOrigins, { strict: true }));
+    const preexisting = requested.filter((origin) => preexistingSet.has(origin));
+    const temporaryOrigins = requested.filter((origin) => !preexistingSet.has(origin));
+    if (!requested.length || !temporaryOrigins.length) {
+      throw new Error('Permission prompt ownership requires an exact temporary target scope.');
+    }
+
+    const normalizedCreatedAt = normalizeTimestamp(createdAt);
+    const normalizedReviewExpiresAt = normalizeTimestamp(reviewExpiresAt);
+    if (
+      !normalizedCreatedAt ||
+      !normalizedReviewExpiresAt ||
+      Date.parse(normalizedReviewExpiresAt) <= Date.parse(normalizedCreatedAt)
+    ) {
+      throw new Error('Permission prompt ownership timestamps are invalid.');
+    }
+    const nowMs = Number(now());
+    if (!Number.isFinite(nowMs)) throw new Error('Permission-prompt tracking clock is unavailable.');
+
+    const existing = await getPermissionLease(storageLocal);
+    if (existing?.id && existing.id !== leaseId) {
+      throw new Error('A different temporary target-access lease is already active.');
+    }
+    const binding = {
+      requestedOrigins: requested,
+      preexistingOrigins: preexisting,
+      temporaryOrigins,
+      reviewExpiresAt: normalizedReviewExpiresAt
+    };
+    if (existing && !permissionLeaseBindingMatches(existing, binding)) {
+      throw new Error('The temporary target-access lease no longer matches the cleanup review.');
+    }
+    if (existing?.status === 'active_cleanup') {
+      throw new Error('An admitted cleanup lease cannot be restored as a pending browser prompt.');
+    }
+
+    const createdAtMs = Date.parse(existing?.createdAt || normalizedCreatedAt);
+    const updatedAtMs = Math.max(nowMs, createdAtMs);
+    const restored = {
+      schemaVersion: PERMISSION_LEASE_SCHEMA_VERSION,
+      id: leaseId,
+      status: 'prompt_pending',
+      requestedOrigins: requested,
+      preexistingOrigins: preexisting,
+      temporaryOrigins,
+      createdAt: new Date(createdAtMs).toISOString(),
+      updatedAt: new Date(updatedAtMs).toISOString(),
+      reviewExpiresAt: normalizedReviewExpiresAt,
+      promptPendingUntil: new Date(updatedAtMs + PERMISSION_PROMPT_PENDING_TTL_MS).toISOString(),
+      releaseAttemptCount: Number(existing?.releaseAttemptCount || 0),
+      lastReleaseAttemptAt: existing?.lastReleaseAttemptAt || null,
+      lastError: existing?.lastError || null
+    };
+    await storageLocal.set({ [STORAGE_KEYS.permissionLease]: restored });
+    return restored;
   });
 }
 
@@ -92,8 +248,10 @@ export function isPreparedPermissionLeaseLive(lease, now = Date.now()) {
 
 /**
  * Releases only host patterns that were absent before the review. The durable
- * record is removed only after contains() proves every temporary pattern is
- * absent. Browser/API uncertainty always retains the recovery obligation.
+ * record is removed only after the full permission inventory proves every
+ * temporary exact pattern is absent. Isolated unit consumers may use the
+ * contains() compatibility adapter; production supplies getAll() so a broader
+ * user grant cannot masquerade as an independently held exact pattern.
  */
 export async function reconcilePermissionLease(storageLocal, dependencies = {}, expectedLeaseId = null) {
   return serializePermissionLeaseMutation(async () => {
@@ -118,14 +276,62 @@ export async function reconcilePermissionLease(storageLocal, dependencies = {}, 
         leaseId: lease.id
       };
     }
+    if (dependencies.promptSettlementOnly === true && !['prepared', 'prompt_pending'].includes(lease.status)) {
+      return {
+        found: true,
+        released: false,
+        accessRemains: null,
+        recordRetained: true,
+        leaseId: lease.id,
+        reason: 'lease_not_awaiting_permission_prompt'
+      };
+    }
+
+    const nowMs = Number(typeof dependencies.now === 'function' ? dependencies.now() : Date.now());
+    if (
+      lease.status === 'prepared' &&
+      dependencies.preserveLivePrepared === true &&
+      isPreparedPermissionLeaseLive(lease, nowMs)
+    ) {
+      return {
+        found: true,
+        released: false,
+        accessRemains: null,
+        recordRetained: true,
+        leaseId: lease.id,
+        reason: 'prepared_authorization_live'
+      };
+    }
+    if (
+      lease.status === 'prompt_pending' &&
+      dependencies.forcePromptSettlement !== true &&
+      Number.isFinite(nowMs) &&
+      nowMs <= Date.parse(lease.promptPendingUntil || '')
+    ) {
+      return {
+        found: true,
+        released: false,
+        accessRemains: null,
+        recordRetained: true,
+        leaseId: lease.id,
+        reason: 'permission_prompt_pending'
+      };
+    }
 
     const containsHostPermissions = dependencies.containsHostPermissions;
+    const getAllHostPermissions = dependencies.getAllHostPermissions;
     const releaseHostPermissions = dependencies.releaseHostPermissions;
-    if (typeof containsHostPermissions !== 'function' || typeof releaseHostPermissions !== 'function') {
+    if (
+      typeof getAllHostPermissions !== 'function' &&
+      (typeof containsHostPermissions !== 'function' || typeof releaseHostPermissions !== 'function')
+    ) {
+      return retainLease(storageLocal, lease, 'Permission cleanup adapters are unavailable.', dependencies.now);
+    }
+    if (typeof releaseHostPermissions !== 'function') {
       return retainLease(storageLocal, lease, 'Permission cleanup adapters are unavailable.', dependencies.now);
     }
 
-    const before = await queryGrantedOrigins(lease.temporaryOrigins, containsHostPermissions);
+    const before = await queryGrantedOrigins(lease.temporaryOrigins, containsHostPermissions, getAllHostPermissions);
     if (!before.ok) return retainLease(storageLocal, lease, before.error, dependencies.now);
     if (!before.granted.length) {
       await storageLocal.remove(STORAGE_KEYS.permissionLease);
@@ -150,7 +356,7 @@ export async function reconcilePermissionLease(storageLocal, dependencies = {}, 
       removeError = readableMessage(error);
     }
 
-    const after = await queryGrantedOrigins(lease.temporaryOrigins, containsHostPermissions);
+    const after = await queryGrantedOrigins(lease.temporaryOrigins, containsHostPermissions, getAllHostPermissions);
     if (!after.ok) {
       return retainLease(
         storageLocal,
@@ -201,6 +407,7 @@ async function retainLease(storageLocal, lease, error, now = () => Date.now(), a
   const retained = {
     ...lease,
     status: 'release_pending',
+    promptPendingUntil: null,
     updatedAt: new Date(nowMs).toISOString(),
     releaseAttemptCount: Number(lease.releaseAttemptCount || 0) + (attempted ? 1 : 0),
     lastReleaseAttemptAt: attempted ? new Date(nowMs).toISOString() : lease.lastReleaseAttemptAt,
@@ -219,9 +426,23 @@ async function retainLease(storageLocal, lease, error, now = () => Date.now(), a
   };
 }
 
-async function queryGrantedOrigins(origins, containsHostPermissions) {
+async function queryGrantedOrigins(origins, containsHostPermissions, getAllHostPermissions) {
   const granted = [];
   try {
+    if (typeof getAllHostPermissions === 'function') {
+      const snapshot = await getAllHostPermissions();
+      if (!snapshot || typeof snapshot !== 'object' || !Array.isArray(snapshot.origins)) {
+        throw new Error('Host-permission inventory returned an invalid response.');
+      }
+      if (snapshot.origins.some((origin) => typeof origin !== 'string')) {
+        throw new Error('Host-permission inventory contained an invalid origin pattern.');
+      }
+      const exactGranted = new Set(snapshot.origins);
+      return {
+        ok: true,
+        granted: normalizeOrigins(origins).filter((origin) => exactGranted.has(origin))
+      };
+    }
     for (const origin of normalizeOrigins(origins)) {
       if (await containsHostPermissions([origin])) granted.push(origin);
     }
@@ -236,7 +457,7 @@ function normalizePermissionLease(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
     if (Number(value.schemaVersion) !== PERMISSION_LEASE_SCHEMA_VERSION) return null;
     const id = String(value.id || '');
-    const statuses = ['prepared', 'active_cleanup', 'release_pending'];
+    const statuses = ['prepared', 'prompt_pending', 'active_cleanup', 'release_pending'];
     if (!/^[a-zA-Z0-9._:-]{8,128}$/.test(id) || !statuses.includes(value.status)) return null;
 
     const requestedOrigins = normalizeOrigins(value.requestedOrigins, { strict: true });
@@ -262,6 +483,13 @@ function normalizePermissionLease(value) {
     const updatedAtMs = Date.parse(updatedAt);
     const reviewExpiresAtMs = Date.parse(reviewExpiresAt);
     if (updatedAtMs < createdAtMs || reviewExpiresAtMs <= createdAtMs) return null;
+    const promptPendingUntil = normalizeTimestamp(value.promptPendingUntil);
+    if (
+      (value.status === 'prompt_pending' && (!promptPendingUntil || Date.parse(promptPendingUntil) <= updatedAtMs)) ||
+      (value.status !== 'prompt_pending' && value.promptPendingUntil != null)
+    ) {
+      return null;
+    }
     const releaseAttemptCount = Number(value.releaseAttemptCount);
     if (!Number.isSafeInteger(releaseAttemptCount) || releaseAttemptCount < 0) return null;
     const lastReleaseAttemptAt = normalizeTimestamp(value.lastReleaseAttemptAt);
@@ -286,6 +514,7 @@ function normalizePermissionLease(value) {
       createdAt,
       updatedAt,
       reviewExpiresAt,
+      promptPendingUntil,
       releaseAttemptCount,
       lastReleaseAttemptAt,
       lastError: value.lastError ? scrubSensitiveText(value.lastError).slice(0, 500) : null
@@ -315,6 +544,10 @@ function normalizeOrigins(origins, { strict = false } = {}) {
     throw new Error('Target host-permission patterns must be unique.');
   }
   return unique;
+}
+
+function arraysEqual(left, right) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function canonicalHostPermissionPattern(value) {

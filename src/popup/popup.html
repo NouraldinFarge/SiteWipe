@@ -40,29 +40,72 @@
         </button>
       </header>
 
-      <section class="card warning candidate-notice" role="note" aria-label="Private candidate warning">
-        <strong>Private candidate — disposable profiles only</strong>
-        <span>Safety, privacy, accessibility, browser, and release-readiness validation is still in progress.</span>
+      <section class="card warning candidate-notice" role="note" aria-label="Unreleased candidate warning">
+        <span class="candidate-label">Preview build</span>
+        <span class="candidate-copy">
+          <strong>Disposable profiles only.</strong>
+          Safety, privacy, accessibility, browser, and release validation is still in progress.
+        </span>
       </section>
 
-      <section class="status-strip">
+      <section class="status-strip" aria-label="SiteWipe status">
         <span id="readyBadge" class="badge success" role="status">Ready</span>
-        <span id="incognitoBadge" class="badge warning" role="status" aria-live="polite">Private: checking…</span>
+        <span id="incognitoBadge" class="badge" role="status" aria-live="polite">Private access: checking…</span>
       </section>
 
-      <section id="activeTabCard" class="card soft active-tab-card" hidden>
-        <div class="active-tab-copy">
-          <div class="eyebrow">Detected active tab</div>
-          <strong id="activeTabTitle">Current page</strong>
-          <span id="activeTabDomain" class="mono">Checking…</span>
+      <section id="summaryCard" class="card summary-card" aria-labelledby="summaryTitle" hidden>
+        <p id="summaryAnnouncement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+        <div class="summary-head">
+          <div class="summary-title-group">
+            <div class="eyebrow">Latest cleanup</div>
+            <h2 id="summaryTitle" tabindex="-1">Cleanup complete</h2>
+            <p id="summaryTarget" class="summary-target mono"></p>
+          </div>
+          <span id="summaryStatus" class="badge success">Complete</span>
         </div>
-        <button id="useActiveTab" class="btn secondary compact" type="button">Use active tab</button>
+        <div id="summaryMetrics" class="summary-metrics" role="list" aria-label="Cleanup highlights"></div>
+        <details class="summary-details">
+          <summary>View cleanup details</summary>
+          <div id="summaryRows" class="summary-rows"></div>
+        </details>
+        <p id="summaryReportActionsNote" class="summary-report-actions-note" role="note"></p>
+        <p
+          id="summaryActionStatus"
+          class="error-text summary-action-status"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        ></p>
+        <div class="summary-actions">
+          <button
+            id="openSidePanel"
+            class="btn secondary"
+            type="button"
+            aria-describedby="summaryReportActionsNote summaryActionStatus"
+          >
+            Open full report
+          </button>
+          <button id="startAnotherCleanup" class="btn secondary" type="button">Clean another site</button>
+          <button
+            id="forgetLatestReport"
+            class="btn ghost"
+            type="button"
+            aria-describedby="summaryReportActionsNote summaryActionStatus"
+          >
+            Forget report
+          </button>
+        </div>
       </section>
 
       <section class="card target-card">
-        <div class="eyebrow">Target website</div>
-        <h1>Deep clean one site.</h1>
-        <p>
+        <div class="target-heading">
+          <div>
+            <div class="eyebrow">Target website</div>
+            <h1>Clean one site.</h1>
+          </div>
+          <span id="cleanupModeBadge" class="mode-chip" role="status">Standard · Review</span>
+        </div>
+        <p class="target-lede">
           Use the detected tab or enter a domain. SiteWipe removes matching browser-accessible data while preserving
           protected browser data.
         </p>
@@ -75,25 +118,44 @@
               type="text"
               autocomplete="off"
               spellcheck="false"
-              placeholder="example.com or https://example.com/page"
+              placeholder="example.com"
               aria-describedby="targetHelp targetError"
               required
               aria-required="true"
             />
             <div id="targetHelp" class="help-text">
-              Subdomains are included. Similar domains like badexample.com are not.
+              SiteWipe uses the canonical domain. Subdomains are included; lookalike domains are not.
             </div>
             <div id="targetError" class="error-text" role="alert"></div>
           </div>
-          <div id="normalizedCard" class="normalized-card" hidden>
-            <span>Normalized target</span>
+          <div id="normalizedCard" class="normalized-card" role="status" aria-live="polite" hidden>
+            <span>Cleanup scope</span>
             <strong id="normalizedDomain" class="mono"></strong>
           </div>
-          <button id="deepCleanButton" class="btn primary" type="submit">
+          <div id="directCleanupNotice" class="direct-cleanup-notice" role="status" hidden>
+            <span class="direct-cleanup-icon" aria-hidden="true">1</span>
+            <span>
+              <strong>One-click cleanup is on.</strong>
+              <span id="directCleanupMode"
+                >Clean now uses your current settings. A browser site-access prompt may still appear.</span
+              >
+            </span>
+          </div>
+          <button id="deepCleanButton" class="btn primary" type="submit" aria-describedby="directCleanupNotice">
             <span id="deepCleanSpinner" class="spinner" aria-hidden="true" hidden></span
             ><span id="deepCleanLabel">Review cleanup</span>
           </button>
         </form>
+      </section>
+
+      <section id="activeTabCard" class="card soft active-tab-card" hidden>
+        <span class="active-tab-marker" aria-hidden="true"></span>
+        <div class="active-tab-copy">
+          <div class="eyebrow">Detected active tab</div>
+          <strong id="activeTabTitle">Current page</strong>
+          <span id="activeTabDomain" class="mono">Checking…</span>
+        </div>
+        <button id="useActiveTab" class="btn secondary compact" type="button">Use active tab</button>
       </section>
 
       <section id="reviewCard" class="card review-card" aria-labelledby="reviewHeading" hidden>
@@ -107,8 +169,8 @@
 
         <dl class="review-facts">
           <div>
-            <dt>You entered</dt>
-            <dd id="reviewEnteredTarget" class="mono"></dd>
+            <dt>Input handling</dt>
+            <dd id="reviewEnteredTarget"></dd>
           </div>
           <div>
             <dt>Normalized target</dt>
@@ -117,6 +179,10 @@
           <div>
             <dt>Scope</dt>
             <dd id="reviewScope"></dd>
+          </div>
+          <div>
+            <dt>Cleanup mode</dt>
+            <dd id="reviewCleanupMode"></dd>
           </div>
           <div>
             <dt>Subdomains</dt>
@@ -153,8 +219,33 @@
         </div>
 
         <div class="review-section">
-          <h3>Expected impact</h3>
-          <div id="reviewEffects" class="review-effects"></div>
+          <h3 id="reviewEffectsHeading">Expected impact and configured scope</h3>
+          <div id="reviewEffects" class="review-effects" role="list" aria-labelledby="reviewEffectsHeading"></div>
+        </div>
+
+        <div class="review-section">
+          <h3 id="reviewHostPermissionOriginsHeading">Target site-access patterns</h3>
+          <p id="reviewHostPermissionOriginsSummary" class="help-text"></p>
+          <ul
+            id="reviewHostPermissionOrigins"
+            class="review-list mono review-permission-origins"
+            aria-labelledby="reviewHostPermissionOriginsHeading"
+            aria-describedby="reviewHostPermissionOriginsSummary"
+          ></ul>
+        </div>
+
+        <div id="reviewBroadHostPermissionSection" class="review-section review-warning" hidden>
+          <h3 id="reviewBroadHostPermissionOriginsHeading">Broader pre-existing site access</h3>
+          <p id="reviewBroadHostPermissionOriginsSummary" class="help-text">
+            These user-controlled grants are broader than the reviewed target. SiteWipe will preserve them and keep this
+            cleanup limited to the exact scope above.
+          </p>
+          <ul
+            id="reviewBroadHostPermissionOrigins"
+            class="review-list mono review-permission-origins"
+            aria-labelledby="reviewBroadHostPermissionOriginsHeading"
+            aria-describedby="reviewBroadHostPermissionOriginsSummary"
+          ></ul>
         </div>
 
         <div class="review-section review-warning">
@@ -202,10 +293,12 @@
         </div>
 
         <p id="reviewExpiry" class="review-expiry"></p>
-        <div id="reviewApprovalError" class="error-text" role="status" aria-live="polite" aria-atomic="true"></div>
+        <div id="reviewApprovalError" class="error-text" role="alert" aria-live="assertive" aria-atomic="true"></div>
         <div class="review-actions">
           <button id="cancelCleanupReview" class="btn secondary" type="button">Cancel — keep data</button>
-          <button id="approveCleanup" class="btn primary" type="button" disabled>Approve, grant access, and run</button>
+          <button id="approveCleanup" class="btn primary" type="button" aria-describedby="reviewApprovalError" disabled>
+            Approve, grant access, and run
+          </button>
         </div>
       </section>
 
@@ -227,21 +320,6 @@
         </div>
         <div class="button-row">
           <button id="cancelActiveJob" class="btn secondary compact" type="button">Request cancel</button>
-        </div>
-      </section>
-
-      <section id="summaryCard" class="card summary-card" aria-labelledby="summaryTitle" aria-live="polite" hidden>
-        <div class="summary-head">
-          <div>
-            <div class="eyebrow">Final report</div>
-            <h2 id="summaryTitle">Cleanup complete</h2>
-          </div>
-          <span id="summaryStatus" class="badge success">Report</span>
-        </div>
-        <div id="summaryRows" class="summary-rows"></div>
-        <div class="button-row">
-          <button id="openSidePanel" class="btn secondary" type="button">Open detailed report</button>
-          <button id="forgetLatestReport" class="btn ghost" type="button">Forget this report</button>
         </div>
       </section>
 

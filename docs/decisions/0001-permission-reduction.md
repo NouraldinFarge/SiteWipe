@@ -1,8 +1,8 @@
 # ADR 0001: Replace required all-sites access with reviewed target access
 
-> **Private release candidate undergoing safety, privacy, accessibility, and release-readiness validation.**
+> **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-- Status: Accepted for the private candidate; permission-gesture details updated by ADR 0009; installed-browser validation pending
+- Status: Accepted for the public-source prerelease; permission-gesture details updated by ADR 0011; installed-browser validation pending
 - Date: 2026-08-16
 
 ## Context
@@ -13,7 +13,7 @@ The baseline requested required `<all_urls>` plus 13 named permissions. That gra
 
 - Declare `http://*/*` and `https://*/*` only in `optional_host_permissions`.
 - Keep scope preflight and the default detailed review read-only; preflight never requests target host access.
-- In Standard and Expert mode, request only missing normalized target patterns from the explicit final approval on the complete per-run review, then immediately submit the single-use `detailed_review` cleanup message. If access is withheld, no cleanup message is sent. Chrome/Brave may display its own browser-controlled prompt, which is not cleanup consent.
+- In default `detailed_review`, request only missing normalized target patterns from the explicit final review approval. In explicitly enabled `settings_direct`, hidden preflight and the durable prompt-pending lease complete before **Clean now** is enabled; that one SiteWipe action may then request only its missing normalized target patterns before submitting the same preflight-bound cleanup route. If access is withheld, no cleanup message is sent. Chrome/Brave may display its own browser-controlled prompt, which is separate from the saved direct authorization.
 - Record pre-existing access per origin rather than as one aggregate Boolean. Before any permission prompt, persist a durable lease containing the exact requested/pre-existing/temporary partition. Completion, failure, cancellation, review expiry, restart maintenance, and extension-local reset reconcile only target patterns that were absent before that review, and forget the lease only after strict browser queries prove them absent.
 - Permit only one unexpired review so a second popup cannot overwrite the access-ownership record for the first.
 - Remove `sessions` and `contentSettings`.
@@ -29,4 +29,4 @@ The baseline requested required `<all_urls>` plus 13 named permissions. That gra
 
 ## Consequences
 
-Users may see a target-specific browser permission prompt after approving the complete review and may refuse it. Cleanup then stops before any cleanup message or mutation. If the popup or worker stops after the browser grants access but before the run starts, the local durable lease—not the session token alone—retains exact per-origin ownership across service-worker or browser restart. A live unexpired prepared lease is not mistaken for an orphan; after expiry or interruption, maintenance releases only temporary patterns and retains recovery state whenever removal or absence cannot be proved. Access can therefore remain temporarily until a successful wake/retry or manual revocation. Grant/release, crash, restart, mixed pre-existing/missing access, and withholding behavior must still be validated in installed Chrome and Brave before a public claim. See [ADR 0009](./0009-mandatory-cleanup-review.md).
+Users may see a target-specific browser permission prompt after the detailed final approval or after the one SiteWipe action in direct mode, and may refuse it. Cleanup then stops before its destructive request is accepted. If the popup or worker stops after the browser grants access but before the run starts, the local durable lease—not the session token alone—retains exact per-origin ownership across service-worker or browser restart. A live unexpired prepared lease is not mistaken for an orphan; after expiry or interruption, maintenance releases only temporary patterns and retains recovery state whenever removal or absence cannot be proved. Access can therefore remain temporarily until a successful wake/retry or manual revocation. A private-source direct run never requests missing access and requires exact target access before preflight. Grant/release, crash, restart, mixed pre-existing/missing access, withholding, and both authorization modes must still be validated in installed Chrome and Brave before a public claim. See [ADR 0011](./0011-optional-direct-cleanup.md).

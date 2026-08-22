@@ -3,7 +3,16 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['coverage/**', 'dist/**', 'node_modules/**', 'src/shared/public-suffix-data.js', 'third_party/**']
+    ignores: [
+      'browser-profiles/**',
+      'coverage/**',
+      'dist/**',
+      'node_modules/**',
+      'playwright-report/**',
+      'src/shared/public-suffix-data.js',
+      'test-results/**',
+      'third_party/**'
+    ]
   },
   js.configs.recommended,
   {

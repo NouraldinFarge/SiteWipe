@@ -1,4 +1,4 @@
-import { tabMatchesCleanupTarget } from '../shared/target-scope.js';
+import { tabMatchesReviewedCleanupTarget } from '../shared/target-scope.js';
 import { addError, addSection, addUnavailable, createAdapterOutcome } from './report.js';
 import {
   mapWithConcurrency,
@@ -48,7 +48,7 @@ export async function auditAndResetTabState(target, report, context, options = {
     options.operationBudget?.claimQuery('tab-state revalidation');
     try {
       const current = await chrome.tabs.get(candidate.id);
-      return tabMatchesCleanupTarget(current, target) ? current : null;
+      return tabMatchesReviewedCleanupTarget(current, target, options.incognitoAccess === true) ? current : null;
     } catch {
       return null;
     }
@@ -93,7 +93,10 @@ export async function auditAndResetTabState(target, report, context, options = {
       discarded: Boolean(tab.discarded),
       frozen: Boolean(tab.frozen),
       openerTabId: Number.isInteger(tab.openerTabId) ? tab.openerTabId : null,
-      splitViewId: Number.isInteger(tab.splitViewId) ? tab.splitViewId : null,
+      // Chrome uses -1 (tabs.SPLIT_VIEW_ID_NONE) when the tab is not in a
+      // split view. Keep only real, non-negative split-view identities so the
+      // report does not turn that sentinel into a positive count.
+      splitViewId: Number.isInteger(tab.splitViewId) && tab.splitViewId >= 0 ? tab.splitViewId : null,
       windowId: tab.windowId,
       windowType: '',
       favIconUrlPresent: Boolean(tab.favIconUrl),
@@ -126,7 +129,7 @@ export async function auditAndResetTabState(target, report, context, options = {
       totals.zoomRead += 1;
       if (options.resetZoom === true && zoom !== 1) {
         options.operationBudget?.claimQuery('tab zoom revalidation');
-        const liveTab = await getLiveMatchingTab(tab.id, target);
+        const liveTab = await getLiveMatchingTab(tab.id, target, options.incognitoAccess);
         if (liveTab) {
           options.operationBudget?.check('tab zoom reset');
           await chrome.tabs.setZoom(tab.id, 0);
@@ -148,7 +151,7 @@ export async function auditAndResetTabState(target, report, context, options = {
     if (options.resetMutedTabs === true && sample.muted) {
       options.operationBudget?.claimQuery('tab mute revalidation');
       try {
-        const liveTab = await getLiveMatchingTab(tab.id, target);
+        const liveTab = await getLiveMatchingTab(tab.id, target, options.incognitoAccess);
         if (liveTab) {
           options.operationBudget?.check('tab mute reset');
           await chrome.tabs.update(tab.id, { muted: false });
@@ -170,7 +173,7 @@ export async function auditAndResetTabState(target, report, context, options = {
     if (options.unpinTargetTabs === true && sample.pinned) {
       options.operationBudget?.claimQuery('tab pin revalidation');
       try {
-        const liveTab = await getLiveMatchingTab(tab.id, target);
+        const liveTab = await getLiveMatchingTab(tab.id, target, options.incognitoAccess);
         if (liveTab) {
           options.operationBudget?.check('tab pin reset');
           await chrome.tabs.update(tab.id, { pinned: false });
@@ -243,7 +246,7 @@ export async function closeMatchingTabs(target, report, incognitoAccess, context
       options.operationBudget?.claimQuery('target-tab discovery');
       const tabs = await chrome.tabs.query({});
       options.operationBudget?.observeRecords(tabs?.length || 0, 'target-tab discovery results');
-      matching = tabs.filter((tab) => tab.id && tabMatchesCleanupTarget(tab, target));
+      matching = tabs.filter((tab) => tab.id && tabMatchesReviewedCleanupTarget(tab, target, incognitoAccess === true));
     }
   } catch (error) {
     if (error?.name === 'AbortError' || error?.name === 'OperationBudgetExceededError') throw error;
@@ -264,22 +267,28 @@ export async function closeMatchingTabs(target, report, incognitoAccess, context
   let normalClosed = 0;
   let incognitoClosed = 0;
   const failures = [];
+  const timeouts = [];
   let skippedAfterRevalidation = 0;
+  const removeTimeoutMs = Math.max(1, Number(options.tabRemoveTimeoutMs) || TAB_REMOVE_TIMEOUT_MS);
   const closeResults = await mapWithConcurrency(candidates, TAB_STATE_CONCURRENCY, async (candidate, index) => {
     await yieldEvery(index, OPERATION_YIELD_EVERY);
     await throwIfCancellationRequested(options.shouldCancel, 'the next target-tab closure');
     options.operationBudget?.claimQuery('target-tab close revalidation');
     try {
-      const current = await getLiveMatchingTab(candidate.id, target);
+      const current = await getLiveMatchingTab(candidate.id, target, incognitoAccess);
       if (!current) return { closed: false, skipped: true, incognito: false };
       options.operationBudget?.check('target-tab closure');
-      await withTimeoutReject(chrome.tabs.remove(candidate.id), TAB_REMOVE_TIMEOUT_MS, 'tabs.remove');
-      return { closed: true, skipped: false, incognito: Boolean(current.incognito) };
+      await withTimeoutReject(chrome.tabs.remove(candidate.id), removeTimeoutMs, 'tabs.remove');
+      return { closed: true, skipped: false, timedOut: false, incognito: Boolean(current.incognito) };
     } catch (error) {
       if (error?.name === 'AbortError' || error?.name === 'OperationBudgetExceededError') throw error;
+      if (error?.name === 'OperationTimeoutError') {
+        timeouts.push({ tabId: candidate.id, message: readableMessage(error) });
+        return { closed: false, skipped: false, timedOut: true, incognito: false };
+      }
       failures.push({ tabId: candidate.id, message: readableMessage(error) });
       addError(report, `Close matching tab ${candidate.id}`, error);
-      return { closed: false, skipped: false, incognito: false };
+      return { closed: false, skipped: false, timedOut: false, incognito: false };
     }
   });
   for (const result of closeResults) {
@@ -291,28 +300,32 @@ export async function closeMatchingTabs(target, report, incognitoAccess, context
   await sleep(0);
   report.summary.normalTabsClosed = normalClosed;
   report.summary.incognitoTabsClosed = incognitoClosed;
-  addSection(report, 'tabs', 'Matching tabs closed', failures.length ? 'partial' : 'success', {
+  addSection(report, 'tabs', 'Matching tabs closed', failures.length || timeouts.length ? 'partial' : 'success', {
     normal: normalClosed,
     incognito: incognitoClosed,
     attempted: candidates.length - skippedAfterRevalidation,
     discoveredCandidates: candidates.length,
     skippedAfterRevalidation,
     failures: failures.slice(0, 10),
+    timeouts: timeouts.slice(0, 10),
+    removeTimeoutMs,
     outcome: createAdapterOutcome({
       attempted: candidates.length - skippedAfterRevalidation,
       succeeded: normalClosed + incognitoClosed,
       failed: failures.length,
+      timedOut: timeouts.length,
+      unknown: timeouts.length,
       skipped: skippedAfterRevalidation
     }),
     incognitoAccess,
-    note: 'Each discovered tab was re-read and matched against the approved target immediately before individual closure; tabs that closed, became unavailable, or navigated away were skipped.'
+    note: 'Each discovered tab was re-read and matched against the approved target and reviewed private-window scope immediately before individual closure. A close timeout remains an unknown outcome because Chrome may finish it later.'
   });
 }
 
-async function getLiveMatchingTab(tabId, target) {
+async function getLiveMatchingTab(tabId, target, incognitoAccess = false) {
   try {
     const current = await chrome.tabs.get(tabId);
-    return tabMatchesCleanupTarget(current, target) ? current : null;
+    return tabMatchesReviewedCleanupTarget(current, target, incognitoAccess === true) ? current : null;
   } catch {
     return null;
   }

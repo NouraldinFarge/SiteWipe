@@ -6,6 +6,7 @@ import {
   getPermissionLease,
   isPreparedPermissionLeaseLive,
   markPermissionLeaseActive,
+  markPermissionLeasePromptPending,
   preparePermissionLease,
   reconcilePermissionLease
 } from '../../src/background/permission-leases.js';
@@ -27,7 +28,14 @@ test('durable permission leases preserve pre-existing patterns and release only 
 
   assert.deepEqual(lease.preexistingOrigins, [PRIMARY]);
   assert.deepEqual(lease.temporaryOrigins, [SUBDOMAINS]);
-  await markPermissionLeaseActive(storage, lease.id, () => Date.parse('2026-08-16T12:01:00.000Z'));
+  await markPermissionLeasePromptPending(storage, lease.id, () => Date.parse('2026-08-16T12:00:30.000Z'));
+  const activeLease = await markPermissionLeaseActive(storage, lease.id, () => Date.parse('2026-08-16T12:01:00.000Z'), {
+    requestedOrigins: lease.requestedOrigins,
+    preexistingOrigins: lease.preexistingOrigins,
+    temporaryOrigins: lease.temporaryOrigins,
+    reviewExpiresAt: lease.reviewExpiresAt
+  });
+  assert.equal(activeLease.status, 'active_cleanup');
 
   const result = await reconcilePermissionLease(storage, {
     containsHostPermissions: async ([origin]) => granted.has(origin),
@@ -43,6 +51,51 @@ test('durable permission leases preserve pre-existing patterns and release only 
   assert.equal(result.released, true);
   assert.equal(result.recordRetained, false);
   assert.equal(await getPermissionLease(storage), null);
+});
+
+test('lease activation atomically requires prompt-pending status and the exact review binding', async () => {
+  const storage = createStorageArea();
+  const lease = await preparePermissionLease(storage, {
+    requestedOrigins: [PRIMARY, SUBDOMAINS],
+    preexistingOrigins: [PRIMARY],
+    reviewExpiresAt: '2026-08-16T12:05:00.000Z',
+    now: () => Date.parse('2026-08-16T12:00:00.000Z'),
+    createId: () => 'lease-bound-activation'
+  });
+  const exactBinding = {
+    requestedOrigins: lease.requestedOrigins,
+    preexistingOrigins: lease.preexistingOrigins,
+    temporaryOrigins: lease.temporaryOrigins,
+    reviewExpiresAt: lease.reviewExpiresAt
+  };
+
+  assert.equal(
+    await markPermissionLeaseActive(storage, lease.id, () => Date.parse('2026-08-16T12:00:15.000Z'), exactBinding),
+    null
+  );
+  assert.equal((await getPermissionLease(storage)).status, 'prepared');
+
+  await markPermissionLeasePromptPending(storage, lease.id, () => Date.parse('2026-08-16T12:00:30.000Z'));
+  assert.equal(
+    await markPermissionLeaseActive(storage, lease.id, () => Date.parse('2026-08-16T12:00:45.000Z'), {
+      ...exactBinding,
+      reviewExpiresAt: '2026-08-16T12:06:00.000Z'
+    }),
+    null
+  );
+  assert.equal((await getPermissionLease(storage)).status, 'prompt_pending');
+
+  const active = await markPermissionLeaseActive(
+    storage,
+    lease.id,
+    () => Date.parse('2026-08-16T12:01:00.000Z'),
+    exactBinding
+  );
+  assert.equal(active.status, 'active_cleanup');
+  assert.equal(
+    await markPermissionLeaseActive(storage, lease.id, () => Date.parse('2026-08-16T12:01:15.000Z'), exactBinding),
+    null
+  );
 });
 
 test('a failed or unverifiable permission release retains the recovery obligation', async () => {
@@ -100,6 +153,40 @@ test('restart recovery proves absence before forgetting a durable lease', async 
     }
   });
   assert.equal(result.reason, 'already_absent');
+  assert.equal(await getPermissionLease(storage), null);
+});
+
+test('exact inventory proof clears a lease while preserving a later broad user grant', async () => {
+  const storage = createStorageArea();
+  const granted = new Set([PRIMARY, '<all_urls>']);
+  const released = [];
+  let containsCalls = 0;
+  await preparePermissionLease(storage, {
+    requestedOrigins: [PRIMARY],
+    preexistingOrigins: [],
+    reviewExpiresAt: '2026-08-16T12:05:00.000Z',
+    now: () => Date.parse('2026-08-16T12:00:00.000Z'),
+    createId: () => 'lease-broad-after-review'
+  });
+
+  const result = await reconcilePermissionLease(storage, {
+    containsHostPermissions: async () => {
+      containsCalls += 1;
+      return true;
+    },
+    getAllHostPermissions: async () => ({ origins: [...granted] }),
+    releaseHostPermissions: async (origins) => {
+      released.push(...origins);
+      for (const origin of origins) granted.delete(origin);
+      return true;
+    }
+  });
+
+  assert.equal(containsCalls, 0, 'production-style reconciliation must use exact inventory membership');
+  assert.deepEqual(released, [PRIMARY]);
+  assert.deepEqual([...granted], ['<all_urls>']);
+  assert.equal(result.released, true);
+  assert.equal(result.recordRetained, false);
   assert.equal(await getPermissionLease(storage), null);
 });
 

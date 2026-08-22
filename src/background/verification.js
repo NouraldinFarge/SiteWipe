@@ -1,6 +1,6 @@
 import { addError, addSection, addUnavailable } from './report.js';
 import { readableMessage, throwIfCancellationRequested, withTimeoutReject } from './operation-control.js';
-import { tabMatchesCleanupTarget } from '../shared/target-scope.js';
+import { downloadMatchesReviewedCleanupTarget, tabMatchesReviewedCleanupTarget } from '../shared/target-scope.js';
 import {
   summarizeVerification,
   verificationFailure,
@@ -31,7 +31,9 @@ export async function verifyExposedResidue(target, report, options = {}, depende
 
   await runVerificationCheck('tabs', Boolean(chrome.tabs?.query), 'chrome.tabs.query is unavailable.', async () => {
     const tabs = await chrome.tabs.query({});
-    const matchingTabs = tabs.filter((tab) => tabMatchesCleanupTarget(tab, target));
+    const matchingTabs = tabs.filter((tab) =>
+      tabMatchesReviewedCleanupTarget(tab, target, options.incognitoAccess === true)
+    );
     samples.tabs = matchingTabs.slice(0, 10).map((tab) => ({
       id: tab.id,
       incognito: Boolean(tab.incognito),
@@ -74,7 +76,10 @@ export async function verifyExposedResidue(target, report, options = {}, depende
       ? 'Download verification adapter is unavailable.'
       : 'chrome.downloads.search is unavailable.',
     async () => {
-      const matches = await discoverDownloads(target, { ...options, downloadRecentFallback: false });
+      const discovered = await discoverDownloads(target, { ...options, downloadRecentFallback: false });
+      const matches = (Array.isArray(discovered) ? discovered : []).filter((item) =>
+        downloadMatchesReviewedCleanupTarget(item, target, options.incognitoAccess === true)
+      );
       samples.downloadUrls = matches
         .slice(0, 10)
         .map((item) => redactUrlForReport(item.finalUrl || item.url || item.referrer));

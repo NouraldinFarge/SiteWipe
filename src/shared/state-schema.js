@@ -23,6 +23,9 @@ const SHIELD_LIFECYCLES = new Set(['installing', 'active', 'unknown']);
 const DNR_RULE_MIN = 730000;
 const DNR_RULE_MAX = 730499;
 const MAX_STORED_REPORT_BYTES = 2 * 1024 * 1024;
+const JOB_HANDOFF_IDENTIFIER_PATTERN = /^[a-zA-Z0-9._:-]{8,128}$/;
+const POPUP_CAPABILITY_DIGEST_PATTERN = /^[a-f0-9]{64}$/;
+const JOB_ADMISSION_PHASES = new Set(['handoff_admitting', 'admitted']);
 
 export function normalizeCleanupJob(value) {
   if (!isPlainObject(value)) return null;
@@ -50,6 +53,27 @@ export function normalizeCleanupJob(value) {
   }
   const recoveryReason = boundedText(value.recoveryReason, 128);
   if (recoveryReason) output.recoveryReason = recoveryReason;
+  if (value.approvalHandoffNonce != null || value.admissionPhase != null) {
+    const approvalHandoffNonce = boundedText(value.approvalHandoffNonce, 128);
+    const admissionPhase = boundedText(value.admissionPhase, 32);
+    if (!JOB_HANDOFF_IDENTIFIER_PATTERN.test(approvalHandoffNonce) || !JOB_ADMISSION_PHASES.has(admissionPhase)) {
+      return null;
+    }
+    output.approvalHandoffNonce = approvalHandoffNonce;
+    output.admissionPhase = admissionPhase;
+    if (
+      typeof value.popupContextId !== 'string' ||
+      value.popupContextId !== value.popupContextId.trim() ||
+      !value.popupContextId ||
+      value.popupContextId.length > 256 ||
+      typeof value.popupPreparationCapabilityDigest !== 'string' ||
+      !POPUP_CAPABILITY_DIGEST_PATTERN.test(value.popupPreparationCapabilityDigest)
+    ) {
+      return null;
+    }
+    output.popupContextId = value.popupContextId;
+    output.popupPreparationCapabilityDigest = value.popupPreparationCapabilityDigest;
+  }
   return output;
 }
 
@@ -67,6 +91,18 @@ export function assertCleanupJobTransition(previousValue, nextValue) {
   }
   if (!SAME_JOB_TRANSITIONS[previous.status]?.has(next.status)) {
     throw new Error(`Invalid cleanup job transition: ${previous.status} -> ${next.status}.`);
+  }
+  if (
+    previous.approvalHandoffNonce &&
+    (next.approvalHandoffNonce !== previous.approvalHandoffNonce ||
+      !next.admissionPhase ||
+      next.popupContextId !== previous.popupContextId ||
+      next.popupPreparationCapabilityDigest !== previous.popupPreparationCapabilityDigest)
+  ) {
+    throw new Error('A cleanup job cannot discard or replace its approval handoff identity.');
+  }
+  if (previous.admissionPhase === 'admitted' && next.admissionPhase !== 'admitted') {
+    throw new Error('A cleanup job cannot return to the handoff-admitting phase.');
   }
   if (TERMINAL_JOB_STATUSES.has(previous.status) && next.status === previous.status) return next;
   return next;
@@ -102,6 +138,7 @@ export function normalizeActiveShield(value) {
       : [],
     mode,
     lifecycle,
+    pendingMutation: Boolean(value.pendingMutation),
     expiresAt,
     startedAt,
     jobId: boundedText(value.jobId, 128) || null

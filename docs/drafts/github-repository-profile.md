@@ -20,7 +20,7 @@ Do not add SiteWipe to a GitHub profile README or pin it until the repository is
 
 ## README editorial position
 
-Lead with the destructive-scope engineering problem and factual safeguards, not generic “privacy cleaner” marketing. Keep the private-candidate banner until actual publication. Preserve these limits near the top:
+Lead with the destructive-scope engineering problem and factual safeguards, not generic “privacy cleaner” marketing. Keep the public-source unreleased-prerelease banner until an exact binary release is approved. Preserve these limits near the top:
 
 - no promise of complete erasure;
 - browser/website/network/OS data can remain or return;

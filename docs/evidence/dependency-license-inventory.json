@@ -1,8 +1,9 @@
 {
   "schemaVersion": 1,
   "status": "technical_inventory_complete_owner_acknowledged",
-  "inventoriedAt": "2026-08-17",
-  "lockfileSha256": "D03926D8F543C46BB1BF7DB52832D7D8F269C2F6A44ACB6F3FFB56EDB96829FE",
+  "inventoriedAt": "2026-08-21",
+  "lastAuditAt": "2026-08-21",
+  "lockfileSha256": "D349AF7FAF226FA2546F3B182AF99E2D96A4A16B8F67E235385158A23F793D15",
   "runtimeDependencyCount": 0,
   "lockedDevelopmentGraphCount": 406,
   "licenseCounts": {
@@ -68,6 +69,18 @@
     "high": 0,
     "critical": 0,
     "total": 0
+  },
+  "developmentSbom": {
+    "status": "passed",
+    "path": "dist/sitewipe-development-sbom.cdx.json",
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.6",
+    "componentVersion": "1.11.46",
+    "components": 329,
+    "dependencyNodes": 388,
+    "bytes": 807991,
+    "sha256": "9F997198896B585FAED8BC0C521C769F1E8A8A27EF6811630FF10DF95FD31C34",
+    "generatedAt": "2026-08-22T04:53:48.02Z"
   },
   "directDevelopmentDependencies": [
     {
@@ -155,9 +168,9 @@
     "Every direct dependency is pinned to an exact version in package.json and package-lock.json.",
     "Installation and CI use npm ci --ignore-scripts.",
     "scripts/check-dependency-licenses.mjs binds this inventory to the lockfile hash, exact license counts, metadata exceptions, installed license text, and install-script package inventory.",
-    "npm audit reported zero known vulnerabilities for the exact current lockfile on 2026-08-17.",
-    "The loadable extension ZIP contains no npm runtime dependency files.",
-    "A CycloneDX development-graph SBOM can be regenerated with npm run sbom."
+    "npm audit reported zero known vulnerabilities for the exact current lockfile on 2026-08-21.",
+    "The 55-file runtime allowlist contains no npm runtime dependency files.",
+    "The recorded CycloneDX 1.6 development-graph SBOM was regenerated for 1.11.46 with npm run sbom."
   ],
   "limitations": [
     "Registry/package metadata and license text are evidence inputs, not a legal license conclusion.",
@@ -165,5 +178,6 @@
     "A later lockfile change invalidates this inventory and audit result."
   ],
   "ownerApproval": true,
-  "ownerApprovedAt": "2026-08-17"
+  "ownerApprovedAt": "2026-08-17",
+  "candidateVersion": "1.11.46"
 }
