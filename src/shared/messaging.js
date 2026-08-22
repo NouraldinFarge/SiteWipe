@@ -3,7 +3,11 @@ import { MESSAGE_PROTOCOL_VERSION, MESSAGE_TYPES } from './constants.js';
 export async function sendMessage(type, payload = {}) {
   const requestId = createRequestId();
   const timeoutMs =
-    type === MESSAGE_TYPES.runDeepClean ? 270_000 : type === MESSAGE_TYPES.prepareCleanupReview ? 60_000 : 30_000;
+    type === MESSAGE_TYPES.runDeepClean || type === MESSAGE_TYPES.resumeArmedCleanup
+      ? 270_000
+      : type === MESSAGE_TYPES.prepareCleanupReview
+        ? 60_000
+        : 30_000;
   let timerId = null;
   const timeout = new Promise((_, reject) => {
     timerId = setTimeout(() => {

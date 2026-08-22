@@ -1,4 +1,5 @@
 import { isReviewedFileRemovalCandidate } from '../shared/cleanup-review.js';
+import { downloadMatchesReviewedCleanupTarget } from '../shared/target-scope.js';
 import { addError, addSection, addUnavailable, createAdapterOutcome } from './report.js';
 import { discoverMatchingDownloads } from './record-discovery.js';
 import {
@@ -43,8 +44,14 @@ export async function eraseDownloadHistory(target, report, context, options = {}
           preserveRecordForFileRecovery = true;
         } else {
           try {
+            const current = await getLiveReviewedDownloadCandidate(item, target, options);
+            if (!isReviewedFileRemovalCandidate(current, approvedDownloadFileIds)) {
+              throw new Error(
+                'The reviewed download is no longer complete, present on disk, and approved for file removal.'
+              );
+            }
             await withTimeoutReject(
-              chrome.downloads.removeFile(item.id),
+              chrome.downloads.removeFile(current.id),
               DOWNLOAD_API_TIMEOUT_MS,
               'downloads.removeFile'
             );
@@ -62,8 +69,9 @@ export async function eraseDownloadHistory(target, report, context, options = {}
       if (!preserveRecordForFileRecovery) {
         try {
           options.operationBudget?.check('the next download-record erase');
+          const current = await getLiveReviewedDownloadCandidate(item, target, options);
           const result = await withTimeoutReject(
-            chrome.downloads.erase({ id: item.id }),
+            chrome.downloads.erase({ id: current.id }),
             DOWNLOAD_API_TIMEOUT_MS,
             'downloads.erase'
           );
@@ -134,4 +142,38 @@ export async function eraseDownloadHistory(target, report, context, options = {}
     if (error?.name === 'AbortError' || error?.name === 'OperationBudgetExceededError') throw error;
     addError(report, 'Download history', error);
   }
+}
+
+async function getLiveReviewedDownloadCandidate(item, target, options = {}) {
+  if (typeof chrome.downloads?.search !== 'function') {
+    throw new Error('downloads.search is unavailable for immediate downloaded-file revalidation.');
+  }
+
+  const timeoutMs = Math.max(1, Number(options.downloadApiTimeoutMs) || DOWNLOAD_API_TIMEOUT_MS);
+  const results = await withTimeoutReject(
+    chrome.downloads.search({ id: item.id }),
+    timeoutMs,
+    'downloads.search live file revalidation'
+  );
+  const exactMatches = Array.isArray(results)
+    ? results.filter((candidate) => String(candidate?.id) === String(item.id))
+    : [];
+  if (exactMatches.length !== 1) {
+    throw new Error('The reviewed download no longer has one exact live browser record.');
+  }
+
+  const current = exactMatches[0];
+  if (!downloadMatchesReviewedCleanupTarget(current, target, options.incognitoAccess === true)) {
+    throw new Error('The reviewed download no longer matches the approved cleanup target and private scope.');
+  }
+  if (!sameDiscoveredDownloadIdentity(item, current)) {
+    throw new Error('The reviewed download changed after discovery, so its file was preserved.');
+  }
+  return current;
+}
+
+function sameDiscoveredDownloadIdentity(discovered, current) {
+  return ['filename', 'url', 'finalUrl', 'referrer'].every(
+    (key) => String(discovered?.[key] || '') === String(current?.[key] || '')
+  );
 }

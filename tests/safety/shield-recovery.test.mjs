@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { clearSiteWipeDnrRules, hasPendingSiteWipeDnrMutation } from '../../src/background/dnr-shield.js';
 import { reconcileOwnedShieldState } from '../../src/background/shield-recovery.js';
 
 const trackedShield = Object.freeze({
@@ -81,6 +82,44 @@ test('a timed-out clear cannot erase recovery state while a rule remains', async
   assert.match(result.clearError, /timed out/);
   assert.equal(retainedRecord.lifecycle, 'unknown');
   assert.equal(forgotten, 0);
+});
+
+test('a provisionally empty range cannot erase recovery intent while a timed-out clear can still settle', async () => {
+  let settleClear;
+  const pendingClear = new Promise((resolve) => {
+    settleClear = resolve;
+  });
+  globalThis.chrome = {
+    declarativeNetRequest: {
+      updateSessionRules: () => pendingClear
+    }
+  };
+  let forgotten = 0;
+  let retainedRecord = null;
+  const result = await reconcileOwnedShieldState({
+    activeShield: trackedShield,
+    clearRules: (_ruleIds, options) => clearSiteWipeDnrRules([730000], { ...options, timeoutMs: 1 }),
+    diagnose: async () => ({ available: true, error: null, activeRuleIds: [] }),
+    forget: async () => {
+      forgotten += 1;
+    },
+    retain: async (record) => {
+      retainedRecord = record;
+      return record;
+    }
+  });
+
+  assert.equal(result.cleared, false);
+  assert.equal(result.pointInTimeRangeEmpty, true);
+  assert.equal(result.pendingMutation, true);
+  assert.equal(forgotten, 0);
+  assert.equal(retainedRecord.pendingMutation, true);
+  assert.equal(hasPendingSiteWipeDnrMutation(), true);
+
+  settleClear();
+  await pendingClear;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(hasPendingSiteWipeDnrMutation(), false);
 });
 
 test('an orphan active rule reconstructs a persistent recovery record', async () => {

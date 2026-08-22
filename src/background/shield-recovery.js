@@ -1,4 +1,9 @@
-import { clearSiteWipeDnrRules, getSiteWipeDnrDiagnostics } from './dnr-shield.js';
+import {
+  clearSiteWipeDnrRules,
+  getSiteWipeDnrDiagnostics,
+  hasPendingSiteWipeDnrMutation,
+  SITEWIPE_DNR_RULE_IDS
+} from './dnr-shield.js';
 import { clearActiveShieldRecord, getActiveShield, setActiveShield } from '../shared/storage.js';
 
 /**
@@ -17,7 +22,10 @@ export async function reconcileOwnedShieldState(options = {}) {
   let clearError = null;
 
   try {
-    clearResult = await clearRules();
+    clearResult = await clearRules(undefined, {
+      timeoutMs: options.timeoutMs,
+      onMutationSettled: options.onMutationSettled
+    });
   } catch (error) {
     clearError = readableMessage(error);
   }
@@ -39,7 +47,10 @@ export async function reconcileOwnedShieldState(options = {}) {
 
   const activeRuleIds = [...new Set((diagnostics?.activeRuleIds || []).filter(Number.isInteger))];
   const provenEmpty = Boolean(diagnostics?.available && !diagnostics?.error && activeRuleIds.length === 0);
-  if (provenEmpty) {
+  const pendingMutation = Boolean(
+    activeShield?.pendingMutation || activeShield?.lifecycle === 'installing' || hasPendingSiteWipeDnrMutation()
+  );
+  if (provenEmpty && !pendingMutation) {
     await forget();
     return {
       cleared: true,
@@ -53,7 +64,19 @@ export async function reconcileOwnedShieldState(options = {}) {
   }
 
   const trackedRuleIds = Array.isArray(activeShield?.ruleIds) ? activeShield.ruleIds : [];
-  const recoverableRuleIds = [...new Set([...trackedRuleIds, ...activeRuleIds].filter(Number.isInteger))];
+  const recoverableRuleIds = [
+    ...new Set(
+      [
+        ...trackedRuleIds,
+        ...activeRuleIds,
+        // A timed-out clear with a provisionally empty range still needs a
+        // durable serialization barrier: that old call could otherwise settle
+        // after a newer shield reuses the same IDs. Persist the owned range as
+        // recovery authority until the original promise settles.
+        ...(pendingMutation && trackedRuleIds.length === 0 && activeRuleIds.length === 0 ? SITEWIPE_DNR_RULE_IDS : [])
+      ].filter(Number.isInteger)
+    )
+  ];
   let recoveryRecord = null;
   let retentionError = null;
   if (recoverableRuleIds.length) {
@@ -65,6 +88,7 @@ export async function reconcileOwnedShieldState(options = {}) {
       urlFilters: activeShield?.urlFilters || [],
       mode: activeShield?.mode || 'cleanup-only',
       lifecycle: 'unknown',
+      pendingMutation,
       expiresAt: activeShield?.expiresAt || null,
       startedAt: activeShield?.startedAt || new Date().toISOString(),
       jobId: activeShield?.jobId || null
@@ -78,6 +102,8 @@ export async function reconcileOwnedShieldState(options = {}) {
 
   return {
     cleared: false,
+    pointInTimeRangeEmpty: provenEmpty,
+    pendingMutation,
     clearResult,
     clearError,
     diagnostics,

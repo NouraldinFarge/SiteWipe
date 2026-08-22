@@ -2,13 +2,13 @@
 
 > **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-There is no supported public binary release yet. Security review applies to the public-source `1.11.4` prerelease and its locally generated artifacts.
+There is no supported public binary release yet. Security review applies to the public-source `1.11.46` prerelease and its locally generated artifacts.
 
 ## Reporting a vulnerability
 
 Do not disclose a suspected vulnerability, real browsing history, cookies, tokens, local paths, download filenames, extension IDs, or private-window activity in a public issue.
 
-Use [GitHub Private Vulnerability Reporting](https://github.com/NouraldinFarge/SiteWipe/security/advisories/new) for confidential reports. If that route is unavailable while GitHub account restoration is incomplete, retain the report locally and notify the owner only through a private channel the owner explicitly supplies. Do not guess an email address and do not fall back to a public issue.
+Use [GitHub Private Vulnerability Reporting](https://github.com/NouraldinFarge/SiteWipe/security/advisories/new) for confidential reports. If GitHub does not make that route available to you, retain the report locally and notify the owner only through a private channel the owner explicitly supplies. Do not guess an email address and do not fall back to a public issue.
 
 ## Useful report contents
 
@@ -16,7 +16,7 @@ Use [GitHub Private Vulnerability Reporting](https://github.com/NouraldinFarge/S
 - affected source commit or artifact SHA-256;
 - browser and operating-system versions;
 - synthetic reproduction steps in a disposable profile;
-- whether the issue crosses a reviewed target boundary, runs before approval, loses recovery state, leaks a redaction canary, or misstates verification evidence;
+- whether the issue crosses a preflight-bound target, settings, private-context, impact, permission, or file-ID boundary; runs without a valid single-use authorization; loses recovery state; leaks a redaction canary; or misstates verification evidence;
 - the smallest safe diagnostic excerpt.
 
 Use synthetic domains and filenames. Start from a redacted troubleshooting export, inspect it, and remove anything unnecessary. Never attach a real browser profile or unredacted report.
@@ -24,15 +24,16 @@ Use synthetic domains and filenames. Start from a redacted troubleshooting expor
 ## Priority areas
 
 - registrable-domain, private-suffix, exact-origin, associated-target, or lookalike scope expansion;
-- any destructive API call before valid approval;
-- approval-state tampering, stale/cross-context message acceptance, or loss/misclassification of a temporary host-permission lease;
-- on-disk file deletion not bound to reviewed completed IDs;
+- any destructive API call before a valid consumed `detailed_review` or setting-derived `settings_direct` approval;
+- caller-controlled direct/skip routing, direct mode while `skipCleanupReview` is not strict current `true`, synthetic per-run acknowledgements in direct mode, approval-state tampering, stale/cross-context message acceptance, or loss/misclassification of a temporary host-permission lease;
+- on-disk file deletion not bound to completed IDs captured by the current preflight, whether or not detailed review is displayed;
 - request-shield rules that survive without tracked recovery state;
 - report, debug, support, or export redaction leaks;
 - false zero-residue or high-confidence outcomes after failed/unknown verification;
 - message spoofing, malformed stored state, remote executable code, or permission escalation;
 - private-context persistence.
 - stale release selection or browser/performance/accessibility evidence attached to artifact bytes that were not actually tested.
+- a report that labels `settings_direct` as detailed scope review, claims a direct-mode typed file phrase, or omits the saved-direct-authorization disclosure.
 
 ## Coordinated handling
 

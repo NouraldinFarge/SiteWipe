@@ -28,6 +28,7 @@ export const RUNTIME_FILES = Object.freeze(
     'options/options.css',
     'options/options.html',
     'options/options.js',
+    'options/permission-lifecycle.js',
     'popup/popup.css',
     'popup/popup.html',
     'popup/popup.js',
@@ -35,13 +36,16 @@ export const RUNTIME_FILES = Object.freeze(
     'shared/cleanup-review.js',
     'shared/components.css',
     'shared/constants.js',
+    'shared/host-permissions.js',
     'shared/message-contracts.js',
     'shared/messaging.js',
     'shared/public-suffix-data.js',
     'shared/public-suffix.js',
     'shared/report-integrity.js',
     'shared/report-redaction.js',
+    'shared/side-panel-report-binding.js',
     'shared/safety.js',
+    'shared/settings-backup.js',
     'shared/state-schema.js',
     'shared/storage.js',
     'shared/target-scope.js',
@@ -49,6 +53,7 @@ export const RUNTIME_FILES = Object.freeze(
     'shared/verification-evidence.js',
     'sidepanel/sidepanel.css',
     'sidepanel/sidepanel.html',
+    'sidepanel/report-outcome.js',
     'sidepanel/sidepanel.js'
   ].sort()
 );

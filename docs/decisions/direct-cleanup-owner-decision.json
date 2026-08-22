@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "status": "owner_approved_design_installed_validation_pending",
+  "ownerApproved": true,
+  "approvedAt": "2026-08-20",
+  "ownerStatement": "Add in the settings an option to Skip detailed cleanup review completely have it also work in Expert mode and make sure when it is implemented it gets be only a one click clean up, and everything should work in incognito.",
+  "settingKey": "skipCleanupReview",
+  "settingDisplayName": "Skip detailed cleanup review completely",
+  "defaultEnabled": false,
+  "supportedCleanupModes": ["standard", "expert"],
+  "approvalMode": "settings_direct",
+  "onePopupCleanupAction": true,
+  "readOnlyPreflightStillRequired": true,
+  "readOnlyPreflightCompletesBeforeCleanNowIsEnabled": true,
+  "shortLivedSingleUseApprovalRequired": true,
+  "promptPendingRecoveryWindowMinutes": 30,
+  "explicitSettingsConfirmationRequired": true,
+  "perRunDetailedReviewSkippedWhenEnabled": true,
+  "expertFileIdsRemainPreflightBound": true,
+  "expertTypedPerRunFilePhraseSkippedWhenEnabled": true,
+  "browserPermissionPromptMayRequireAdditionalInteraction": true,
+  "incognitoRequirements": {
+    "allowInIncognitoMustBeEnabledByUser": true,
+    "privateSourceRequiresPreexistingExactTargetAccess": true,
+    "privateSourceMayRequestMissingTargetAccess": false
+  },
+  "reviewedVersion": null,
+  "reviewedArtifactSha256": null,
+  "installedBrowserEvidence": "pending",
+  "notes": [
+    "This record captures the owner's explicit product-design direction in the 2026-08-20 task. It approves implementation of the opt-in design; it does not approve any exact public version, artifact, tag, binary release, store submission, or publication action.",
+    "One click means one SiteWipe popup cleanup action after the setting is enabled. Chrome or Brave may still display a separate browser-controlled target-access confirmation for a normal-window run.",
+    "Private-window operation remains conditional on the browser-controlled Allow in incognito setting. Under the current permission-lease policy, a private-source run requires exact target access before preflight.",
+    "The historical false record in complete-review-bypass-approval.json remains unchanged and continues to describe the retired earlier implementation only."
+  ]
+}

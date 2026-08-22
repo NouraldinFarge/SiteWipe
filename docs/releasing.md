@@ -25,7 +25,7 @@ For every runtime change, first add an `Unreleased` changelog entry and perform 
 npm run version:bump -- patch
 ```
 
-The command accepts `minor`, `major`, or an explicit forward-only `x.y.z` in place of `patch`. It stages every version/document/evidence change, refreshes the dependency-inventory lockfile hash, writes a recovery journal, promotes the complete set, and records separate reviewed fingerprints for the runtime and every stable release input. The stable-input contract covers source, scripts, CI, tests, documentation, configuration, assets, lockfile, and third-party material. Mutable post-build evidence and owner-approval JSON are explicitly excluded to prevent circular invalidation. An interrupted uncommitted transaction rolls back on the next run; a committed transaction finishes cleanup. The bump also resets browser, performance, and installed-accessibility results to pending for the new artifact. Do not update version copies or evidence bindings individually.
+The command accepts `minor`, `major`, or an explicit forward-only `x.y.z` in place of `patch`. Before rebinding the dependency-inventory hash, it requires that inventory to match the exact pre-bump lockfile; a dependency change therefore needs a fresh reviewed inventory rather than an automatic hash rewrite. The transaction stages every version/document/evidence change, writes a recovery journal, promotes the complete set, and records separate reviewed fingerprints for the runtime and every stable release input. The stable-input contract covers source, scripts, CI, tests, documentation, configuration, assets, lockfile, and third-party material. Mutable post-build evidence and owner-approval JSON are explicitly excluded to prevent circular invalidation. An interrupted uncommitted transaction rolls back on the next run; a committed transaction finishes cleanup. The bump resets browser, performance, installed-accessibility, media, automated-check, dependency-audit, fixture, artifact, Git/head, and technical-provenance results to pending while retaining the separate owner provenance statement. Do not update version copies or evidence bindings individually.
 
 Then validate and build:
 
@@ -41,7 +41,9 @@ npm run check:publication-gates
 
 The last command is expected to fail while any human, browser, media, or remote gate is open.
 
-Normal builds never increment the version. They update only the active automated-validation artifact fields; they do not write browser, performance, or accessibility hashes because only an actual exact-artifact run may bind those human-reviewed records. Pending manual hashes may remain null, while any recorded/approved hash must match the current runtime ZIP. Both build and verification fail if the runtime or stable-input version transaction is missing or stale. This makes unchanged builds reproducible within the recorded environment while ensuring release-input changes cannot retain an old version or inherit old installed-browser evidence.
+Normal builds never increment the version. They update only the active automated-validation artifact fields; they do not write browser, performance, or accessibility hashes because only an actual exact-artifact run may bind those human-reviewed records. Pending manual hashes may remain null, while any recorded/approved hash must match the current runtime ZIP. Build and verification fail if the runtime or stable-input version transaction is missing or stale. The publication gate independently reruns the same version contract and exact checksum/path/byte/timestamp/source-closure verification instead of trusting command order or a recorded `passed` boolean. This makes unchanged builds reproducible within the recorded environment while ensuring release-input changes cannot retain an old version or inherit old validation evidence.
+
+The publication gate also enforces ADR 0011's source contract without claiming installed behavior: the owner decision must remain truthful and installed evidence pending; `skipCleanupReview` must default off; enabling it must require explicit confirmation; hidden preflight/permission-lease preparation must complete before **Clean now**; `settings_direct` must remain single-use, current-settings-bound, file-ID-bound, and truthfully reported; and the service worker must expose no raw cleanup route that avoids prepared-token consumption. Functional and installed tests remain required because static gate markers are defense in depth, not browser evidence.
 
 ## Artifact contract
 
@@ -93,6 +95,8 @@ Do not execute release credentials on untrusted pull-request code and do not pub
 ## Browser validation before signing off
 
 Load the final runtime ZIP (or its byte-equivalent unpacked tree) in new Chrome and Brave profiles. Run the matrix in [`testing.md`](./testing.md), retain synthetic machine-readable evidence, capture authentic media only from those profiles, and update compatibility claims to the exact versions tested.
+
+ChatGPT in-app Browser testing is a separate synthetic web-UI layer. It may inspect an HTTP-served harness for layout, accessible structure, keyboard flow, responsive behavior, and review wording, but it does not load the extension artifact or exercise native permission prompts, private windows, MV3 service-worker lifecycle, or privileged Chrome APIs. Never use in-app Browser output to populate installed Chrome/Brave evidence, exact-artifact compatibility, performance, or store-media approval fields.
 
 ## Verification by a recipient
 

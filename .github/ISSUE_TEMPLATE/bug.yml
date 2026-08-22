@@ -24,7 +24,7 @@ body:
     attributes:
       label: Candidate version and artifact SHA-256
       description: Use the internal version plus the tested ZIP/source hash; do not paste an extension ID.
-      placeholder: '1.11.4 / SHA-256 …'
+      placeholder: '1.11.46 / SHA-256 …'
     validations:
       required: true
   - type: input

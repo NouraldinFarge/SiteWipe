@@ -106,23 +106,20 @@ assert.equal(standardSettings.overlayScope, 'target_tabs', 'standard mode must l
 assert.equal(standardSettings.deleteDownloadedFiles, false, 'standard mode must disable downloaded-file deletion');
 assert.equal(standardSettings.associatedDomainGroups, '', 'standard mode must disable associated-domain expansion');
 assert.equal(
-  Object.hasOwn(standardSettings, 'skipCleanupReview'),
-  false,
-  'standard mode must discard the retired cleanup-review bypass'
+  standardSettings.skipCleanupReview,
+  true,
+  'standard mode must retain the explicit direct-cleanup preference'
 );
 const expertSettings = getEffectiveCleanupSettings({
   cleanupMode: 'expert',
   skipCleanupReview: true,
+  progressOverlay: true,
   overlayScope: 'current_window',
   associatedDomainGroups: 'example.com => cdn.example.net',
   mainWorldPageScrub: true
 });
 assert.equal(expertSettings.overlayScope, 'current_window', 'expert mode must retain the selected overlay scope');
-assert.equal(
-  Object.hasOwn(expertSettings, 'skipCleanupReview'),
-  false,
-  'expert mode must also discard the retired cleanup-review bypass'
-);
+assert.equal(expertSettings.skipCleanupReview, true, 'expert mode must retain the explicit direct-cleanup preference');
 assert.equal(
   expertSettings.associatedDomainGroups.includes('cdn.example.net'),
   true,
@@ -154,9 +151,9 @@ assert.equal(migratedSettings.overlayScope, 'target_tabs', 'invalid stored overl
 assert.equal(migratedSettings.cleanupMode, 'standard', 'invalid stored cleanup mode must fall back safely');
 assert.equal(migratedSettings.keepHistory, true, 'known boolean strings must be sanitized');
 assert.equal(
-  Object.hasOwn(migratedSettings, 'skipCleanupReview'),
-  false,
-  'legacy cleanup-review bypass settings must be dropped during migration'
+  migratedSettings.skipCleanupReview,
+  true,
+  'the explicit cleanup-review preference must survive settings sanitation'
 );
 assert.equal(migratedSettings.createdAt, '2026-08-01T00:00:00.000Z', 'invalid stored timestamps must be repaired');
 
@@ -191,7 +188,7 @@ assert.deepEqual(
 
 const manifest = JSON.parse(await readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
 const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
-assert.equal(manifest.version, '1.11.4', 'manifest version must match this release');
+assert.equal(manifest.version, '1.11.46', 'manifest version must match this release');
 assert.equal(packageJson.version, manifest.version, 'package and manifest versions must match');
 assert.equal(APP.version, manifest.version, 'runtime and manifest versions must match');
 assert.equal(manifest.permissions.includes('bookmarks'), false, 'bookmark permission must never be requested');

@@ -4,6 +4,34 @@ export function listCleanupTargets(target) {
   return [target, ...(target?.associatedTargets || [])].filter(Boolean);
 }
 
+/**
+ * Returns a source-window context only when its identity and private state are
+ * explicit. The active-tab fallback is accepted only with its own concrete
+ * window id; an absent/partial observation must never silently become a
+ * normal-window cleanup authority.
+ */
+export function resolveReviewedSourceContext(currentWindow, fallbackTab = null) {
+  if (Number.isInteger(currentWindow?.id) && currentWindow.id >= 0 && typeof currentWindow.incognito === 'boolean') {
+    return {
+      sourceWindowId: currentWindow.id,
+      sourceIncognito: currentWindow.incognito
+    };
+  }
+  if (
+    Number.isInteger(fallbackTab?.windowId) &&
+    fallbackTab.windowId >= 0 &&
+    typeof fallbackTab.incognito === 'boolean'
+  ) {
+    return {
+      sourceWindowId: fallbackTab.windowId,
+      sourceIncognito: fallbackTab.incognito
+    };
+  }
+  throw new Error(
+    'SiteWipe could not verify this popup window and its private-window state. No cleanup review was created; reopen the popup and try again.'
+  );
+}
+
 export function buildPageScrubScope(target) {
   const seen = new Set();
   const scope = [];
@@ -66,6 +94,14 @@ export function tabMatchesCleanupTarget(tab, target) {
   return [tab?.url, tab?.pendingUrl].some((url) => Boolean(url && urlMatchesTarget(url, target)));
 }
 
+export function tabIsWithinReviewedPrivateScope(tab, incognitoAccess = false) {
+  return Boolean(tab) && (!tab.incognito || incognitoAccess === true);
+}
+
+export function tabMatchesReviewedCleanupTarget(tab, target, incognitoAccess = false) {
+  return tabIsWithinReviewedPrivateScope(tab, incognitoAccess) && tabMatchesCleanupTarget(tab, target);
+}
+
 export function frameMatchesCleanupTarget(frame, target) {
   return Boolean(frame?.url && urlMatchesTarget(frame.url, target));
 }
@@ -101,6 +137,16 @@ export function downloadMatchReasons(item, target) {
 export function downloadMatchesCleanupTarget(item, target, options = {}) {
   const reasons = downloadMatchReasons(item, target);
   return options.allowReferrer === false ? reasons.some((reason) => reason !== 'referrer') : reasons.length > 0;
+}
+
+export function downloadIsWithinReviewedPrivateScope(item, incognitoAccess = false) {
+  return Boolean(item) && (!item.incognito || incognitoAccess === true);
+}
+
+export function downloadMatchesReviewedCleanupTarget(item, target, incognitoAccess = false, options = {}) {
+  return (
+    downloadIsWithinReviewedPrivateScope(item, incognitoAccess) && downloadMatchesCleanupTarget(item, target, options)
+  );
 }
 
 function normalizeHost(value) {

@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 1,
+  "status": "official_first_party_sources_reviewed_local_assessment_only",
+  "checkedAt": "2026-08-21T13:44:50.485Z",
+  "scope": "Chrome Extensions APIs, Manifest V3 security/lifecycle guidance, and Chrome Web Store policies relevant to SiteWipe's reviewed permissions, destructive consent, local user-data handling, exact-report side-panel opening, and release claims",
+  "reviewMethod": "The 29 first-party developer.chrome.com pages listed below were opened successfully on the original checkedAt and their retained conclusions were reconciled with the frozen 1.11.42 manifest, runtime call sites, popup-document identity and capability handoff, permission lifecycle, report binding, privacy wording, and remaining installed-evidence gaps during local validation. This ledger is not Chrome Web Store approval, legal advice, a fresh web-policy recheck, or installed-browser evidence.",
+  "localSourceContractValidation": {
+    "candidateVersion": "1.11.42",
+    "validatedAt": "2026-08-21T19:33:10-05:00",
+    "status": "passed_source_contracts_installed_evidence_pending",
+    "commands": [
+      "npm run check",
+      "npm run test:coverage",
+      "npm audit --audit-level=moderate --json",
+      "npm run sbom"
+    ],
+    "results": {
+      "directCleanupPublicationContract": "passed",
+      "publicationContractPrimaryChecks": "passed_8_of_8",
+      "publicationContractSemanticMutationAdversaries": "passed_35_of_35",
+      "popupDocumentIdentityAndCapabilityContract": "passed",
+      "defaultOffStandardAndExpertDirectMode": "passed",
+      "preflightBoundSingleUseAuthorization": "passed",
+      "truthfulDirectReportClassification": "passed",
+      "redactionCanaries": "passed",
+      "privateContextPersistenceRefusal": "passed",
+      "deterministicThirtyMinuteExpiry": "passed",
+      "permissionLifecycleAndIncognitoSourceGuards": "passed",
+      "startupReadinessAndDnrRecoveryContracts": "passed",
+      "sidePanelUserGestureAndExactReportBindingContracts": "passed",
+      "remoteCodeAndRuntimeSourceClosure": "passed_55_files"
+    },
+    "evidenceBoundary": "These are local source/static/Node-test results. They do not establish Chrome Web Store compliance, browser-native prompt behavior, incognito operation, MV3 suspension recovery, installed side-panel behavior, installed accessibility, performance, or exact packaged-byte behavior."
+  },
+  "sources": [
+    {
+      "title": "Declare permissions",
+      "url": "https://developer.chrome.com/docs/extensions/develop/concepts/declare-permissions",
+      "pageLastUpdated": "2024-02-05",
+      "siteWipeConclusion": "Keep install-time authority narrow, explain warnings, declare optional host supersets in the manifest, and request only reviewed target subsets from a user gesture. Incognito still requires a separate user-controlled enablement on the extension details page."
+    },
+    {
+      "title": "Permissions API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/permissions",
+      "pageLastUpdated": "2026-01-07",
+      "siteWipeConclusion": "Optional host access must be requested inside a user gesture and may later be inspected or removed. SiteWipe inventories exact, broader, and all-site access separately, removes only independently proven temporary exact access, and preserves ambiguous grants for manual review."
+    },
+    {
+      "title": "Extension service worker lifecycle",
+      "url": "https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle",
+      "pageLastUpdated": "2023-05-02",
+      "siteWipeConclusion": "MV3 workers can terminate and lose globals. SiteWipe uses validated session or durable state for approval, jobs, DNR recovery, temporary-access recovery, and startup safety, but installed termination/restart evidence remains required."
+    },
+    {
+      "title": "Stay secure",
+      "url": "https://developer.chrome.com/docs/extensions/develop/security-privacy/stay-secure",
+      "pageLastUpdated": "reviewed on checkedAt; exact footer date not used as evidence",
+      "siteWipeConclusion": "Treat pages and messages as untrusted, minimize authority, keep logic packaged, use isolated execution, and validate inputs. SiteWipe applies local controls, but source design is not a platform certification."
+    },
+    {
+      "title": "BrowsingData API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/browsingData",
+      "pageLastUpdated": "2026-08-13",
+      "siteWipeConclusion": "The API can remove broad browser data. SiteWipe admits only explicit reviewed origins and allowlisted data types, rejects time/global deletion shapes, and documents browser-specific origin support."
+    },
+    {
+      "title": "Cookies API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/cookies",
+      "pageLastUpdated": "2025-08-11",
+      "siteWipeConclusion": "Cookie access depends on host permission and browser-exposed stores and partition keys. SiteWipe bounds discovery/removal, rematches targets, and treats missing partition visibility as uncertainty."
+    },
+    {
+      "title": "Tabs API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/tabs",
+      "pageLastUpdated": "2026-03-03",
+      "siteWipeConclusion": "The tabs permission exposes sensitive metadata and mutation authority. SiteWipe reviews tab effects, re-reads each tab against target/private scope, and reports unresolved close outcomes as unknown."
+    },
+    {
+      "title": "History API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/history",
+      "pageLastUpdated": "2025-08-11",
+      "siteWipeConclusion": "History exposes browsing activity. SiteWipe bounds searches, rematches every returned URL, deletes individual matching URLs only after authorization, and redacts retained results by default."
+    },
+    {
+      "title": "Downloads API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/downloads",
+      "pageLastUpdated": "2026-01-15",
+      "siteWipeConclusion": "Downloaded-file removal is irreversible. SiteWipe keeps it Expert-only and off by default, binds preflight IDs, and revalidates exact live identity/state/target immediately before removal. Detailed review requires the displayed typed phrase; explicitly enabled settings_direct truthfully skips that per-run phrase without weakening ID or live-record binding."
+    },
+    {
+      "title": "Storage API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/storage",
+      "pageLastUpdated": "2026-05-05",
+      "siteWipeConclusion": "Extension storage is shared across extension contexts and survives worker globals. SiteWipe validates schemas, serializes mutations, limits approval lifetime, and applies reviewed privacy settings to report persistence."
+    },
+    {
+      "title": "Scripting API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/scripting",
+      "pageLastUpdated": "2026-01-07",
+      "siteWipeConclusion": "Injection requires scripting plus host authority or activeTab. SiteWipe injects packaged functions in the isolated world only after authorization and live target/private-scope checks; hostile-page installed evidence remains pending."
+    },
+    {
+      "title": "Declarative Net Request API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest",
+      "pageLastUpdated": "2026-05-05",
+      "siteWipeConclusion": "DNR rules can block requests. SiteWipe uses session rules only in a reserved ID range, persists recovery intent before mutation, clears the full owned range, and preserves uncertain timed-out recovery obligations."
+    },
+    {
+      "title": "Side Panel API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/sidePanel",
+      "pageLastUpdated": "2026-01-19",
+      "siteWipeConclusion": "Opening a side panel must occur in response to a user action. SiteWipe contracts a synchronous popup-gesture open in the exact verified window and an exact report/window binding before display. One exact 1.11.35 installed opening is retained in browser-validation-2026-08-21-v1.11.35.json; it is historical evidence only, and current-candidate focus, keyboard, zoom, replacement, and multi-window coverage remains incomplete."
+    },
+    {
+      "title": "Alarms API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/alarms",
+      "pageLastUpdated": "2026-08-13",
+      "siteWipeConclusion": "Alarms can wake an extension worker but are not durable wall-clock execution. SiteWipe treats them as bounded maintenance triggers and retains authoritative durable state."
+    },
+    {
+      "title": "WebNavigation API",
+      "url": "https://developer.chrome.com/docs/extensions/reference/api/webNavigation",
+      "pageLastUpdated": "2025-08-11",
+      "siteWipeConclusion": "Frame discovery expands navigation visibility. SiteWipe keeps webNavigation optional, Expert-only, off by default, and releases it when Standard mode is restored."
+    },
+    {
+      "title": "Incognito manifest key",
+      "url": "https://developer.chrome.com/docs/extensions/reference/manifest/incognito",
+      "pageLastUpdated": "2013-05-12",
+      "siteWipeConclusion": "Incognito access remains explicitly user-controlled and context-sensitive. SiteWipe binds private state into preflight and refuses durable private-scope report persistence; installed incognito evidence remains pending."
+    },
+    {
+      "title": "Content Security Policy manifest key",
+      "url": "https://developer.chrome.com/docs/extensions/reference/manifest/content-security-policy",
+      "pageLastUpdated": "2024-02-13",
+      "siteWipeConclusion": "Extension-page CSP and MV3 packaging must prevent unsafe executable sources. SiteWipe uses packaged scripts and local static resources; scanners report no project-controlled remote code."
+    },
+    {
+      "title": "Match patterns",
+      "url": "https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns",
+      "pageLastUpdated": "2012-09-18",
+      "siteWipeConclusion": "Host patterns are authority boundaries, not registrable-domain logic. SiteWipe derives canonical required patterns from its separately pinned PSL target model and does not accept arbitrary patterns from untrusted input."
+    },
+    {
+      "title": "Quality guidelines",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/quality-guidelines/",
+      "pageLastUpdated": "2024-07-10",
+      "siteWipeConclusion": "A clear single purpose and stable user-facing functionality are required. SiteWipe is scoped to guarded site-specific browser cleanup; final installed behavior and listing evidence remain pending."
+    },
+    {
+      "title": "Permissions policy",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/permissions/",
+      "pageLastUpdated": "2022-11-01",
+      "siteWipeConclusion": "Permissions must be necessary for current features and as narrow as practicable. SiteWipe has no required host patterns, requests exact optional target subsets, and documents its ten named permissions."
+    },
+    {
+      "title": "User data FAQ",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/user-data-faq/",
+      "pageLastUpdated": "page footer reports 2016-04-23; content reviewed on checkedAt",
+      "siteWipeConclusion": "Local processing and storage of browsing activity still count as user-data handling and require disclosure and a privacy policy. Dashboard disclosures must match extension behavior and the stable hosted policy."
+    },
+    {
+      "title": "Limited Use requirements",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/limited-use/",
+      "pageLastUpdated": "2022-11-01",
+      "siteWipeConclusion": "User data must be limited to the disclosed single purpose and cannot be repurposed or transferred except under narrow conditions. SiteWipe states local-only use, but live dashboard and hosted-policy review remain action-time gates."
+    },
+    {
+      "title": "Disclosure requirements",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/disclosure-requirements",
+      "pageLastUpdated": "2022-11-01",
+      "siteWipeConclusion": "User-data handling and destructive effects require clear, affirmative, informed disclosure. Detailed review is the default; settings-direct mode remains default-off, explicitly confirmed, completely preflight-bound, and truthfully reported."
+    },
+    {
+      "title": "Manifest V3 requirements",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements",
+      "pageLastUpdated": "2024-04-03",
+      "siteWipeConclusion": "Extension logic must be self-contained and remote executable logic is prohibited. SiteWipe's explicit 55-file runtime closure and static scans enforce a local source boundary; exact artifact revalidation remains required."
+    },
+    {
+      "title": "Minimum functionality",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/minimum-functionality",
+      "pageLastUpdated": "2022-11-01",
+      "siteWipeConclusion": "The submitted artifact must work as described. Source tests and synthetic UI checks cannot replace installed exact-artifact validation."
+    },
+    {
+      "title": "Unexpected behavior",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/unexpected-behavior",
+      "pageLastUpdated": "reviewed on checkedAt; exact footer date not used as evidence",
+      "siteWipeConclusion": "Runtime behavior and disclosures must match reasonable expectations. Direct mode cannot conceal its lack of detailed review, and failures or unknown outcomes cannot be presented as successful cleanup."
+    },
+    {
+      "title": "Listing requirements",
+      "url": "https://developer.chrome.com/docs/webstore/program-policies/listing-requirements",
+      "pageLastUpdated": "reviewed on checkedAt; exact footer date not used as evidence",
+      "siteWipeConclusion": "Listing text and media must accurately represent the exact extension. Compatibility, accessibility, performance, privacy, deletion, identity, and release claims remain evidence-gated."
+    },
+    {
+      "title": "Chrome Web Store listing fields",
+      "url": "https://developer.chrome.com/docs/webstore/cws-dashboard-listing",
+      "pageLastUpdated": "2020-12-07",
+      "siteWipeConclusion": "Store metadata and media must be completed against the exact installed artifact and rechecked in the live dashboard at submission time."
+    },
+    {
+      "title": "Troubleshooting Chrome Web Store violations",
+      "url": "https://developer.chrome.com/docs/webstore/troubleshooting/",
+      "pageLastUpdated": "reviewed on checkedAt; exact footer date not used as evidence",
+      "siteWipeConclusion": "Review permission scope, privacy, deceptive behavior, metadata, and functionality against the exact submitted artifact. Local source readiness does not imply Store acceptance."
+    }
+  ],
+  "aiAssistanceDisclosureFinding": {
+    "status": "no_specific_requirement_identified_in_reviewed_official_sources",
+    "limitation": "This is a dated technical review of the listed first-party pages, not a timeless legal or dashboard conclusion. Recheck official policy and every live submission field at action time."
+  },
+  "siteWipeAssessment": {
+    "singlePurpose": "technically aligned with guarded, preflight-bound site-scoped cleanup; final listing and installed-behavior review pending",
+    "leastPrivilege": "no required host patterns; exact optional target subsets; exact/broader/all-site pre-existing grant inventory; optional webNavigation is persisted off and released outside a later explicit Expert enable gesture; ten required named permissions have current feature rationales; native warning validation pending",
+    "destructiveConsent": "Fresh complete review remains the default in Standard and Expert. Owner-approved settings_direct requires explicit saved confirmation, the same hidden complete preflight, one SiteWipe cleanup action, and truthful no-review reporting. Missing target access is handed off only from the final popup gesture through a worker-minted, context-bound capability; native permission confirmation may be additional, and installed interaction evidence remains pending.",
+    "privateScope": "immutable preflight-bound private authority and no durable missing private-target lease implemented; private-source direct mode requires Allow in incognito plus pre-existing exact target access; installed incognito lifecycle evidence pending",
+    "reportOpening": "The 1.11.42 source contract synchronously opens the side panel from the popup gesture only after exact window/report prebinding and fails closed on stale binding; installed exact-artifact confirmation remains pending.",
+    "userData": "local processing is still user-data handling; reviewed privacy defaults and controls are documented; stable hosted policy and dashboard disclosure review remain pending",
+    "remoteCode": "source scanners and the explicit 55-file runtime closure report no project-controlled remote code; exact final artifact revalidation remains required",
+    "browserEvidenceBoundary": "ChatGPT in-app Browser synthetic UI evidence is not installed Chrome or Brave extension evidence",
+    "publicationStatus": "blocked"
+  }
+}

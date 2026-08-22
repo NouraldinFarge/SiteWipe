@@ -32,14 +32,16 @@ export async function setInArea(area, value) {
   await chrome.storage[area].set(value);
 }
 
-export async function getSettings() {
-  const data = await getFromArea('local', [STORAGE_KEYS.settings]);
+export async function getSettings(options = {}) {
+  const storageLocal = options.storageLocal || chrome.storage.local;
+  const data = await storageLocal.get([STORAGE_KEYS.settings]);
   return normalizeStoredSettings(data[STORAGE_KEYS.settings]);
 }
 
-export async function saveSettings(patch) {
+export async function saveSettings(patch, options = {}) {
+  const storageLocal = options.storageLocal || chrome.storage.local;
   return withStorageMutation(STORAGE_KEYS.settings, async () => {
-    const data = await getFromArea('local', [STORAGE_KEYS.settings]);
+    const data = await storageLocal.get([STORAGE_KEYS.settings]);
     const current = normalizeStoredSettings(data[STORAGE_KEYS.settings]);
     const cleanPatch = sanitizeSettingsPatch(patch);
     const next = {
@@ -47,7 +49,7 @@ export async function saveSettings(patch) {
       ...cleanPatch,
       updatedAt: new Date().toISOString()
     };
-    await setInArea('local', { [STORAGE_KEYS.settings]: next });
+    await storageLocal.set({ [STORAGE_KEYS.settings]: next });
     return next;
   });
 }
@@ -55,6 +57,7 @@ export async function saveSettings(patch) {
 export function sanitizeSettingsPatch(patch) {
   const input = patch && typeof patch === 'object' ? patch : {};
   const booleanKeys = [
+    'skipCleanupReview',
     'keepHistory',
     'reducedMotion',
     'highContrast',
@@ -90,6 +93,13 @@ export function sanitizeSettingsPatch(patch) {
   const output = {};
   for (const key of booleanKeys) {
     if (!Object.prototype.hasOwnProperty.call(input, key)) continue;
+    if (key === 'skipCleanupReview') {
+      // This high-impact opt-in must never be activated by truthy strings or
+      // other legacy/imported values. Options and backup validation emit a
+      // real boolean after their explicit warning flows.
+      if (typeof input[key] === 'boolean') output[key] = input[key];
+      continue;
+    }
     const coerced = sanitizeBoolean(input[key]);
     if (coerced !== undefined) output[key] = coerced;
   }
@@ -248,7 +258,7 @@ export async function getLatestReportExpiration() {
   return new Date(timestamp + retentionMinutes * 60 * 1000).toISOString();
 }
 
-export async function saveReport(report) {
+export async function saveReport(report, approvedSettings = null) {
   if (!isStoredReport(report)) throw new Error('Refusing to persist an invalid cleanup report.');
   if (
     report.privateContextTouched ||
@@ -260,7 +270,9 @@ export async function saveReport(report) {
   }
   return withStorageMutation(REPORT_STATE_MUTATION, async () => {
     const data = await getFromArea('local', [STORAGE_KEYS.settings, STORAGE_KEYS.reports]);
-    const settings = normalizeStoredSettings(data[STORAGE_KEYS.settings]);
+    const settings = approvedSettings
+      ? normalizeStoredSettings(approvedSettings, report.finishedAt || report.startedAt)
+      : normalizeStoredSettings(data[STORAGE_KEYS.settings]);
     const storedReport = settings.redactReports
       ? await redactReport(report, { profile: 'storage' })
       : JSON.parse(JSON.stringify(report));
@@ -321,10 +333,11 @@ export async function appendDebug(entry) {
   });
 }
 
-export async function migrateStoredReportsToPrivacyDefaults(now = Date.now()) {
+export async function migrateStoredReportsToPrivacyDefaults(now = Date.now(), options = {}) {
+  const storageLocal = options.storageLocal || chrome.storage.local;
   return withStorageMutation(REPORT_STATE_MUTATION, async () =>
     withStorageMutation(STORAGE_KEYS.debugLog, async () => {
-      const data = await getFromArea('local', [
+      const data = await storageLocal.get([
         STORAGE_KEYS.activeReport,
         STORAGE_KEYS.reports,
         STORAGE_KEYS.debugLog,
@@ -346,7 +359,7 @@ export async function migrateStoredReportsToPrivacyDefaults(now = Date.now()) {
       const redactedReports = await Promise.all(
         reports.map((report) => redactReport(report, { profile: 'privacy-migration' }))
       );
-      await setInArea('local', {
+      await storageLocal.set({
         [STORAGE_KEYS.activeReport]: redactedActive,
         [STORAGE_KEYS.reports]: redactedReports,
         [STORAGE_KEYS.debugLog]: debugLog.map((entry) => redactSensitiveValue(entry))
@@ -378,14 +391,15 @@ export async function setActiveJob(job) {
   return mutateActiveJob(() => job);
 }
 
-export async function mutateActiveJob(mutator) {
+export async function mutateActiveJob(mutator, options = {}) {
+  const storageLocal = options.storageLocal || chrome.storage.local;
   return withStorageMutation(STORAGE_KEYS.activeJob, async () => {
-    const data = await getFromArea('local', [STORAGE_KEYS.activeJob]);
+    const data = await storageLocal.get([STORAGE_KEYS.activeJob]);
     const current = normalizeCleanupJob(data[STORAGE_KEYS.activeJob]);
     const candidate = await mutator(current);
     if (candidate === undefined) return current;
     const monotonicCandidate =
-      current?.cancelRequested === true && candidate
+      current?.cancelRequested === true && candidate && current.id === candidate.id
         ? {
             ...candidate,
             cancelRequested: true
@@ -393,7 +407,10 @@ export async function mutateActiveJob(mutator) {
         : candidate;
     const normalized = assertCleanupJobTransition(current, monotonicCandidate);
     const safeJob = redactSensitiveValue(normalized);
-    await setInArea('local', { [STORAGE_KEYS.activeJob]: safeJob });
+    // Reads may be wrapped with the bounded startup adapter. Writes remain
+    // untimed while the lifecycle reservation is held so an acknowledged-but-
+    // unresolved persistence operation cannot be mistaken for a safe failure.
+    await storageLocal.set({ [STORAGE_KEYS.activeJob]: safeJob });
     return safeJob;
   });
 }
@@ -407,37 +424,42 @@ export async function getActiveShield() {
   return normalizeActiveShield(data[STORAGE_KEYS.activeShield]);
 }
 
-export async function setActiveShield(shield) {
-  return mutateActiveShield(() => shield);
+export async function setActiveShield(shield, options = {}) {
+  return mutateActiveShield(() => shield, options);
 }
 
-export async function mutateActiveShield(mutator) {
+export async function mutateActiveShield(mutator, options = {}) {
+  const storageLocal = options.storageLocal || chrome.storage.local;
   return withStorageMutation(STORAGE_KEYS.activeShield, async () => {
-    const data = await getFromArea('local', [STORAGE_KEYS.activeShield]);
+    const data = await storageLocal.get([STORAGE_KEYS.activeShield]);
     const current = normalizeActiveShield(data[STORAGE_KEYS.activeShield]);
     const candidate = await mutator(current);
-    if (candidate == null) {
-      await setInArea('local', { [STORAGE_KEYS.activeShield]: null });
+    if (candidate === undefined) return current;
+    if (candidate === null) {
+      await storageLocal.set({ [STORAGE_KEYS.activeShield]: null });
       return null;
     }
     const normalized = normalizeActiveShield(candidate);
     if (!normalized) throw new Error('Refusing to persist invalid request-shield state.');
     const safeShield = redactSensitiveValue(normalized);
-    await setInArea('local', { [STORAGE_KEYS.activeShield]: safeShield });
+    await storageLocal.set({ [STORAGE_KEYS.activeShield]: safeShield });
     return safeShield;
   });
 }
 
-export async function clearActiveShieldRecord() {
-  await mutateActiveShield(() => null);
+export async function clearActiveShieldRecord(options = {}) {
+  await mutateActiveShield(() => null, options);
 }
 
-export async function forgetLatestReport() {
+export async function forgetLatestReport(expectedReportId) {
   return withStorageMutation(REPORT_STATE_MUTATION, async () => {
     const data = await getFromArea('local', [STORAGE_KEYS.activeReport, STORAGE_KEYS.reports]);
     const active = isStoredReport(data[STORAGE_KEYS.activeReport]) ? data[STORAGE_KEYS.activeReport] : null;
     const reports = Array.isArray(data[STORAGE_KEYS.reports]) ? data[STORAGE_KEYS.reports].filter(isStoredReport) : [];
     const reportId = active?.id || reports[0]?.id || null;
+    if (!reportId || reportId !== expectedReportId) {
+      throw new Error('The displayed report is no longer the latest stored report. No report was removed.');
+    }
     const retainedReports = reportId ? reports.filter((report) => report.id !== reportId) : reports;
     await setInArea('local', {
       [STORAGE_KEYS.activeReport]: null,

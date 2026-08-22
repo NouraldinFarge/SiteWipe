@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import {
   buildCookieDiscoveryQueries,
   buildPartitionRemovalKeys,
+  classifyCookieStorePrivateScope,
   cookieKey,
+  discoverCookiesOnly,
   MAX_COOKIE_DISCOVERY_QUERIES,
   normalizeCookiePath,
   safeGetCookies,
@@ -100,4 +102,65 @@ test('cookie read adapters distinguish success, missing APIs, and exceptions', a
   );
   assert.match(failed.stores.error, /synthetic store failure/);
   assert.match(failed.cookies.error, /synthetic cookie failure/);
+});
+
+test('normal-only cookie discovery skips private and ambiguous stores', async () => {
+  const normalized = normalizeSiteInput('example.com');
+  assert.equal(normalized.ok, true);
+  const queriedStores = new Set();
+  const chromeValue = {
+    tabs: {
+      get: async (tabId) => {
+        if (tabId === 1) return { id: 1, incognito: false };
+        if (tabId === 2) return { id: 2, incognito: true };
+        throw new Error('tab closed');
+      }
+    },
+    cookies: {
+      getAllCookieStores: async () => [
+        { id: 'regular', tabIds: [1] },
+        { id: 'private', tabIds: [2] },
+        { id: 'closed-private', tabIds: [3] },
+        { id: 'empty', tabIds: [] }
+      ],
+      getAll: async ({ storeId }) => {
+        queriedStores.add(storeId);
+        return [];
+      }
+    }
+  };
+
+  await withChrome(chromeValue, () => discoverCookiesOnly(normalized.target, false));
+  assert.deepEqual([...queriedStores], ['regular']);
+  await withChrome(chromeValue, () =>
+    assert.rejects(
+      discoverCookiesOnly(normalized.target, false, { strict: true }),
+      /private scope could not be verified/i
+    )
+  );
+});
+
+test('cookie-store classification never converts failed tab inspection into regular scope', async () => {
+  await withChrome(
+    {
+      tabs: {
+        get: async () => {
+          throw new Error('tab closed');
+        }
+      }
+    },
+    async () => {
+      assert.equal(await classifyCookieStorePrivateScope({ id: 'a', tabIds: [] }), 'unknown');
+      assert.equal(await classifyCookieStorePrivateScope({ id: 'b', tabIds: [4] }), 'unknown');
+      assert.equal(
+        await classifyCookieStorePrivateScope(
+          { id: 'c', tabIds: [5] },
+          {
+            shouldCancel: async () => false
+          }
+        ),
+        'unknown'
+      );
+    }
+  );
 });

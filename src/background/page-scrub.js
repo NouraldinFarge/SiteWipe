@@ -1,4 +1,8 @@
-import { buildPageScrubScope } from '../shared/target-scope.js';
+import {
+  buildPageScrubScope,
+  tabIsWithinReviewedPrivateScope,
+  tabMatchesReviewedCleanupTarget
+} from '../shared/target-scope.js';
 import { readableMessage, throwIfCancellationRequested, withTimeoutReject, yieldEvery } from './operation-control.js';
 import { addSection, addUnavailable, createAdapterOutcome } from './report.js';
 
@@ -47,12 +51,14 @@ export async function scrubOpenPageData(target, report, context, options = {}) {
       tabId,
       frameIds: [...info.frameIds],
       mode: 'matchedFrames',
+      requiresTargetTabMatch: false,
       urls: info.urls
     })),
     ...fallbackTabs.map((tabId) => ({
       tabId,
       allFrames: true,
       mode: 'allFramesFallback',
+      requiresTargetTabMatch: true,
       urls: []
     }))
   ].slice(0, MAX_PAGE_SCRIPT_TABS);
@@ -61,6 +67,14 @@ export async function scrubOpenPageData(target, report, context, options = {}) {
     addSection(report, 'pageScriptScrub', 'No open matching page frames to scrub', 'skipped', {
       reason: 'No matching open page or frame was visible to the extension before cleanup.'
     });
+    return;
+  }
+  if (typeof chrome.tabs?.get !== 'function') {
+    addUnavailable(
+      report,
+      'Live page-visible storage scrub',
+      'chrome.tabs.get is unavailable, so SiteWipe refused to inject a cleanup script without live target and private-scope revalidation.'
+    );
     return;
   }
 
@@ -85,6 +99,7 @@ export async function scrubOpenPageData(target, report, context, options = {}) {
     opfsDirectoriesDeleted: 0,
     appBadgeCleared: 0,
     permissionStates: {},
+    targetsSkippedAfterRevalidation: 0,
     storageEstimateBeforeUsage: null,
     storageEstimateAfterUsage: null,
     persistentStorageBefore: null,
@@ -106,6 +121,28 @@ export async function scrubOpenPageData(target, report, context, options = {}) {
     await throwIfCancellationRequested(options.shouldCancel, 'the next live-page scrub');
     options.operationBudget?.check('the next live-page scrub');
     const item = targets[targetIndex];
+    let liveTab;
+    try {
+      options.operationBudget?.claimQuery('live-page scrub tab revalidation');
+      liveTab = await chrome.tabs.get(item.tabId);
+    } catch (error) {
+      totals.targetsSkippedAfterRevalidation += 1;
+      totals.errors.push({
+        tabId: item.tabId,
+        mode: item.mode,
+        world: 'revalidation',
+        message: readableMessage(error)
+      });
+      continue;
+    }
+    const privateScopeAllowed = tabIsWithinReviewedPrivateScope(liveTab, options.incognitoAccess === true);
+    const targetStillAllowed =
+      item.requiresTargetTabMatch !== true ||
+      tabMatchesReviewedCleanupTarget(liveTab, target, options.incognitoAccess === true);
+    if (!privateScopeAllowed || !targetStillAllowed) {
+      totals.targetsSkippedAfterRevalidation += 1;
+      continue;
+    }
     totals.tabsAttempted += 1;
     const targetSpec = item.frameIds?.length
       ? { tabId: item.tabId, frameIds: item.frameIds }
@@ -231,7 +268,10 @@ export async function scrubOpenPageData(target, report, context, options = {}) {
     report,
     'pageScriptScrub',
     'Live page-visible storage scrubbed before tab close',
-    totals.errors.length || totals.unknownOutcomeFrames || frameGroups.size + fallbackTabs.length > MAX_PAGE_SCRIPT_TABS
+    totals.errors.length ||
+      totals.unknownOutcomeFrames ||
+      totals.targetsSkippedAfterRevalidation ||
+      frameGroups.size + fallbackTabs.length > MAX_PAGE_SCRIPT_TABS
       ? 'partial'
       : 'success',
     {

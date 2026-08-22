@@ -23,7 +23,7 @@ export function isExpertCleanupMode(value) {
 }
 
 /**
- * Applies the non-bypassable Standard/Expert safety policy.
+ * Applies the Standard/Expert cleanup policy and parent-child dependencies.
  * @param {Record<string, any>} settings
  * @returns {Record<string, any>}
  */
@@ -34,16 +34,34 @@ export function getEffectiveCleanupSettings(settings = {}) {
   // results. Keep the legacy setting normalized to false so existing profiles
   // cannot reactivate the retired behavior.
   /** @type {Record<string, any>} */
-  const effective = { ...settings, cleanupMode, mainWorldPageScrub: false };
-  // Defense in depth for legacy profiles and imported backups: the retired
-  // review-bypass field is removed even if a caller skipped storage sanitation.
-  delete effective.skipCleanupReview;
-  // Expert mode may expand the cleanup scope, but it never relaxes the required
-  // per-run review or the background's single-use authorization checks.
-  if (cleanupMode === 'expert') return effective;
-  for (const key of EXPERT_ONLY_CLEANUP_SETTINGS) effective[key] = false;
-  effective.associatedDomainGroups = '';
-  effective.postWipeShieldExpiresMinutes = 0;
-  effective.overlayScope = 'target_tabs';
+  const effective = {
+    ...settings,
+    cleanupMode,
+    mainWorldPageScrub: false,
+    // The review preference is mode-independent and deliberately strict: only
+    // the sanitized boolean true opts into the direct cleanup path.
+    skipCleanupReview: settings.skipCleanupReview === true
+  };
+  if (cleanupMode !== 'expert') {
+    for (const key of EXPERT_ONLY_CLEANUP_SETTINGS) effective[key] = false;
+    effective.associatedDomainGroups = '';
+    effective.overlayScope = 'target_tabs';
+  }
+
+  // Parent-off dependencies are part of effective policy, not merely visual
+  // disabling in Options. This keeps review claims and runtime behavior in
+  // lockstep even for imports, migrations, stale forms, or direct storage.
+  if (effective.pageScriptScrub !== true) {
+    effective.storageBucketScrub = false;
+    effective.opfsScrub = false;
+    effective.serviceWorkerExtraScrub = false;
+    effective.appBadgeClear = false;
+    effective.permissionAudit = false;
+  }
+  if (effective.progressOverlay !== true) {
+    effective.progressOverlayCancelButton = false;
+    effective.overlayScope = 'target_tabs';
+  }
+  if (effective.postWipeSessionBlock !== true) effective.postWipeShieldExpiresMinutes = 0;
   return effective;
 }

@@ -1,6 +1,6 @@
 {
   "name": "sitewipe-unreleased-candidate",
-  "version": "1.11.4",
+  "version": "1.11.46",
   "private": true,
   "license": "MIT",
   "description": "Public-source prerelease for guarded, target-scoped browser-data cleanup.",

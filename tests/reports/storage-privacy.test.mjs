@@ -53,6 +53,34 @@ test('saveReport persists only a redacted active report under safe defaults', as
   assert.deepEqual(state.get(STORAGE_KEYS.reports), []);
 });
 
+test('saveReport uses the reviewed privacy policy even if stored settings changed during completion', async () => {
+  const canary = 'reviewed-policy-canary.example';
+  const report = await finishReport(
+    createReport({ domain: canary, matchMode: 'registrable_domain' }, `https://${canary}/private`)
+  );
+  state.set(STORAGE_KEYS.settings, {
+    ...DEFAULT_SETTINGS,
+    redactReports: false,
+    keepHistory: true,
+    reportRetentionDays: 90,
+    createdAt: '2026-08-20T12:00:00.000Z',
+    updatedAt: '2026-08-20T12:01:00.000Z'
+  });
+
+  const stored = await storage.saveReport(report, {
+    ...DEFAULT_SETTINGS,
+    redactReports: true,
+    keepHistory: false,
+    reportRetentionDays: 0,
+    createdAt: '2026-08-20T12:00:00.000Z',
+    updatedAt: '2026-08-20T12:00:00.000Z'
+  });
+
+  assert.equal(stored.redacted, true);
+  assert.equal(JSON.stringify(stored).includes(canary), false);
+  assert.deepEqual(state.get(STORAGE_KEYS.reports), []);
+});
+
 test('on-read expiration forgets a report older than the 30-minute default', async () => {
   const report = await finishReport(
     createReport({ domain: 'expiry-canary.example', matchMode: 'registrable_domain' }, 'expiry-canary.example')
@@ -118,7 +146,7 @@ test('privacy migration removes expired latest and bounded-history records', asy
   assert.deepEqual(state.get(STORAGE_KEYS.reports), []);
 });
 
-test('storage migration drops the retired review bypass from legacy profiles and imports', () => {
+test('storage preserves the explicit cleanup-review preference and defaults it off', () => {
   const normalized = storage.normalizeStoredSettings(
     {
       cleanupMode: 'expert',
@@ -128,8 +156,12 @@ test('storage migration drops the retired review bypass from legacy profiles and
     },
     '2026-08-17T12:00:00.000Z'
   );
+  const defaults = storage.normalizeStoredSettings({}, '2026-08-17T12:00:00.000Z');
+  const unsafeString = storage.normalizeStoredSettings({ skipCleanupReview: 'true' }, '2026-08-17T12:00:00.000Z');
   assert.equal(normalized.cleanupMode, 'expert');
-  assert.equal(Object.hasOwn(normalized, 'skipCleanupReview'), false);
+  assert.equal(normalized.skipCleanupReview, true);
+  assert.equal(defaults.skipCleanupReview, false);
+  assert.equal(unsafeString.skipCleanupReview, false);
 });
 
 test('the storage layer refuses to persist reports that may include private-window scope', async () => {
@@ -145,15 +177,26 @@ test('the storage layer refuses to persist reports that may include private-wind
   assert.equal(state.has(STORAGE_KEYS.reports), false);
 });
 
-test('service-worker startup and load paths invoke privacy expiration maintenance', async () => {
+test('service-worker startup and load readiness invoke bounded privacy expiration maintenance', async () => {
   const source = await readFile(new URL('../../src/background/service-worker.js', import.meta.url), 'utf8');
   const ensureStart = source.indexOf('function ensurePrivacyDefaults()');
   const ensureEnd = source.indexOf('async function handleMaintenanceAlarm', ensureStart);
   const ensure = source.slice(ensureStart, ensureEnd);
   assert.ok(ensureStart >= 0 && ensureEnd > ensureStart);
-  assert.match(ensure, /expireLatestReportIfNeeded\(\)/);
-  assert.match(source, /chrome\.runtime\.onStartup[\s\S]*?ensurePrivacyDefaults\(\)/);
-  assert.ok((source.match(/ensurePrivacyDefaults\(\)\.catch/g) || []).length >= 2);
+  assert.match(ensure, /expireLatestReportIfNeededWithBoundedRead\(\)/);
+  assert.match(
+    source,
+    /chrome\.runtime\.onStartup[\s\S]*?requestLifecycleMaintenance\('startup',[\s\S]*?ensurePrivacyDefaults: true/
+  );
+  assert.match(source, /startServiceWorkerLoadReadinessMaintenance\('service-worker-load'\)/);
+  assert.match(
+    source,
+    /function startServiceWorkerLoadReadinessMaintenance[\s\S]*?requestLifecycleMaintenance\(reason,[\s\S]*?ensurePrivacyDefaults: true/
+  );
+  assert.match(
+    source,
+    /async function requestLifecycleMaintenance[\s\S]*?runLifecycleMaintenanceStage\(reason, 'privacy-readiness', ensurePrivacyDefaults\)/
+  );
 });
 
 test('forget report removes the current report from both active storage and optional history', async () => {
@@ -166,7 +209,7 @@ test('forget report removes the current report from both active storage and opti
   state.set(STORAGE_KEYS.activeReport, current);
   state.set(STORAGE_KEYS.reports, [current, older]);
 
-  const result = await storage.forgetLatestReport();
+  const result = await storage.forgetLatestReport(current.id);
 
   assert.equal(result.forgottenReportId, current.id);
   assert.equal(result.remainingHistoryCount, 1);
@@ -174,6 +217,25 @@ test('forget report removes the current report from both active storage and opti
   assert.deepEqual(
     state.get(STORAGE_KEYS.reports).map((report) => report.id),
     [older.id]
+  );
+});
+
+test('forget report rejects a stale displayed ID without removing the newer stored report', async () => {
+  const current = await finishReport(
+    createReport({ domain: 'current.example', matchMode: 'registrable_domain' }, 'current.example')
+  );
+  const stale = await finishReport(
+    createReport({ domain: 'stale.example', matchMode: 'registrable_domain' }, 'stale.example')
+  );
+  state.set(STORAGE_KEYS.activeReport, current);
+  state.set(STORAGE_KEYS.reports, [current, stale]);
+
+  await assert.rejects(storage.forgetLatestReport(stale.id), /no longer the latest stored report/i);
+
+  assert.equal(state.get(STORAGE_KEYS.activeReport).id, current.id);
+  assert.deepEqual(
+    state.get(STORAGE_KEYS.reports).map((report) => report.id),
+    [current.id, stale.id]
   );
 });
 
@@ -223,6 +285,63 @@ test('a cancellation request remains monotonic across concurrent progress update
   const job = await storage.getActiveJob();
   assert.equal(job.cancelRequested, true);
   assert.equal(job.percent, 20);
+});
+
+test('a cancellation request is never inherited by a replacement cleanup job', async () => {
+  const startedAt = '2026-08-20T12:00:00.000Z';
+  await storage.setActiveJob({
+    id: 'sitewipe-cancelled-job-a',
+    status: 'running',
+    targetDomain: 'first.example',
+    startedAt,
+    updatedAt: startedAt,
+    percent: 30,
+    phase: 'cleanup',
+    label: 'Cancel requested',
+    detail: 'Stopping',
+    cancelRequested: true
+  });
+
+  await storage.setActiveJob({
+    id: 'sitewipe-new-job-b',
+    status: 'running',
+    targetDomain: 'second.example',
+    startedAt: '2026-08-20T12:01:00.000Z',
+    updatedAt: '2026-08-20T12:01:00.000Z',
+    percent: 0,
+    phase: 'created',
+    label: 'Queued',
+    detail: 'New cleanup',
+    cancelRequested: false
+  });
+
+  const replacement = await storage.getActiveJob();
+  assert.equal(replacement.id, 'sitewipe-new-job-b');
+  assert.equal(replacement.cancelRequested, false);
+});
+
+test('a stale shield callback cannot clear a newer job shield by returning undefined', async () => {
+  const startedAt = '2026-08-20T12:00:00.000Z';
+  await storage.setActiveShield({
+    domain: 'second.example',
+    displayName: 'second.example',
+    associatedTargets: [],
+    ruleIds: [730000],
+    urlFilters: ['||second.example^'],
+    mode: 'cleanup-only',
+    lifecycle: 'active',
+    pendingMutation: false,
+    expiresAt: null,
+    startedAt,
+    jobId: 'cleanup-b'
+  });
+
+  await storage.mutateActiveShield((current) => (current?.jobId === 'cleanup-a' ? null : undefined));
+
+  const shield = await storage.getActiveShield();
+  assert.equal(shield.jobId, 'cleanup-b');
+  assert.equal(shield.lifecycle, 'active');
+  assert.equal(shield.ruleIds[0], 730000);
 });
 
 test('deleting report history preserves the active latest report', async () => {

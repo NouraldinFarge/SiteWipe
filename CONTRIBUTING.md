@@ -2,7 +2,7 @@
 
 > **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-The first-party source is MIT-licensed and intended for public review, but external contribution intake remains paused while anonymous repository access returns `404`, the maintenance commitment is unresolved, and installed-browser evidence is incomplete. Reproducible issue reports must use synthetic data; suspected vulnerabilities must use the confidential route in [`SECURITY.md`](./SECURITY.md). These rules document the engineering standard for every local and proposed change.
+The first-party source is MIT-licensed and publicly reviewable, but external contribution intake remains paused while the maintenance commitment is unresolved and installed-browser evidence for the current candidate is incomplete. Reproducible issue reports must use synthetic data; suspected vulnerabilities must use the confidential route in [`SECURITY.md`](./SECURITY.md). These rules document the engineering standard for every local and proposed change.
 
 ## Setup
 

@@ -1,11 +1,16 @@
 {
   "schemaVersion": 1,
   "status": "pending",
-  "attemptedAt": null,
+  "attemptedAt": "2026-08-21T23:25:00-05:00",
   "artifact": {
-    "version": "1.11.4",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.4.zip",
+    "version": "1.11.46",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.46.zip",
     "sha256": null
+  },
+  "priorExactArtifactEvidence": {
+    "version": "1.11.42",
+    "record": "browser-validation-2026-08-21-v1.11.42.json",
+    "status": "historical_not_current"
   },
   "chrome": {
     "status": "pending",
@@ -21,15 +26,131 @@
     "disposableProfile": null,
     "assertions": []
   },
+  "syntheticInAppBrowser": {
+    "status": "passed_synthetic_only",
+    "attemptedAt": "2026-08-21T23:25:00-05:00",
+    "environment": "ChatGPT in-app Browser",
+    "fixture": "HTTP-served SiteWipe UI with synthetic browser-API mocks",
+    "assertions": [
+      {
+        "id": "synthetic-standard-reviewed-permission-handoff",
+        "status": "passed",
+        "claimScope": "Final-source Standard detailed-review UI and synthetic missing-permission handoff only.",
+        "observations": {
+          "cleanupMode": "standard",
+          "approvalMode": "detailed_review",
+          "reviewedExactTargetPatterns": 4,
+          "downloadedFileDeletion": "disabled",
+          "approvedRuns": 1,
+          "permissionRequests": 1,
+          "armAttempts": 1,
+          "armRejections": 0,
+          "resumeAttempts": 1,
+          "popupPermissionRemovalCalls": 0,
+          "terminalOutcome": "completed_verified_zero"
+        }
+      },
+      {
+        "id": "synthetic-expired-native-grant-reconciliation",
+        "status": "passed",
+        "claimScope": "Final-source reviewed and settings-direct expiry UI with deterministic synthetic worker settlement.",
+        "observations": {
+          "reviewedAndDirectRoutesChecked": true,
+          "approvedRunsPerRoute": 0,
+          "permissionRequestsPerRoute": 1,
+          "armAttemptsPerRoute": 1,
+          "armRejectionsPerRoute": 1,
+          "resumeAttemptsPerRoute": 1,
+          "promptSettlementsPerRoute": 1,
+          "popupPermissionRemovalCallsPerRoute": 0,
+          "staleReviewHidden": true,
+          "staleApprovalDisabled": true,
+          "freshComposerEnabled": true,
+          "terminalGuidance": "No cleanup started only after strict worker-simulated release proof."
+        }
+      },
+      {
+        "id": "synthetic-non-reseeding-partition-probe",
+        "status": "passed",
+        "claimScope": "Loopback top-level fixture with a chips.localhost embedded third-party partition, using only the read-only probe after setup.",
+        "observations": {
+          "recordsPerBoundedStore": 8,
+          "topLevelBeforeAndProbe": {
+            "localStorageKeys": 8,
+            "sessionStorageKeys": 8,
+            "indexedDbDatabases": 1,
+            "matchingCaches": 1,
+            "matchingServiceWorkers": 1,
+            "cookieNames": ["sitewipe_fixture", "sitewipe_partitioned"]
+          },
+          "embeddedBeforeAndProbe": {
+            "localStorageKeys": 8,
+            "sessionStorageKeys": 8,
+            "indexedDbDatabases": 1,
+            "matchingCaches": 1,
+            "matchingServiceWorkers": 1,
+            "cookieNames": ["sitewipe_partitioned"]
+          },
+          "autoseedIgnoredOnProbe": true,
+          "seedAndResetControlsDisabled": true,
+          "downloadTargetRemoved": true,
+          "fixtureResetAfterValidation": true
+        }
+      },
+      {
+        "id": "synthetic-options-fail-closed-retry",
+        "status": "passed",
+        "claimScope": "Final-source Options initialization and recovery UI only.",
+        "observations": {
+          "initialStatus": "Load failed · controls locked",
+          "mutatingControlsInitiallyDisabled": true,
+          "retryStatus": "Settings ready",
+          "controlsEnabledOnlyAfterAuthoritativeRetry": true
+        }
+      },
+      {
+        "id": "synthetic-sidepanel-incomplete-residue-truthfulness",
+        "status": "passed",
+        "claimScope": "Final-source narrow synthetic report UI only.",
+        "observations": {
+          "requestedWidth": 320,
+          "clientWidth": 320,
+          "scrollWidth": 320,
+          "horizontalOverflow": false,
+          "outcomeBadge": "Residue + unknowns",
+          "outcomeTitle": "Residue found; verification incomplete",
+          "knownResidue": "At least 3 — full total unknown",
+          "failedRequiredCheck": "history"
+        }
+      }
+    ],
+    "qualifiesAsInstalledExtensionEvidence": false,
+    "limitations": [
+      "Does not load the runtime ZIP or a chrome-extension:// origin.",
+      "Does not exercise native host-permission prompts, incognito spanning, MV3 worker lifecycle, or privileged browser-data mutation APIs.",
+      "Cannot satisfy Chrome, Brave, installed accessibility, exact-artifact performance, compatibility, or store-media approval fields.",
+      "No host-resolver override was used: the partition check used loopback 127.0.0.1 as the top-level site and chips.localhost in the embedded frame.",
+      "The synthetic route reads current source rather than loading the runtime ZIP, so artifact.sha256 remains null and this result is not exact-artifact evidence.",
+      "No Chrome-control or Computer Use capability was used. No download link was opened, and no downloaded file was deleted."
+    ]
+  },
   "automationAttempt": null,
   "requiredMatrix": [
     "fresh install and upgrade migration",
-    "mandatory complete Standard and Expert review across associated, local, private, protected/PWA, file, persistent-shield, permission-requesting, and uncertain scope",
-    "read-only preparation, initial action only renders review, explicit final approval, native permission prompt grant/withhold behavior, and no stale/alternate quick cleanup route",
+    "default detailed Standard and Expert review displays mode, exact and broader site access, associated/local/private/protected/PWA/file/persistent-shield/permission-requesting/uncertain scope, impacts, effects, warnings, limitations, and acknowledgements",
+    "the default-off Skip detailed cleanup review completely setting requires explicit confirmation, persists in Standard and Expert, and uses only preflight-bound settings_direct authority",
+    "hidden read-only direct preparation and durable prompt_pending lease complete before Clean now is enabled; one SiteWipe cleanup action runs only after fresh final revalidation, while a native browser site-access confirmation may remain an additional browser interaction",
+    "detailed review still requires explicit final approval, and no stale, raw, caller-controlled, or legacy quick/bypass cleanup route exists",
+    "SW-036 regression: a legitimate action-popup sender may omit documentId; preparation resolves exactly one exact-URL POPUP with an opaque contextId and Chrome action-popup tabId/windowId -1 sentinels, keeps the spanning popup profile separate from the positive source window/private state, reaches the non-destructive detailed review, and rejects zero/multiple/malformed contexts before authority or mutation",
+    "settings, target/associated scope, source/private context, browser private-access, and complete impact/review snapshot changes reject the token before mutation",
+    "normal-only authority never expands into private discovery, injection, overlays, tab changes/closure, or verification",
+    "exact required and relevant broader/all-site pre-existing host access is disclosed truthfully and preserved, unrelated host-permission canaries are omitted, and only preflight-classified temporary exact patterns enter release calls",
     "PRIVATE-suffix sibling and lookalike isolation",
-    "normal and private-window access disabled/enabled",
+    "normal and private-window access disabled/enabled; private-source settings_direct requires browser-controlled Allow in incognito and pre-existing exact target host access",
     "partitioned cookies and every exposed storage fixture",
-    "worker termination, browser restart, popup closure, and orphan DNR repair",
+    "downloaded-file exact live identity/state/target revalidation preserves file and record on uncertainty; detailed mode requires its typed phrase while settings_direct truthfully records that the phrase was skipped",
+    "worker termination, browser restart, popup closure, late DNR install after timeout, and orphan DNR repair",
+    "live cleanup rejects settings/reset/shield/maintenance/local-reset changes; Standard and first Expert entry keep embedded discovery off and remove webNavigation; settings backup import is bounded and confirmed",
     "ten consecutive runs, timeouts, partial failures, and report expiry",
     "protected data and unrelated controls remain unchanged"
   ],
@@ -37,7 +158,8 @@
     "Node tests and static checks do not establish installed Chrome behavior.",
     "Chrome evidence cannot be reused as Brave evidence.",
     "No browser version or extension artifact hash is approved until the matrix is actually run.",
-    "Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion."
+    "Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion.",
+    "ChatGPT in-app Browser synthetic UI results are not installed-extension evidence and remain isolated in their separate evidence object."
   ],
   "reviewerApproval": false
 }

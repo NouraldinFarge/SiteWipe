@@ -112,3 +112,23 @@ test('browser API timeout is explicit and the underlying unknown operation is no
   assert.equal(report.summary.verificationStatus, 'incomplete');
   assert.equal(report.summary.verificationNoExposedResidueFound, false);
 });
+
+test('download verification excludes private records outside the reviewed scope', async () => {
+  const { target, report } = fixture();
+  const adapters = {
+    ...zeroAdapters,
+    discoverDownloads: async () => [{ id: 30, incognito: true, url: 'https://synthetic.example.com/private.zip' }]
+  };
+  await withChrome(
+    {
+      tabs: { query: async () => [] },
+      cookies: {},
+      history: { search: async () => [] },
+      downloads: { search: async () => [] }
+    },
+    () => verifyExposedResidue(target, report, { verificationTimeoutMs: 50, incognitoAccess: false }, adapters)
+  );
+
+  assert.equal(report.summary.verificationCategories.downloads.state, 'verified_zero');
+  assert.equal(report.summary.verificationCategories.downloads.count, 0);
+});

@@ -1,0 +1,228 @@
+{
+  "schemaVersion": 1,
+  "status": "pending",
+  "attemptedAt": "2026-08-21T15:12:16.990Z",
+  "artifact": {
+    "version": "1.11.35",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.35.zip",
+    "sha256": "36063DED39D585F01A8D7A393E033392E690117EFFB8CC5AC082751D27348C19"
+  },
+  "chrome": {
+    "status": "pending",
+    "version": "151.0.7922.172",
+    "operatingSystem": "Windows 11 Pro 24H2, build 26100.7628, x64",
+    "disposableProfile": true,
+    "assertions": [
+      {
+        "id": "chrome-standard-detailed-registrable-small-2026-08-21",
+        "status": "passed",
+        "claimScope": "One normal-window Standard detailed-review synthetic-fixture cleanup.",
+        "observedAt": "2026-08-21T15:12:16.990Z",
+        "artifactSha256": "36063DED39D585F01A8D7A393E033392E690117EFFB8CC5AC082751D27348C19",
+        "environment": {
+          "browser": "Chrome",
+          "version": "151.0.7922.172",
+          "operatingSystem": "Windows 11 Pro 24H2, build 26100.7628, x64",
+          "disposableProfile": true,
+          "unsyncedProfile": true
+        },
+        "fixture": {
+          "version": "sitewipe-synthetic-v1",
+          "scale": "small",
+          "port": 43822,
+          "targetOrigin": "http://selected.example.com:43822",
+          "includedSubdomainOrigin": "http://sub.selected.example.com:43822",
+          "lookalikeControlOrigin": "http://selected.example.com.evil.invalid:43822",
+          "preCleanAutoseed": true,
+          "postCleanAutoseed": false,
+          "hostResolverRules": [
+            "MAP selected.example.com 127.0.0.1",
+            "MAP sub.selected.example.com 127.0.0.1",
+            "MAP selected.example.com.evil.invalid 127.0.0.1",
+            "MAP alice.blogspot.com 127.0.0.1",
+            "MAP bob.blogspot.com 127.0.0.1",
+            "MAP chips.localhost 127.0.0.1"
+          ]
+        },
+        "preflight": {
+          "canonicalTarget": "example.com",
+          "targetMode": "registrable_domain",
+          "matchingNormalTabs": 2,
+          "matchingHistoryEntries": 2,
+          "matchingDownloadRecords": 0,
+          "downloadedFileDeletion": false,
+          "privateAccess": false,
+          "requiredHostPatterns": [
+            "http://example.com/*",
+            "https://example.com/*",
+            "http://*.example.com/*",
+            "https://*.example.com/*"
+          ]
+        },
+        "authorization": {
+          "cleanupMode": "standard",
+          "approvalMode": "detailed_review",
+          "scopeAcknowledgementCompleted": true,
+          "targetAccessAvailableBeforeCleanup": true,
+          "nativePromptOnSuccessfulRun": "not_observed_because_reviewed_target_access_was_already_available"
+        },
+        "report": {
+          "runtimeStatus": "completed",
+          "runtimeErrors": 0,
+          "normalTabsClosed": 2,
+          "privateTabsClosed": 0,
+          "targetTabsAudited": 2,
+          "cookiesRemoved": 2,
+          "historyEntriesRemoved": 2,
+          "downloadRecordsErased": 0,
+          "downloadedFilesRemoved": 0,
+          "downloadedFileRemovalFailures": 0,
+          "fourSurfaceResidue": {
+            "cookies": 0,
+            "tabs": 0,
+            "history": 0,
+            "downloadRecords": 0
+          },
+          "allRequiredVerificationChecksCompleted": true,
+          "recoveryPreflight": "healthy",
+          "temporaryRequestShield": "skipped_normal_only_safety_boundary",
+          "exactRequiredHostGrantsRemainingAfterRelease": 0,
+          "broaderHostGrantsRemainingAfterRelease": 0,
+          "allSiteHostAccessObserved": false,
+          "ownedDnrResidueReported": 0,
+          "integrityChecksum": "sha256-c482d046aca707634e0887af07af38f3d7da85524233cdff3bbb352967dcd9f6"
+        },
+        "postClean": {
+          "diagnosticTabsOpenedAfterTerminalVerification": true,
+          "selectedOrigin": {
+            "localStorageKeys": 0,
+            "sessionStorageKeys": 0,
+            "indexedDbDatabases": 0,
+            "matchingCaches": 0,
+            "matchingServiceWorkers": 0,
+            "cookieNames": [],
+            "storageBucketsSupported": false,
+            "opfsSupported": false
+          },
+          "subdomainOrigin": {
+            "localStorageKeys": 0,
+            "sessionStorageKeys": 0,
+            "indexedDbDatabases": 0,
+            "matchingCaches": 0,
+            "matchingServiceWorkers": 0,
+            "cookieNames": [],
+            "storageBucketsSupported": false,
+            "opfsSupported": false
+          },
+          "lookalikeControl": {
+            "localStorageKeys": 8,
+            "sessionStorageKeys": 8,
+            "indexedDbDatabases": 1,
+            "matchingCaches": 0,
+            "matchingServiceWorkers": 0,
+            "cookieNames": ["sitewipe_fixture"],
+            "storageBucketsSupported": false,
+            "opfsSupported": false
+          },
+          "chromeExtensionMenuOnCleanedSubdomain": "No access needed",
+          "postRunExtractedArtifactFiles": 55,
+          "postRunExtractedArtifactMismatches": 0
+        },
+        "limitations": [
+          "One Standard detailed-review run only; direct mode, Expert mode, incognito, Brave, downloaded-file mutation, lifecycle recovery, accessibility, and performance are not established.",
+          "The successful run began with reviewed target access already available, so it does not close the missing-access to native-prompt to grant path.",
+          "The diagnostic tabs and their history entries were created after terminal report verification.",
+          "A new tab's zero SessionStorage does not independently prove explicit deletion of the closed tab's SessionStorage.",
+          "Cache Storage and service-worker fixtures were already zero before cleanup; Storage Buckets and OPFS were unsupported and are not claimed as cleaned.",
+          "The fixture snapshots concern SiteWipe fixture-prefixed or fixture-named state, not every possible value at those origins."
+        ]
+      },
+      {
+        "id": "chrome-native-prompt-abandonment-2026-08-21",
+        "status": "passed",
+        "claimScope": "One installed target-access prompt abandonment observation before the successful cleanup.",
+        "observedAt": "2026-08-21",
+        "promptWording": "Read and change your data on all example.com sites and example.com",
+        "permissionGranted": false,
+        "cleanupJobStarted": false,
+        "fixtureStateChanged": false,
+        "limitations": [
+          "The browser-controlled prompt disappeared during UI inspection; the Deny button was not deliberately activated.",
+          "This assertion does not establish the successful missing-access to grant path."
+        ]
+      },
+      {
+        "id": "chrome-popup-side-panel-user-gesture-2026-08-21",
+        "status": "passed",
+        "claimScope": "One completed popup report opened in the installed side panel from one Open full report activation.",
+        "observedAt": "2026-08-21T15:12:16.990Z",
+        "exactBoundReportOpened": true,
+        "userGestureRejected": false,
+        "reportIntegrityChecksum": "sha256-c482d046aca707634e0887af07af38f3d7da85524233cdff3bbb352967dcd9f6",
+        "limitations": [
+          "This is not an accessibility result and does not complete the side-panel or multi-window matrix."
+        ]
+      }
+    ]
+  },
+  "brave": {
+    "status": "pending",
+    "version": null,
+    "operatingSystem": null,
+    "disposableProfile": null,
+    "assertions": []
+  },
+  "syntheticInAppBrowser": {
+    "status": "pending",
+    "attemptedAt": null,
+    "environment": "ChatGPT in-app Browser",
+    "fixture": "HTTP-served SiteWipe UI with synthetic browser-API mocks",
+    "assertions": [],
+    "qualifiesAsInstalledExtensionEvidence": false,
+    "limitations": [
+      "Does not load the runtime ZIP or a chrome-extension:// origin.",
+      "Does not exercise native host-permission prompts, incognito spanning, MV3 worker lifecycle, or privileged browser-data mutation APIs.",
+      "Cannot satisfy Chrome, Brave, installed accessibility, exact-artifact performance, compatibility, or store-media approval fields."
+    ]
+  },
+  "automationAttempt": {
+    "status": "partial_pass",
+    "attemptedAt": "2026-08-21T15:12:16.990Z",
+    "controller": "ChatGPT Computer Use",
+    "scope": "One exact-artifact installed Chrome Standard detailed-review cleanup and its bounded post-clean fixture checks.",
+    "urlSafetyPause": {
+      "occurred": true,
+      "outcome": "The controller paused before diagnostic navigation when it could not establish the current Chrome URL with sufficient confidence, then resumed in a new turn after re-observation. No duplicate cleanup was executed."
+    },
+    "limitations": [
+      "This was a partial installed matrix run, not full unattended browser automation.",
+      "No user authentication, daily browser profile, private extension ID, or local profile path is included in public evidence."
+    ]
+  },
+  "requiredMatrix": [
+    "fresh install and upgrade migration",
+    "default detailed Standard and Expert review displays mode, exact and broader site access, associated/local/private/protected/PWA/file/persistent-shield/permission-requesting/uncertain scope, impacts, effects, warnings, limitations, and acknowledgements",
+    "the default-off Skip detailed cleanup review completely setting requires explicit confirmation, persists in Standard and Expert, and uses only preflight-bound settings_direct authority",
+    "hidden read-only direct preparation and durable prompt_pending lease complete before Clean now is enabled; one SiteWipe cleanup action runs only after fresh final revalidation, while a native browser site-access confirmation may remain an additional browser interaction",
+    "detailed review still requires explicit final approval, and no stale, raw, caller-controlled, or legacy quick/bypass cleanup route exists",
+    "settings, target/associated scope, source/private context, browser private-access, and complete impact/review snapshot changes reject the token before mutation",
+    "normal-only authority never expands into private discovery, injection, overlays, tab changes/closure, or verification",
+    "exact required and relevant broader/all-site pre-existing host access is disclosed truthfully and preserved, unrelated host-permission canaries are omitted, and only preflight-classified temporary exact patterns enter release calls",
+    "PRIVATE-suffix sibling and lookalike isolation",
+    "normal and private-window access disabled/enabled; private-source settings_direct requires browser-controlled Allow in incognito and pre-existing exact target host access",
+    "partitioned cookies and every exposed storage fixture",
+    "downloaded-file exact live identity/state/target revalidation preserves file and record on uncertainty; detailed mode requires its typed phrase while settings_direct truthfully records that the phrase was skipped",
+    "worker termination, browser restart, popup closure, late DNR install after timeout, and orphan DNR repair",
+    "live cleanup rejects settings/reset/shield/maintenance/local-reset changes; Standard and first Expert entry keep embedded discovery off and remove webNavigation; settings backup import is bounded and confirmed",
+    "ten consecutive runs, timeouts, partial failures, and report expiry",
+    "protected data and unrelated controls remain unchanged"
+  ],
+  "limitations": [
+    "Node tests and static checks do not establish installed Chrome behavior.",
+    "Chrome evidence cannot be reused as Brave evidence.",
+    "No browser version or extension artifact hash is approved until the matrix is actually run.",
+    "Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion.",
+    "ChatGPT in-app Browser synthetic UI results are not installed-extension evidence and remain isolated in their separate evidence object."
+  ],
+  "reviewerApproval": false
+}

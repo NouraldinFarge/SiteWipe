@@ -1,3 +1,11 @@
+import {
+  createFixtureApi,
+  fixtureControlPolicy,
+  fixtureStartupAction,
+  partitionEmbedMode,
+  partitionFrameUrl
+} from '/partition-fixture-route.js';
+
 const VERSION = 'sitewipe-synthetic-v1';
 const SCALE_COUNTS = Object.freeze({ small: 8, medium: 64, large: 256 });
 const params = new URLSearchParams(location.search);
@@ -5,22 +13,54 @@ const scale = Object.hasOwn(SCALE_COUNTS, params.get('scale')) ? params.get('sca
 const count = SCALE_COUNTS[scale];
 const prefix = `${VERSION}:${location.hostname}:${location.port || 'default'}`;
 const result = document.querySelector('#result');
+const seedButton = document.querySelector('#seed');
+const resetButton = document.querySelector('#reset');
+const downloadLink = document.querySelector('#download');
+const controlPolicy = fixtureControlPolicy(location.pathname);
 
 document.querySelector('#identity').textContent =
   `${VERSION} · ${location.origin} · ${scale} (${count} records per bounded store)`;
-document.querySelector('#seed').addEventListener('click', run(seedFixture));
 document.querySelector('#snapshot').addEventListener('click', run(snapshotFixture));
-document.querySelector('#reset').addEventListener('click', run(resetFixture));
 
-if (params.get('embed') === '1' && location.hostname !== 'chips.localhost') {
+if (controlPolicy.readOnly) {
+  seedButton.hidden = true;
+  seedButton.disabled = true;
+  resetButton.hidden = true;
+  resetButton.disabled = true;
+  downloadLink.hidden = true;
+  downloadLink.removeAttribute('href');
+  document.querySelector('#probeNotice').hidden = false;
+} else {
+  seedButton.addEventListener('click', run(seedFixture));
+  resetButton.addEventListener('click', run(resetFixture));
+}
+
+const partitionMode = partitionEmbedMode({ pathname: location.pathname, embed: params.get('embed') });
+if (partitionMode && location.hostname !== 'chips.localhost') {
   const section = document.querySelector('#partitionFixture');
   section.hidden = false;
-  document.querySelector('#partitionFrame').src =
-    `http://chips.localhost:${location.port}/?scale=${encodeURIComponent(scale)}&autoseed=1&thirdparty=1`;
+  document.querySelector('#partitionInstructions').textContent =
+    partitionMode === 'probe'
+      ? 'Read-only preservation probe: the embedded frame snapshots existing state without seeding it.'
+      : 'Seed setup: the embedded frame automatically creates disposable partitioned fixture state.';
+  document.querySelector('#partitionFrame').src = partitionFrameUrl({
+    mode: partitionMode,
+    port: location.port,
+    scale
+  });
 }
-if (params.get('autoseed') === '1') run(seedFixture)();
+const startupAction = fixtureStartupAction({ pathname: location.pathname, autoseed: params.get('autoseed') });
+if (startupAction === 'seed') run(seedFixture)();
+else if (startupAction === 'snapshot') run(snapshotFixture)();
 
-window.sitewipeFixture = Object.freeze({ seedFixture, snapshotFixture, resetFixture, version: VERSION, scale });
+window.sitewipeFixture = createFixtureApi({
+  pathname: location.pathname,
+  seedFixture,
+  snapshotFixture,
+  resetFixture,
+  version: VERSION,
+  scale
+});
 
 function run(operation) {
   return async () => {

@@ -1,3 +1,6 @@
+import { buildHostPermissionInventory } from './host-permissions.js';
+import { PROGRESS_OVERLAY_MAX_TABS } from './constants.js';
+
 const PROTECTED_CATEGORIES = Object.freeze([
   'Saved passwords, passkeys, and other credentials',
   'Bookmarks',
@@ -23,6 +26,7 @@ const UNAVAILABLE_CATEGORIES = Object.freeze([
  *   sourceIncognito?: boolean,
  *   incognitoAccess?: boolean,
  *   hostPermissionsGranted?: boolean,
+ *   hostPermissionInventory?: Record<string, any>,
  *   impact?: Record<string, any>,
  *   approvalToken?: string,
  *   createdAt?: string,
@@ -37,12 +41,27 @@ export function buildCleanupReview({
   sourceIncognito = false,
   incognitoAccess = false,
   hostPermissionsGranted = false,
+  hostPermissionInventory = {},
   impact = {},
   approvalToken,
   createdAt,
   expiresAt
 }) {
   const primary = describeScopeTarget(target);
+  const requiredHostPermissionOrigins = [...new Set((target?.hostPermissionOrigins || []).map(String))];
+  const permissionInventory = buildHostPermissionInventory({
+    requiredOrigins: requiredHostPermissionOrigins,
+    coveredRequiredOrigins: Array.isArray(hostPermissionInventory.coveredRequiredHostPermissionOrigins)
+      ? hostPermissionInventory.coveredRequiredHostPermissionOrigins
+      : hostPermissionsGranted
+        ? requiredHostPermissionOrigins
+        : [],
+    grantedOrigins: Array.isArray(hostPermissionInventory.grantedHostPermissionOrigins)
+      ? hostPermissionInventory.grantedHostPermissionOrigins
+      : hostPermissionsGranted
+        ? requiredHostPermissionOrigins
+        : []
+  });
   const associatedTargets = (target?.associatedTargets || []).map(describeScopeTarget);
   const completedFileIds = uniqueIds(impact.matchedCompletedFileIds);
   const fileCandidateCount = Number.isInteger(impact.matchedCompletedFileCount)
@@ -57,7 +76,17 @@ export function buildCleanupReview({
     : '';
   const matchingPrivateTabs = finiteCount(impact.matchingPrivateTabs);
   const privateDataObserved = Boolean(sourceIncognito || (matchingPrivateTabs !== null && matchingPrivateTabs > 0));
-  const requestShieldEnabled = settings.temporaryDnrShield !== false || settings.postWipeSessionBlock === true;
+  const requestShieldRequested = settings.temporaryDnrShield !== false || settings.postWipeSessionBlock === true;
+  // Session DNR rules are shared across the extension's spanning profile
+  // context and cannot be constrained to a reviewed normal-window-only scope.
+  // Only install them when private scope is explicitly included in this review.
+  const requestShieldEnabled = requestShieldRequested && incognitoAccess === true;
+  const requestShieldDisabledReason =
+    requestShieldRequested && !requestShieldEnabled
+      ? 'Skipped for normal-only safety: SiteWipe cannot constrain shared DNR session rules to normal windows, so no target request block will be installed.'
+      : null;
+  const progressOverlay = describeProgressOverlayEffect(settings, sourceWindowId);
+  const configuredCleanup = describeConfiguredCleanupEffects(settings);
 
   const categoriesAttempted = [
     requestShieldEnabled ? 'Temporary target request shield' : null,
@@ -92,6 +121,7 @@ export function buildCleanupReview({
 
   const warnings = [
     'Approved cleanup removes matching browser data. Completed changes cannot be undone by SiteWipe.',
+    'Expected counts are a read-only preflight snapshot. Matching tabs, history, and download records may change before cleanup starts; on-disk file removal remains limited to the separately confirmed preflight-bound file IDs.',
     finiteCount(impact.matchingTabs) > 0
       ? `${impact.matchingTabs} currently matching tab(s) will be closed; additional matching tabs present when cleanup starts may also close.`
       : 'Any matching tabs present when cleanup starts will be closed.',
@@ -109,16 +139,29 @@ export function buildCleanupReview({
     settings.deleteDownloadedFiles && !willRemoveFiles && canBindFileCandidates
       ? 'No completed downloaded files matched during preflight, so this approval authorizes no on-disk file removal.'
       : null,
-    settings.postWipeSessionBlock
+    requestShieldEnabled && settings.postWipeSessionBlock
       ? 'The target request shield will remain active after cleanup until its configured expiration or browser restart.'
       : null,
+    requestShieldDisabledReason
+      ? `${requestShieldDisabledReason} The target may recreate browser data while cleanup runs.`
+      : null,
+    ...progressOverlay.warnings,
+    permissionInventory.broadGrantedHostPermissionOrigins.length
+      ? `SiteWipe already has ${permissionInventory.broadGrantedHostPermissionOrigins.length} broader user-controlled host permission pattern(s). They are displayed separately, never requested by this cleanup, and preserved.`
+      : null,
     hostPermissionsGranted
-      ? 'The preflight-bound target site access was already available and will be preserved.'
+      ? permissionInventory.requiredCoveredByBroadHostPermissionOrigins.length
+        ? 'The preflight-bound target site access is available partly or entirely through broader pre-existing access. That user-controlled access will be preserved.'
+        : 'The preflight-bound target site access was already available as exact grants and will be preserved.'
       : 'Chrome/Brave may show its own target-specific site-access prompt after Clean now. Access newly granted for this cleanup is durably tracked and release is retried until the browser proves it absent.'
   ].filter(Boolean);
 
   const review = {
     schemaVersion: 1,
+    approvalMode:
+      settings.skipCleanupReview === true
+        ? CLEANUP_APPROVAL_MODES.settingsDirect
+        : CLEANUP_APPROVAL_MODES.detailedReview,
     approvalToken,
     createdAt,
     expiresAt,
@@ -165,14 +208,24 @@ export function buildCleanupReview({
         authorizationBoundToReviewedCandidates: true
       },
       requestShield: {
+        requested: requestShieldRequested,
         enabled: requestShieldEnabled,
-        remainsAfterCleanup: Boolean(settings.postWipeSessionBlock)
+        disabledForNormalOnlyReview: Boolean(requestShieldDisabledReason),
+        disabledReason: requestShieldDisabledReason,
+        remainsAfterCleanup: Boolean(requestShieldEnabled && settings.postWipeSessionBlock),
+        expiresMinutes:
+          requestShieldEnabled && settings.postWipeSessionBlock
+            ? normalizedShieldExpiryMinutes(settings.postWipeShieldExpiresMinutes)
+            : null
       },
+      progressOverlay,
+      configuredCleanup,
       verification: { enabled: settings.verificationPass !== false },
       localReport: reportRetention
     },
     settingsSnapshot: {
       cleanupMode: settings.cleanupMode === 'expert' ? 'expert' : 'standard',
+      skipCleanupReview: settings.skipCleanupReview === true,
       includeProtectedWebOrigins: Boolean(settings.includeProtectedWebOrigins),
       deleteDownloadedFiles: Boolean(settings.deleteDownloadedFiles),
       reportRedaction: settings.redactReports !== false,
@@ -181,7 +234,8 @@ export function buildCleanupReview({
     },
     sourceWindowId: Number.isInteger(sourceWindowId) ? sourceWindowId : null,
     hostPermissionsGranted: Boolean(hostPermissionsGranted),
-    requiredHostPermissionOrigins: [...new Set((target?.hostPermissionOrigins || []).map(String))],
+    requiredHostPermissionOrigins,
+    hostPermissionInventory: permissionInventory,
     previewLimitations: Array.isArray(impact.limitations) ? impact.limitations.map(String) : [],
     warnings,
     requirements,
@@ -191,12 +245,110 @@ export function buildCleanupReview({
   return review;
 }
 
-export function validateCleanupReviewApproval(requirements = {}, approval = {}) {
+function describeProgressOverlayEffect(settings, sourceWindowId) {
+  const enabled = settings.progressOverlay === true;
+  const scope = normalizeOverlayScope(settings.overlayScope, sourceWindowId);
+  const scopeDescription =
+    scope === 'all_tabs'
+      ? 'all accessible HTTP(S) tabs across browser windows'
+      : scope === 'current_window'
+        ? 'accessible HTTP(S) tabs in this popup/source window'
+        : 'matching accessible HTTP(S) target tabs only';
+  const cancelButtonEnabled = enabled && settings.progressOverlayCancelButton === true;
+  const warnings = enabled
+    ? [
+        `A temporary cleanup progress overlay will be shown in ${scopeDescription}, capped at ${PROGRESS_OVERLAY_MAX_TABS} tabs per update.${scope === 'target_tabs' ? '' : ' This can visibly change unrelated pages.'}`,
+        `The in-page cancel button is ${cancelButtonEnabled ? 'enabled' : 'disabled'}. Restricted, inaccessible, discarded, or out-of-reviewed-private-scope tabs are skipped. Tab eligibility can change between updates, so a stale overlay may remain until the approximately 15-second watchdog removes its UI and listener; the ${PROGRESS_OVERLAY_MAX_TABS}-tab per-update cap is not a guaranteed simultaneous-visible total.`
+      ]
+    : [];
+  return {
+    enabled,
+    scope,
+    scopeDescription,
+    sourceWindowId: scope === 'current_window' && Number.isInteger(sourceWindowId) ? sourceWindowId : null,
+    cancelButtonEnabled,
+    maxTabsPerUpdate: PROGRESS_OVERLAY_MAX_TABS,
+    capAppliesPerUpdate: true,
+    simultaneousVisibleLimitGuaranteed: false,
+    temporary: enabled,
+    watchdogMs: 15_000,
+    warnings
+  };
+}
+
+function describeConfiguredCleanupEffects(settings) {
+  const livePageScrubEnabled = settings.pageScriptScrub !== false;
+  return {
+    livePageScrub: {
+      enabled: livePageScrubEnabled,
+      storageBuckets: livePageScrubEnabled && settings.storageBucketScrub === true,
+      opfs: livePageScrubEnabled && settings.opfsScrub === true,
+      serviceWorkerExtras: livePageScrubEnabled && settings.serviceWorkerExtraScrub === true,
+      appBadgeClear: livePageScrubEnabled && settings.appBadgeClear === true
+    },
+    embeddedFrameDiscovery: settings.embeddedFrameDiscovery === true,
+    cookies: {
+      browserCookieSweep: settings.aggressiveCookieSweep !== false,
+      partitionedEmbeddingSiteProbes: settings.probePartitionedCookiesWithEmbeddingSites === true,
+      exhaustiveAccessibleStoreScan: settings.exhaustiveCookieStoreScan === true
+    },
+    recordDiscovery: {
+      broadSearchTermFallback: settings.broadDiscoveryFallback === true,
+      recentDownloadFallback: settings.downloadRecentFallback === true
+    },
+    targetTabState: {
+      resetZoom: settings.resetZoom !== false,
+      resetMutedTabs: settings.resetMutedTabs === true,
+      unpinTabs: settings.unpinTargetTabs === true
+    },
+    protectedWebOrigins: settings.includeProtectedWebOrigins === true
+  };
+}
+
+function normalizeOverlayScope(value, sourceWindowId) {
+  if (!['all_tabs', 'current_window', 'target_tabs'].includes(value)) return 'target_tabs';
+  return value === 'current_window' && !Number.isInteger(sourceWindowId) ? 'target_tabs' : value;
+}
+
+function normalizedShieldExpiryMinutes(value) {
+  const numeric = Number(value);
+  return [0, 15, 60, 240, 1440].includes(numeric) ? numeric : 0;
+}
+
+export const CLEANUP_APPROVAL_MODES = Object.freeze({
+  detailedReview: 'detailed_review',
+  settingsDirect: 'settings_direct'
+});
+
+/**
+ * @param {Record<string, any>} requirements
+ * @param {Record<string, any>} approval
+ * @param {'detailed_review' | 'settings_direct'} expectedApprovalMode
+ */
+export function validateCleanupReviewApproval(
+  requirements = {},
+  approval = {},
+  expectedApprovalMode = CLEANUP_APPROVAL_MODES.detailedReview
+) {
   const errors = [];
-  const approvalMode = approval.approvalMode === undefined ? 'detailed_review' : approval.approvalMode;
-  if (approvalMode !== 'detailed_review') {
-    errors.push('A complete per-run cleanup review is required. Start the cleanup again.');
+  const approvalMode = approval.approvalMode;
+  if (!Object.values(CLEANUP_APPROVAL_MODES).includes(expectedApprovalMode) || approvalMode !== expectedApprovalMode) {
+    errors.push(
+      'A complete per-run cleanup review is required unless the prepared settings-direct authorization mode matches. Start again.'
+    );
     return { ok: false, errors, approvalMode };
+  }
+  if (approvalMode === CLEANUP_APPROVAL_MODES.settingsDirect) {
+    for (const key of ['reviewedScope', 'associatedTargets', 'localOrIpTarget', 'protectedWebOrigins']) {
+      if (approval[key] !== false) {
+        errors.push('Direct-cleanup authorization must not claim that per-run acknowledgements occurred. Start again.');
+        break;
+      }
+    }
+    if (String(approval.fileConfirmationText || '') !== '') {
+      errors.push('Direct-cleanup authorization must not claim that the per-run file phrase was entered. Start again.');
+    }
+    return { ok: errors.length === 0, errors, approvalMode };
   }
   if (approval.reviewedScope !== true) errors.push('Review and acknowledge the displayed cleanup scope.');
   if (requirements.associatedTargets && approval.associatedTargets !== true) {

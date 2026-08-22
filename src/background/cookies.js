@@ -169,8 +169,13 @@ export async function discoverCookiesOnly(target, incognitoAccess, options = {})
   for (const store of stores) {
     await throwIfCancellationRequested(options.shouldCancel, 'the next cookie store');
     options.operationBudget?.check('the next cookie store');
-    const isIncognitoStore = await storeLooksIncognito(store, options);
-    if (isIncognitoStore && !incognitoAccess) continue;
+    const privateScope = await classifyCookieStorePrivateScope(store, options);
+    if (!incognitoAccess && privateScope !== 'regular') {
+      if (options.strict && privateScope === 'unknown') {
+        throw new Error('Cookie-store private scope could not be verified.');
+      }
+      continue;
+    }
     const queries = buildCookieDiscoveryQueries(
       target,
       store.id,
@@ -328,19 +333,21 @@ export function buildCookieDiscoveryQueries(target, storeId, origins = [], parti
   return queries.slice(0, MAX_COOKIE_DISCOVERY_QUERIES);
 }
 
-export async function storeLooksIncognito(store, options = {}) {
-  if (!Array.isArray(store.tabIds) || store.tabIds.length === 0) return false;
+export async function classifyCookieStorePrivateScope(store, options = {}) {
+  if (!Array.isArray(store?.tabIds) || store.tabIds.length === 0) return 'unknown';
+  let inspectedTabs = 0;
   for (const tabId of store.tabIds) {
     await throwIfCancellationRequested(options.shouldCancel, 'cookie-store tab inspection');
     options.operationBudget?.claimQuery('cookie-store tab inspection');
     try {
       const tab = await chrome.tabs.get(tabId);
-      if (tab?.incognito) return true;
+      inspectedTabs += 1;
+      if (tab?.incognito) return 'incognito';
     } catch {
-      // The tab may have closed. Ignore.
+      // A closed or unreadable tab cannot prove this store is regular.
     }
   }
-  return false;
+  return inspectedTabs > 0 ? 'regular' : 'unknown';
 }
 
 export async function safeGetCookieStores() {

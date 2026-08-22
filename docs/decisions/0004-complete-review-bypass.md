@@ -6,6 +6,8 @@
 - Original date: 2026-08-16
 - Retirement date: 2026-08-17
 
+> Current note (2026-08-20): [ADR 0011](./0011-optional-direct-cleanup.md) authorizes a new `settings_direct` design with materially stronger preflight, freshness, permission, file-identity, reporting, and route controls. It does not revive or retroactively approve the implementation described here; this document and its false approval record remain historical.
+
 ## Historical context
 
 An earlier private candidate implemented an owner-requested, off-by-default setting that skipped SiteWipe's per-run detailed cleanup screen in Standard and Expert modes. It retained a read-only preflight and single-use token, but it did not show or separately confirm the exact associated targets, private scope, protected/PWA effects, persistent request shield, incomplete counts, or irreversible downloaded-file effects for that run.

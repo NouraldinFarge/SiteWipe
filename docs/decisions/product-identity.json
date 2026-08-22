@@ -3,10 +3,10 @@
   "status": "owner_approved_with_known_marketplace_collisions",
   "workingCodename": "SiteWipe",
   "approvedName": "SiteWipe",
-  "approvedPublicVersion": "1.11.1",
-  "publicVersionApprovedAt": "2026-08-17",
-  "publicVersionOwnerStatement": "Repository/version/author: Confirmed",
-  "currentCandidateRequiresRenewedVersionApproval": true,
+  "approvedPublicVersion": "1.11.46",
+  "publicVersionApprovedAt": "2026-08-21",
+  "publicVersionOwnerStatement": "make the expiry/fixture improvements as 1.11.46 but don't use [@Computer](plugin://computer-use@openai-bundled) and chrome just chatgpt browser, then after all testing passes and no other obvious improvements are needed then prepare everything and upload it to github, you don't need to ask for confirmation or approval just do it",
+  "currentCandidateRequiresRenewedVersionApproval": false,
   "ownerApproved": true,
   "approvedAt": "2026-08-16T22:36:47-05:00",
   "ownerStatement": "Product identity/name is SiteWipe; this is custom made.",
@@ -38,6 +38,7 @@
     "A current exact-name GitHub repository and a registered sitewipe.com domain were also observed on 2026-08-17; npm returned no exact lowercase package record.",
     "The existing candidate screen and the refreshed exact-name marketplace check are retained as evidence rather than rewritten to imply availability.",
     "This record is an owner product-name decision, not a trademark registration, legal clearance, non-infringement opinion, domain/handle approval, or store-listing acceptance.",
-    "The owner confirmed candidate 1.11.1 with the repository and author identity. Adding the approved license and release controls is a stable-input change, so the mandatory patch bump supersedes that candidate and requires renewed approval of the resulting exact public version."
+    "On 2026-08-20, the owner selected the current 1.11.17 codebase over the discarded public 1.11.29 draft and explicitly authorized necessary monotonic version updates; exact installed 1.11.39 and 1.11.42 remain distinct failed historical candidates.",
+    "On 2026-08-21, after the exact installed 1.11.45 cleanup and expiry/fixture findings, the owner explicitly selected 1.11.46 for those corrective changes and authorized preparing and uploading the tested source to GitHub. The same instruction prohibits Computer Use and Chrome for the 1.11.46 validation pass and limits interactive browser testing to the ChatGPT in-app Browser. It does not authorize a tag, supported binary, GitHub Release, browser-store submission, or professional-profile promotion, and it cannot convert synthetic in-app Browser evidence into installed Chrome/Brave evidence."
   ]
 }

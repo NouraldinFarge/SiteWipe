@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "status": "version_bumped_pending_validation",
+  "validatedAt": null,
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
+  "environment": {},
+  "baseline": {
+    "beforeState": "The completed 1.11.39 record remains unchanged in automated-validation-2026-08-21-v1.11.39.json.",
+    "baselineVersion": "1.11.39"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "pending",
+    "versionContract": {
+      "status": "pending",
+      "version": "1.11.44",
+      "runtimeFiles": 55,
+      "runtimeFingerprintSha256": null
+    },
+    "manifest": {
+      "status": "pending",
+      "version": "1.11.44"
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "pending",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    }
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts",
+    "status": "pending",
+    "installedPackages": null,
+    "auditedPackagesIncludingRoot": null,
+    "lifecycleScriptsDisabled": null,
+    "deprecationWarnings": []
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=moderate --json",
+    "status": "pending",
+    "auditedAt": null,
+    "knownVulnerabilities": null,
+    "runtimeDependencies": null,
+    "lockedDevelopmentGraph": null,
+    "lockfileSha256": null
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "pending",
+    "redactionCanaries": "pending",
+    "privateContextPersistenceRefusal": "pending",
+    "deterministicThirtyMinuteExpiry": "pending"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "pending",
+    "installedChromeRun": "pending",
+    "installedBraveRun": "pending"
+  },
+  "gitInitialization": {
+    "status": "pending_exact_candidate_validation",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "Exact candidate commit, clean checkout, remote checks, and repository state require fresh validation."
+  },
+  "artifacts": {
+    "status": "pending_rebuild",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.44.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 55,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.44-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "pending",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.44.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.44.unsigned-provenance-input.json",
+    "remoteAttestation": "pending",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "Fresh validation and exact-artifact review are required for this version."
+    ]
+  },
+  "limitations": [
+    "No automated, installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior."
+  ]
+}

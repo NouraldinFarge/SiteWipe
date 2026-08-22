@@ -124,10 +124,17 @@ export async function runDeepClean(target, report, options = {}) {
     );
 
     await checkCanceled('request shield installation');
+    const requestShieldRequested = options.temporaryDnrShield !== false || options.postWipeSessionBlock === true;
+    const requestShieldWillBeAttempted = options.incognitoAccess === true && requestShieldRequested;
+    const requestShieldProgressDetail = requestShieldWillBeAttempted
+      ? 'Blocking target requests while cleanup runs so the site cannot immediately recreate data.'
+      : requestShieldRequested
+        ? 'No shared request-blocking rule is installed for a normal-only cleanup, preventing effects on private target traffic.'
+        : 'Request shielding is disabled in settings, so SiteWipe will not install a target request block.';
     await updateProgress(
       8,
-      'Installing request shield…',
-      'Blocking target requests while cleanup runs so the site cannot immediately recreate data.'
+      requestShieldWillBeAttempted ? 'Installing request shield…' : 'Applying request-shield safety policy…',
+      requestShieldProgressDetail
     );
     const shield = await installTemporaryDnrShield(target, report, options);
     let context = null;
@@ -244,14 +251,17 @@ export async function runDeepClean(target, report, options = {}) {
     } finally {
       await updateProgress(
         98,
-        'Finalizing cleanup…',
-        'Removing temporary shields unless the post-wipe session block is enabled.'
+        'Finalizing request-shield state…',
+        'Removing any temporary shield unless an approved post-wipe session block is active.'
       );
       await finalizeTemporaryDnrShield(shield, report, options);
     }
 
     await updateProgress(100, 'Cleanup finished', 'SiteWipe is removing the page progress overlay now.');
     completed = true;
+    // The short dwell lets people perceive the 100% state. It is presentation
+    // time, not cleanup work, so close the cleanup phase timer before waiting.
+    phaseTimer.finish();
     await sleep(450);
   } finally {
     await progress.hide(completed ? 'complete' : 'stopped');
@@ -367,8 +377,10 @@ function addKnownUnsupportedResidues(report, context, options = {}) {
   addSection(report, 'browserResidueLimits', 'Extra browser residue limits reported', 'partial', {
     matchingRecentlyClosedSessions: context?.matchingRecentlyClosed?.length || 0,
     matchingOpenTabs: context?.matchingTabs?.length || 0,
-    temporaryDnrShieldEnabled: options.temporaryDnrShield !== false,
-    postWipeSessionBlockEnabled: Boolean(options.postWipeSessionBlock),
+    temporaryDnrShieldRequested: options.temporaryDnrShield !== false,
+    temporaryDnrShieldEnabled: Boolean(options.incognitoAccess && options.temporaryDnrShield !== false),
+    postWipeSessionBlockRequested: Boolean(options.postWipeSessionBlock),
+    postWipeSessionBlockEnabled: Boolean(options.incognitoAccess && options.postWipeSessionBlock),
     note: 'This section is intentionally explicit about small browser/site residues that are observable, indirect, global-only, manual-only, or not safely targetable through Chrome MV3 APIs.'
   });
 }

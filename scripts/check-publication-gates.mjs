@@ -2,12 +2,34 @@ import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verifyReleaseCandidate } from './release-artifact-verification.mjs';
+import { RUNTIME_FILES } from './release-files.mjs';
 import { resolveCurrentValidationEvidence } from './validation-evidence.mjs';
 import { runtimeArtifactBase } from './versioning.mjs';
+import {
+  DIRECT_CLEANUP_CONTRACT_FILES,
+  findDirectCleanupPublicationContractFindings
+} from './direct-cleanup-publication-contract.mjs';
+import {
+  findAccessibilitySourceContractFindings,
+  findBrowserEvidenceFindings,
+  findDependencyCandidateAuditFindings,
+  findMediaEvidenceFindings,
+  findPerformanceEvidenceFindings,
+  findRemotePublicationFindings
+} from './publication-evidence-contract.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const blockers = [];
+let verifiedRelease = null;
+try {
+  verifiedRelease = await verifyReleaseCandidate({ root });
+} catch (error) {
+  blockers.push(`Local version/source/artifact integrity verification failed: ${error?.message || String(error)}`);
+}
 const pkg = await optionalJson('package.json');
+const privacyBytes = await optionalBytes('PRIVACY.md');
+const versionState = await optionalJson('docs/evidence/version-state.json');
 const expectedArtifactBase = pkg?.version ? runtimeArtifactBase(pkg.version) : 'sitewipe-unreleased-candidate-unknown';
 const expectedRuntimeZip = `${expectedArtifactBase}.zip`;
 const currentRelease = await optionalJson('dist/current/current-release.json');
@@ -60,18 +82,35 @@ if (
 const provenance = await optionalJson('docs/evidence/provenance-audit.json');
 const dependencyInventory = await optionalJson('docs/evidence/dependency-license-inventory.json');
 const packageLock = await optionalBytes('package-lock.json');
+const lockedDevelopmentPackages = Object.entries(packageLockMetadata?.packages || {}).filter(([path]) =>
+  path.startsWith('node_modules/')
+);
 if (
+  provenance?.status !== 'approved' ||
   provenance?.technicalStatus !== 'passed' ||
   provenance?.technicalEvidence?.sourceClosurePrivatePathScan?.status !== 'passed' ||
+  provenance?.technicalEvidence?.sourceClosurePrivatePathScan?.repositoryFiles !== verifiedRelease?.sourceFiles ||
   provenance?.technicalEvidence?.runtimePackage?.status !== 'passed' ||
+  provenance?.technicalEvidence?.runtimePackage?.runtimeFiles !== RUNTIME_FILES.length ||
+  provenance?.technicalEvidence?.runtimePackage?.npmRuntimeDependencies !== 0 ||
   provenance?.technicalEvidence?.dependencyLicenseInventory?.status !== 'passed' ||
+  provenance?.technicalEvidence?.dependencyLicenseInventory?.lockedDevelopmentPackages !==
+    dependencyInventory?.lockedDevelopmentGraphCount ||
+  provenance?.technicalEvidence?.dependencyLicenseInventory?.legacyMetadataExceptionsResolved !==
+    dependencyInventory?.metadataExceptions?.length ||
   provenance?.technicalEvidence?.thirdPartyNoticesAndPsl?.status !== 'passed' ||
   provenance?.technicalEvidence?.candidateIcon?.status !== 'passed' ||
+  provenance?.technicalEvidence?.candidateIcon?.generatedPngsVerified !== 4 ||
+  provenance?.technicalEvidence?.candidateIcon?.externalAssets !== 0 ||
   provenance?.technicalEvidence?.sourceArchiveControls?.status !== 'passed' ||
+  provenance?.technicalEvidence?.sourceArchiveControls?.rejectsPrivateMaterialPatterns !== true ||
+  provenance?.technicalEvidence?.sourceArchiveControls?.rejectsSymbolicLinksAndDirectoryJunctions !== true ||
+  provenance?.technicalEvidence?.sourceArchiveControls?.exactSourceClosureRequired !== true ||
   dependencyInventory?.status !== 'technical_inventory_complete_owner_acknowledged' ||
   dependencyInventory?.ownerApproval !== true ||
   dependencyInventory?.runtimeDependencyCount !== 0 ||
-  dependencyInventory?.lockedDevelopmentGraphCount !== 406 ||
+  dependencyInventory?.lockedDevelopmentGraphCount !== lockedDevelopmentPackages.length ||
+  lockedDevelopmentPackages.some(([, value]) => value?.dev !== true) ||
   !packageLock ||
   dependencyInventory?.lockfileSha256 !== sha256(packageLock)
 ) {
@@ -80,7 +119,6 @@ if (
   );
 }
 if (
-  provenance?.status !== 'approved' ||
   provenance?.ownerApproval !== true ||
   provenance?.iconProvenanceApproved !== true ||
   provenance?.thirdPartyNoticesReviewed !== true ||
@@ -91,6 +129,7 @@ if (
     'The technically complete ownership, dependency, media, notice, and private-material provenance audit is not owner-approved.'
   );
 }
+blockers.push(...findDependencyCandidateAuditFindings({ inventory: dependencyInventory, version: pkg?.version }));
 const browser = await optionalJson('docs/evidence/browser-validation.json');
 if (browser?.status !== 'passed' || browser?.reviewerApproval !== true)
   blockers.push('The exact-artifact browser validation record is not reviewer-approved.');
@@ -113,6 +152,7 @@ for (const [name, evidence] of [
   }
 }
 requireExactArtifactEvidence('Browser evidence', browser?.artifact, runtimeArtifactSha256);
+blockers.push(...findBrowserEvidenceFindings({ browser, runtimeArtifactSha256 }));
 const performance = await optionalJson('docs/evidence/performance-results.json');
 if (
   performance?.status !== 'passed' ||
@@ -125,6 +165,7 @@ if (
   blockers.push('Measured, exact-artifact performance evidence is incomplete or not reviewer-approved.');
 }
 requireExactArtifactEvidence('Performance evidence', performance?.artifact, runtimeArtifactSha256);
+blockers.push(...findPerformanceEvidenceFindings({ performance, runtimeArtifactSha256 }));
 const accessibility = await optionalJson('docs/evidence/accessibility-results.json');
 if (
   accessibility?.status !== 'passed' ||
@@ -137,18 +178,43 @@ if (
   blockers.push('Installed exact-artifact accessibility evidence is incomplete or not reviewer-approved.');
 }
 requireExactArtifactEvidence('Accessibility evidence', accessibility?.artifact, runtimeArtifactSha256);
+blockers.push(
+  ...findAccessibilitySourceContractFindings({
+    accessibility,
+    version: pkg?.version,
+    releaseInputFingerprintSha256: versionState?.releaseInputFingerprintSha256
+  })
+);
 const automatedPointer = await resolveCurrentValidationEvidence(root).catch(() => null);
 const automated = automatedPointer ? await optionalJson(automatedPointer.relativePath) : null;
 if (
   automated?.status !== 'local_automated_checks_passed' ||
   automated?.fullCheck?.status !== 'passed' ||
+  automated?.fullCheck?.versionContract?.status !== 'passed' ||
+  automated?.fullCheck?.versionContract?.version !== pkg?.version ||
+  automated?.fullCheck?.versionContract?.runtimeFiles !== RUNTIME_FILES.length ||
+  automated?.fullCheck?.versionContract?.runtimeFingerprintSha256 !== versionState?.runtimeFingerprintSha256 ||
   automated?.coverage?.status !== 'passed' ||
+  automated?.dependencyInstall?.status !== 'passed' ||
+  automated?.dependencyInstall?.lifecycleScriptsDisabled !== true ||
   automated?.dependencyAudit?.status !== 'passed' ||
+  automated?.dependencyAudit?.lockfileSha256 !== (packageLock ? sha256(packageLock) : null) ||
+  automated?.dependencyAudit?.knownVulnerabilities !== 0 ||
+  automated?.dependencyAudit?.runtimeDependencies !== 0 ||
+  automated?.dependencyAudit?.lockedDevelopmentGraph !== dependencyInventory?.lockedDevelopmentGraphCount ||
+  automated?.scopeAndPrivacyEvidence?.publicationGateDirectCleanupContract !== 'passed' ||
+  automated?.scopeAndPrivacyEvidence?.redactionCanaries !== 'passed' ||
+  automated?.scopeAndPrivacyEvidence?.privateContextPersistenceRefusal !== 'passed' ||
+  automated?.scopeAndPrivacyEvidence?.deterministicThirtyMinuteExpiry !== 'passed' ||
+  automated?.fixtureInfrastructure?.serverContract !== 'passed' ||
   automated?.artifacts?.status !== 'local_reproducible_build_passed' ||
   automated?.artifacts?.sourcePackageEquivalence !== 'exact' ||
   automated?.artifacts?.byteIdenticalAcrossConsecutiveBuilds !== true ||
   automated?.artifacts?.runtimeZip !== expectedRuntimeZip ||
-  automated?.artifacts?.runtimeZipSha256 !== runtimeArtifactSha256
+  automated?.artifacts?.runtimeZipSha256 !== runtimeArtifactSha256 ||
+  automated?.artifacts?.runtimeFiles !== RUNTIME_FILES.length ||
+  automated?.artifacts?.sourceFiles !== verifiedRelease?.sourceFiles ||
+  automated?.artifacts?.checksumFilesVerified !== verifiedRelease?.checksumFilesVerified
 ) {
   blockers.push(
     'Current automated checks, coverage, dependency audit, reproducibility, or package-equivalence evidence is incomplete.'
@@ -166,9 +232,10 @@ if (!Number.isFinite(media?.demoDurationSeconds) || media.demoDurationSeconds < 
 if (media?.status !== 'approved' || media?.reviewerApproval !== true)
   blockers.push('Synthetic showcase and store media are not reviewer-approved.');
 requireExactArtifactEvidence('Media evidence', media?.artifact, runtimeArtifactSha256);
+blockers.push(...(await findMediaEvidenceFindings({ media, root, runtimeArtifactSha256 })));
 const remote = await optionalJson('docs/decisions/remote-publication.json');
 if (!remote?.ownerApproved || !remote?.repositoryUrl)
-  blockers.push('The intended remote and first-publication approval are not recorded.');
+  blockers.push('The intended remote and public-source authorization are not recorded.');
 if (!remote?.branchProtectionVerified) blockers.push('Required remote branch checks and protection are not verified.');
 if (!remote?.requiredChecksVerified) blockers.push('The required remote CI and CodeQL checks are not verified.');
 if (!remote?.privateVulnerabilityReportingVerified)
@@ -178,12 +245,27 @@ if (!remote?.releaseEnvironmentVerified || remote?.releaseEnvironmentName !== 'u
   blockers.push('The protected unreleased-candidate remote environment is not verified.');
 }
 if (!remote?.finalPublicationApproval)
-  blockers.push('The owner has not given final approval for the first public push/release/store or portfolio use.');
-const optionsHtml = await readFile(resolve(root, 'src/options/options.html'), 'utf8');
-const retiredBypassFindings = await findRetiredBypassSignals(optionsHtml);
-if (retiredBypassFindings.length) {
   blockers.push(
-    `A retired cleanup-review bypass signal exists in the runtime (${retiredBypassFindings.join(', ')}). Every Standard and Expert cleanup must require detailed per-run review.`
+    'The owner has not given final approval for merge, tag, GitHub Release, browser-store submission, or professional-profile promotion.'
+  );
+blockers.push(
+  ...findRemotePublicationFindings({
+    remote,
+    version: pkg?.version,
+    privacyBytes
+  })
+);
+const directCleanupDecision = await optionalJson('docs/decisions/direct-cleanup-owner-decision.json');
+const directCleanupSources = Object.fromEntries(
+  await Promise.all(DIRECT_CLEANUP_CONTRACT_FILES.map(async (path) => [path, await optionalText(path)]))
+);
+const directCleanupContractFindings = findDirectCleanupPublicationContractFindings({
+  sources: directCleanupSources,
+  decision: directCleanupDecision
+});
+if (directCleanupContractFindings.length) {
+  blockers.push(
+    `The owner-approved direct-cleanup publication contract is incomplete (${directCleanupContractFindings.join('; ')}). Direct mode must remain default-off, explicitly confirmed, preflight-bound, single-use, truthfully reported, and unavailable through any raw cleanup route.`
   );
 }
 
@@ -212,6 +294,14 @@ async function optionalBytes(relative) {
   }
 }
 
+async function optionalText(relative) {
+  try {
+    return await readFile(resolve(root, relative), 'utf8');
+  } catch {
+    return null;
+  }
+}
+
 function requireExactArtifactEvidence(label, artifact, actualSha256) {
   if (
     artifact?.version !== pkg?.version ||
@@ -225,25 +315,4 @@ function requireExactArtifactEvidence(label, artifact, actualSha256) {
 
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex').toUpperCase();
-}
-
-async function findRetiredBypassSignals(optionsSource) {
-  const sources = new Map([
-    ['src/options/options.html', optionsSource],
-    ['src/popup/popup.js', await readFile(resolve(root, 'src/popup/popup.js'), 'utf8')],
-    ['src/shared/cleanup-review.js', await readFile(resolve(root, 'src/shared/cleanup-review.js'), 'utf8')],
-    ['src/shared/message-contracts.js', await readFile(resolve(root, 'src/shared/message-contracts.js'), 'utf8')],
-    [
-      'src/background/cleanup-preflight.js',
-      await readFile(resolve(root, 'src/background/cleanup-preflight.js'), 'utf8')
-    ],
-    ['src/background/service-worker.js', await readFile(resolve(root, 'src/background/service-worker.js'), 'utf8')]
-  ]);
-  const forbidden = [
-    /Skip detailed cleanup review completely/i,
-    /runPreparedQuickCleanup|prepareOneClickCleanup|isQuickCleanupSettingActive/,
-    /quickCleanupAllowed|quickCleanupBlockedReasons|quickApproval/i,
-    /\bapprovalMode\s*(?::|={2,3})\s*['"](?:quick|bypass)['"]/i
-  ];
-  return [...sources].filter(([, source]) => forbidden.some((pattern) => pattern.test(source))).map(([path]) => path);
 }

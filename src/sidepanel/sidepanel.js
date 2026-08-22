@@ -2,14 +2,29 @@ import { CLEANUP_MATRIX, MESSAGE_TYPES, STORAGE_KEYS } from '../shared/constants
 import { sendMessage, onceDomReady, onStorageChange } from '../shared/messaging.js';
 import { prepareReportForExport } from '../shared/report-redaction.js';
 import { getReportIntegrityDigest, verifyReportIntegrity } from '../shared/report-integrity.js';
+import {
+  getSidePanelReportBindingStorageKey,
+  normalizeSidePanelReportBinding
+} from '../shared/side-panel-report-binding.js';
+import {
+  formatKnownResidue,
+  formatReportOutcome,
+  formatVerificationStatus,
+  getReportRuntimeErrorCount,
+  getReportUnavailableCount,
+  summarizeHistoryVerification
+} from './report-outcome.js';
 
 let currentReport = null;
 let currentReports = [];
+let currentSettings = {};
+let boundReportId = null;
+let sidePanelBindingStorageKey = null;
+let sidePanelWindowId = null;
+let sidePanelBindingGeneration = 0;
+let reportRefreshGeneration = 0;
+let bindingExpiryTimer = null;
 const REPORT_STORAGE_KEYS = new Set([STORAGE_KEYS.settings, STORAGE_KEYS.reports, STORAGE_KEYS.activeReport]);
-const refreshFromStorage = debounce(
-  () => refresh().catch((error) => announceStatus(`Report refresh failed: ${formatError(error)}`, 'error')),
-  80
-);
 
 onceDomReady(() =>
   init().catch((error) => announceStatus(`Side panel initialization failed: ${formatError(error)}`, 'error'))
@@ -31,12 +46,89 @@ async function init() {
   document.querySelector('#exportHistoryText').addEventListener('click', exportHistoryText);
   document.querySelector('#reportFilter').addEventListener('input', () => renderReport(currentReport));
   document.querySelector('#historyFilter').addEventListener('input', () => renderHistory(currentReports));
+  document.querySelector('#matrixFilter').addEventListener('input', renderMatrix);
+  document.querySelector('#matrixStatusFilter').addEventListener('change', renderMatrix);
   renderMatrix();
-  await refresh();
-  onStorageChange((changes, area) => {
-    if (area !== 'local') return;
-    if (Object.keys(changes || {}).some((key) => REPORT_STORAGE_KEYS.has(key))) refreshFromStorage();
-  });
+  clearBoundReportPresentation('Open a locally stored report from the SiteWipe popup.');
+  await initializeSidePanelReportBinding();
+}
+
+async function initializeSidePanelReportBinding() {
+  if (typeof chrome.windows?.getCurrent !== 'function' || typeof chrome.storage?.session?.get !== 'function') {
+    throw new Error('The browser cannot verify an exact full-report binding for this side panel.');
+  }
+  const currentWindow = await chrome.windows.getCurrent();
+  if (!Number.isInteger(currentWindow?.id) || currentWindow.id < 0) {
+    throw new Error('The side panel could not verify its browser window.');
+  }
+  sidePanelWindowId = currentWindow.id;
+  sidePanelBindingStorageKey = getSidePanelReportBindingStorageKey(sidePanelWindowId);
+  const initialBindingGeneration = ++sidePanelBindingGeneration;
+  onStorageChange(handleSidePanelStorageChange);
+  const data = await chrome.storage.session.get([sidePanelBindingStorageKey]);
+  if (initialBindingGeneration !== sidePanelBindingGeneration) return;
+  const rawBinding = data?.[sidePanelBindingStorageKey];
+  const binding = normalizeSidePanelReportBinding(rawBinding, sidePanelWindowId);
+  if (!binding) {
+    throw new Error('No live full-report binding was found. Open the locally stored report from the SiteWipe popup.');
+  }
+  await acceptSidePanelReportBinding(binding, initialBindingGeneration);
+}
+
+function handleSidePanelStorageChange(changes, area) {
+  if (area === 'session' && sidePanelBindingStorageKey && changes?.[sidePanelBindingStorageKey]) {
+    const bindingGeneration = ++sidePanelBindingGeneration;
+    clearBindingExpiryTimer();
+    boundReportId = null;
+    clearBoundReportPresentation('Verifying the exact report selected in the popup…');
+    const nextBinding = normalizeSidePanelReportBinding(
+      changes[sidePanelBindingStorageKey].newValue,
+      sidePanelWindowId
+    );
+    if (!nextBinding) {
+      announceStatus('The full-report binding expired or became invalid. Open it again from the popup.', 'error');
+      return;
+    }
+    void acceptSidePanelReportBinding(nextBinding, bindingGeneration).catch((error) => {
+      if (bindingGeneration !== sidePanelBindingGeneration) return;
+      clearBoundReportPresentation('The exact report could not be loaded. Open it again from the popup.');
+      announceStatus(`Report refresh failed: ${formatError(error)}`, 'error');
+    });
+    return;
+  }
+  if (area === 'local' && Object.keys(changes || {}).some((key) => REPORT_STORAGE_KEYS.has(key))) {
+    const bindingGeneration = sidePanelBindingGeneration;
+    void refreshBoundReport(bindingGeneration).catch((error) => {
+      if (bindingGeneration !== sidePanelBindingGeneration) return;
+      clearBoundReportPresentation('The exact report is no longer available. Open it again from the popup.');
+      announceStatus(`Report refresh failed: ${formatError(error)}`, 'error');
+    });
+  }
+}
+
+async function acceptSidePanelReportBinding(binding, bindingGeneration) {
+  if (bindingGeneration !== sidePanelBindingGeneration) return;
+  boundReportId = binding.reportId;
+  scheduleBindingExpiry(binding, bindingGeneration);
+  await refreshBoundReport(bindingGeneration);
+}
+
+function scheduleBindingExpiry(binding, bindingGeneration) {
+  clearBindingExpiryTimer();
+  const delay = Math.max(0, Date.parse(binding.expiresAt) - Date.now());
+  bindingExpiryTimer = setTimeout(() => {
+    if (bindingGeneration !== sidePanelBindingGeneration || boundReportId !== binding.reportId) return;
+    sidePanelBindingGeneration += 1;
+    boundReportId = null;
+    clearBoundReportPresentation('The full-report binding expired. Open the report again from the popup.');
+    announceStatus('The full-report binding expired. Open it again from the popup.', 'error');
+  }, delay);
+  bindingExpiryTimer?.unref?.();
+}
+
+function clearBindingExpiryTimer() {
+  if (bindingExpiryTimer !== null) clearTimeout(bindingExpiryTimer);
+  bindingExpiryTimer = null;
 }
 
 function bindTabs() {
@@ -72,23 +164,71 @@ function activateTab(selected, { focus = false } = {}) {
   if (focus) selected.focus();
 }
 
-async function refresh() {
-  const state = await sendMessage(MESSAGE_TYPES.getReportState);
+async function refreshBoundReport(bindingGeneration = sidePanelBindingGeneration) {
+  const expectedReportId = boundReportId;
+  if (!expectedReportId) throw new Error('No exact popup report is bound to this side panel.');
+  clearBoundReportPresentation('Loading the exact report selected in the popup…');
+  const refreshGeneration = reportRefreshGeneration;
+  const state = await sendMessage(MESSAGE_TYPES.getReportState, {
+    reportId: expectedReportId,
+    windowId: sidePanelWindowId
+  });
+  if (
+    bindingGeneration !== sidePanelBindingGeneration ||
+    refreshGeneration !== reportRefreshGeneration ||
+    boundReportId !== expectedReportId
+  ) {
+    return;
+  }
+  if (state.report?.id !== expectedReportId) {
+    throw new Error('The side panel refused a report that did not match the exact popup binding.');
+  }
+  currentSettings = state.settings || {};
   applySettings(state.settings);
   currentReport = state.report || null;
   currentReports = state.reports || [];
   renderReport(state.report);
-  document.querySelector('#exportReport').disabled = !currentReport;
-  document.querySelector('#exportRedactedReport').disabled = !currentReport;
-  document.querySelector('#exportHtmlReport').disabled = !currentReport;
-  document.querySelector('#exportTextReport').disabled = !currentReport;
-  document.querySelector('#exportRedactedTextReport').disabled = !currentReport;
-  document.querySelector('#copyTroubleshooting').disabled = !currentReport;
-  document.querySelector('#verifyDigest').disabled = !currentReport;
-  document.querySelector('#exportHistory').disabled = !currentReports.length;
-  document.querySelector('#exportRedactedHistory').disabled = !currentReports.length;
-  document.querySelector('#exportHistoryText').disabled = !currentReports.length;
+  setReportControlAvailability(Boolean(currentReport), currentReports.length > 0);
+  updateExportPrivacyNotes();
   renderHistory(currentReports);
+}
+
+function clearBoundReportPresentation(message) {
+  reportRefreshGeneration += 1;
+  currentReport = null;
+  currentReports = [];
+  document.querySelector('#reportOverview').innerHTML = `
+    <div class="empty-state">
+      <strong>Full report unavailable</strong>
+      <p>${escapeHtml(message)}</p>
+    </div>`;
+  document.querySelector('#reportContainer').textContent = '';
+  setReportControlAvailability(false, false);
+  updateExportPrivacyNotes();
+  renderHistory([]);
+}
+
+function setReportControlAvailability(hasReport, hasHistory) {
+  document.querySelector('#reportTools').hidden = !hasReport;
+  document.querySelector('#reportFilterWrap').hidden = !hasReport;
+  for (const id of [
+    'exportReport',
+    'exportRedactedReport',
+    'exportHtmlReport',
+    'exportTextReport',
+    'exportRedactedTextReport',
+    'copyTroubleshooting',
+    'verifyDigest'
+  ]) {
+    document.querySelector(`#${id}`).disabled = !hasReport;
+  }
+  document.querySelector('#historyTools').hidden = !hasHistory;
+  document.querySelector('#historyFilterWrap').hidden = !hasHistory;
+  document.querySelector('#clearHistory').hidden = !hasHistory;
+  document.querySelector('#clearHistory').disabled = !hasHistory;
+  for (const id of ['exportHistory', 'exportRedactedHistory', 'exportHistoryText']) {
+    document.querySelector(`#${id}`).disabled = !hasHistory;
+  }
 }
 
 function applySettings(settings) {
@@ -98,8 +238,14 @@ function applySettings(settings) {
 
 function renderReport(report) {
   const root = document.querySelector('#reportContainer');
+  const overviewRoot = document.querySelector('#reportOverview');
   if (!report) {
-    root.innerHTML = '<div class="empty-state">No cleanup report yet. Review and run a cleanup from the popup.</div>';
+    overviewRoot.innerHTML = `
+      <div class="empty-state">
+        <strong>No cleanup report yet</strong>
+        <p>Run a cleanup from the popup. Its latest locally retained report will appear here.</p>
+      </div>`;
+    root.textContent = '';
     return;
   }
   const s = report.summary || {};
@@ -110,136 +256,403 @@ function renderReport(report) {
   const filteredSkipped = filterEvents(report.skipped || [], filter);
   const filteredUnavailable = filterEvents(report.unavailable || [], filter);
   const filteredSections = filterEvents(report.sections || [], filter);
-  const filterLabel = filter ? ` · filtered by “${escapeHtml(filter)}”` : '';
-  root.innerHTML = `
-    <article class="card panel-card">
-      <div class="section-title"><span>Current report</span><small>${escapeHtml(report.finishedAt || report.startedAt)}</small></div>
-      <div class="report-grid">
-        ${row('Target domain', report.targetDomain)}
-        ${row('Target mode', findSectionDetail(report, 'targetDiagnostics', 'matchMode') || 'registrable_domain')}
-        ${row('Exact origin', findSectionDetail(report, 'targetDiagnostics', 'exactOrigin') || 'N/A')}
-        ${row('Associated targets included', s.associatedTargetsIncluded || findSectionDetail(report, 'targetDiagnostics', 'associatedTargetCount') || 0)}
-        ${row('Non-deduplicated operation events', formatOperationEventCount(s))}
-        ${row('Verification evidence confidence', s.cleanupConfidenceScore == null ? s.cleanupConfidenceLabel || 'N/A' : `${s.cleanupConfidenceLabel || 'N/A'} (${s.cleanupConfidenceScore}/100)`)}
-        ${row('Four-surface verification', formatVerificationStatus(s.verificationStatus))}
-        ${row('Total duration', formatDuration(s.totalDurationMs))}
-        ${row('Slowest phase', s.slowestPhase || 'N/A')}
-        ${row('Status', report.status)}
-        ${row('Report checksum', report.integrity?.digest || 'N/A')}
-        ${row('Mode', `${s.cleanupMode === 'expert' ? 'Expert' : 'Standard'} cleanup`)}
-        ${row('Private access available', report.incognitoAccess ? 'Yes' : 'No')}
-        ${row('Normal tabs closed', s.normalTabsClosed || 0)}
-        ${row('Private tabs closed', s.incognitoTabsClosed || 0)}
-        ${row('Target tabs audited', s.targetTabsAudited || 0)}
-        ${row('Site zoom states read', s.siteZoomStatesRead || 0)}
-        ${row('Site zoom states reset', s.siteZoomStatesReset || 0)}
-        ${row('Muted target tabs', s.mutedTargetTabs || 0)}
-        ${row('Muted target tabs reset', s.mutedTargetTabsReset || 0)}
-        ${row('Pinned target tabs', s.pinnedTargetTabs || 0)}
-        ${row('Pinned target tabs reset', s.pinnedTargetTabsReset || 0)}
-        ${row('Grouped target tabs', s.groupedTargetTabs || 0)}
-        ${row('Discarded/frozen target tabs', String(s.discardedTargetTabs || 0) + '/' + String(s.frozenTargetTabs || 0))}
-        ${row('Matching frames discovered', s.matchingFramesDiscovered || 0)}
-        ${row('Live frames scrubbed', s.pageScriptFramesMatched || 0)}
-        ${row('Page localStorage keys cleared', s.pageScriptLocalStorageCleared || 0)}
-        ${row('Page sessionStorage keys cleared', s.pageScriptSessionStorageCleared || 0)}
-        ${row('Page IndexedDB DBs deleted', s.pageScriptIndexedDBDeleted || 0)}
-        ${row('Page Cache API entries deleted', s.pageScriptCachesDeleted || 0)}
-        ${row('Page service workers unregistered', s.pageScriptServiceWorkersUnregistered || 0)}
-        ${row('Push subscriptions unsubscribed', s.pageScriptPushSubscriptionsUnsubscribed || 0)}
-        ${row('Background sync tags observed', s.pageScriptBackgroundSyncTagsObserved || 0)}
-        ${row('Periodic sync tags removed', s.pageScriptPeriodicSyncTagsUnregistered || 0)}
-        ${row('Page Storage Buckets deleted', s.pageScriptStorageBucketsDeleted || 0)}
-        ${row('OPFS entries deleted', s.pageScriptOPFSEntriesDeleted || 0)}
-        ${row('App badges cleared', s.pageScriptAppBadgeCleared || 0)}
-        ${row('Persistent storage before', s.pageScriptPersistentStorageBefore == null ? 'Unknown' : s.pageScriptPersistentStorageBefore ? 'Yes' : 'No')}
-        ${row('Storage estimate usage before/after', formatBytes(s.pageScriptStorageEstimateBeforeUsage) + '/' + formatBytes(s.pageScriptStorageEstimateAfterUsage))}
-        ${row('Visible page cookies expired', s.pageScriptCookiesExpired || 0)}
-        ${row('Page scrub worlds', s.pageScriptWorldsAttempted || 'None')}
-        ${row('Cookies removed', s.cookiesRemoved || 0)}
-        ${row('Discovered site origins', s.discoveredOrigins || 0)}
-        ${row('Discovered cookie hosts', s.discoveredCookieHosts || 0)}
-        ${row('Partition top-level sites probed', s.partitionTopLevelSitesProbed || 0)}
-        ${row('Partitioned cookie attempts', s.partitionedCookiesAttempted || 0)}
-        ${row('Partitioned cookies removed', s.partitionedCookiesRemoved || 0)}
-        ${row('Browser cookie sweep', s.browserCookieSweepAttempted ? (s.browserCookieSweepSucceeded ? 'Succeeded' : 'Partial') : 'Skipped')}
-        ${row('Storage cleanup attempted', s.storageCleanupAttempted ? 'Yes' : 'No')}
-        ${row('Cache cleanup attempted', s.cacheCleanupAttempted ? 'Yes' : 'No')}
-        ${row('Origin cleanup plans succeeded', s.originStorageTypesSucceeded || 0)}
-        ${row('Origin cleanup plans failed', s.originStorageTypesFailed || 0)}
-        ${row('Protected site data included', s.protectedWebCleanupAttempted ? 'Yes' : 'No')}
-        ${row('Service workers cleared', s.serviceWorkersCleared ? 'Attempted' : 'No')}
-        ${row('History entries removed', s.historyEntriesRemoved || 0)}
-        ${row('Download history erased', s.downloadHistoryEntriesRemoved || 0)}
-        ${row('Downloaded files removed', s.downloadedFilesRemoved || 0)}
-        ${row('Downloaded-file removal failures', s.downloadedFileRemovalFailures || 0)}
-        ${row('Autofill and payment methods', 'Protected (global form-data removal is never called)')}
-        ${row('Browser permission rules', s.sitePermissionSettingsPreserved ? 'Preserved (manual in Chrome/Brave)' : 'Not reported')}
-        ${row('Protected browser data', s.protectedBrowserDataGuardActive ? 'Passwords, bookmarks, and Sync protected' : 'Guard status unavailable')}
-        ${row('Recovery preflight', s.extensionStatePreflightRan ? (s.extensionStateRepaired ? 'Repaired SiteWipe-owned state' : 'Healthy') : 'Not run')}
-        ${row('Temporary request shield', s.temporaryDnrShieldInstalled ? (s.temporaryDnrShieldRemoved ? 'Used and removed' : s.postWipeSessionBlockKept ? 'Kept active' : 'Installed') : 'Skipped/failed')}
-        ${row('Page progress overlay', s.progressOverlayEnabled ? String(s.progressOverlayTabsShown || 0) + ' shown / ' + String(s.progressOverlayTabsHidden || 0) + ' hidden' : 'Disabled')}
-        ${row('Overlay cancel button', s.progressOverlayCancelButtonEnabled ? 'Enabled' : 'Disabled')}
-        ${row('Progress overlay injection errors', s.progressOverlayInjectionErrors || 0)}
-        ${row('Phase timing entries', report.phaseTimings ? Object.keys(report.phaseTimings).length : 0)}
-        ${row('Four-surface residue C/T/H/D', [s.verificationCookiesRemaining, s.verificationTabsRemaining, s.verificationHistoryRemaining, s.verificationDownloadsRemaining].map(formatVerificationCount).join('/'))}
-        ${row('Known four-surface residue total', formatVerificationCount(s.verificationRemainingTotal))}
-        ${row('Host access mode', s.hostAccessMode || 'Preflight-bound target access')}
-        ${row('Preflight-bound target access available', s.targetSiteAccessGranted || report.hostPermissionsGranted ? 'Yes' : 'No')}
+  const runtimeErrorCount = getReportRuntimeErrorCount(report);
+  const unavailableLimitCount = getReportUnavailableCount(report);
+  const outcome = formatReportOutcome(report);
+  const confidence =
+    s.cleanupConfidenceScore == null
+      ? s.cleanupConfidenceLabel || 'Not available'
+      : `${s.cleanupConfidenceLabel || 'Unrated'} · ${s.cleanupConfidenceScore}/100`;
+  const groups = [
+    {
+      title: 'Scope and authorization',
+      description: 'Target, mode, private-window reach, and approval path',
+      open: true,
+      rows: [
+        ['Target domain', report.targetDomain],
+        ['Target mode', findSectionDetail(report, 'targetDiagnostics', 'matchMode') || 'registrable_domain'],
+        ['Exact origin', findSectionDetail(report, 'targetDiagnostics', 'exactOrigin') || 'N/A'],
+        [
+          'Associated targets included',
+          s.associatedTargetsIncluded || findSectionDetail(report, 'targetDiagnostics', 'associatedTargetCount') || 0
+        ],
+        ['Cleanup mode', `${s.cleanupMode === 'expert' ? 'Expert' : 'Standard'} cleanup`],
+        ['Approval', formatCleanupApprovalMode(s.cleanupApprovalMode)],
+        ['Private access available', report.incognitoAccess ? 'Yes' : 'No'],
+        ['Report started', report.startedAt || 'N/A'],
+        ['Report finished', report.finishedAt || 'N/A']
+      ]
+    },
+    {
+      title: 'Browser data changes',
+      description: 'Tabs, cookies, history, downloads, and discovered browser records',
+      rows: [
+        ['Normal tabs closed', s.normalTabsClosed || 0],
+        ['Private tabs closed', s.incognitoTabsClosed || 0],
+        ['Target tabs audited', s.targetTabsAudited || 0],
+        ['Site zoom states read', s.siteZoomStatesRead || 0],
+        ['Site zoom states reset', s.siteZoomStatesReset || 0],
+        ['Muted target tabs', s.mutedTargetTabs || 0],
+        ['Muted target tabs reset', s.mutedTargetTabsReset || 0],
+        ['Pinned target tabs', s.pinnedTargetTabs || 0],
+        ['Pinned target tabs reset', s.pinnedTargetTabsReset || 0],
+        ['Grouped target tabs', s.groupedTargetTabs || 0],
+        ['Discarded/frozen target tabs', `${s.discardedTargetTabs || 0}/${s.frozenTargetTabs || 0}`],
+        ['Cookies removed', s.cookiesRemoved || 0],
+        ['Discovered site origins', s.discoveredOrigins || 0],
+        ['Discovered cookie hosts', s.discoveredCookieHosts || 0],
+        ['Partition top-level sites probed', s.partitionTopLevelSitesProbed || 0],
+        ['Partitioned cookie attempts', s.partitionedCookiesAttempted || 0],
+        ['Partitioned cookies removed', s.partitionedCookiesRemoved || 0],
+        [
+          'Browser cookie sweep',
+          s.browserCookieSweepAttempted ? (s.browserCookieSweepSucceeded ? 'Succeeded' : 'Partial') : 'Skipped'
+        ],
+        ['History entries removed', s.historyEntriesRemoved || 0],
+        ['Download history erased', s.downloadHistoryEntriesRemoved || 0],
+        ['Downloaded files removed', s.downloadedFilesRemoved || 0],
+        ['Downloaded-file removal failures', s.downloadedFileRemovalFailures || 0]
+      ]
+    },
+    {
+      title: 'Page and origin storage',
+      description: 'Live frames and origin-scoped storage exposed to SiteWipe',
+      rows: [
+        ['Matching frames discovered', s.matchingFramesDiscovered || 0],
+        ['Live frames scrubbed', s.pageScriptFramesMatched || 0],
+        ['Page localStorage keys cleared', s.pageScriptLocalStorageCleared || 0],
+        ['Page sessionStorage keys cleared', s.pageScriptSessionStorageCleared || 0],
+        ['Page IndexedDB DBs deleted', s.pageScriptIndexedDBDeleted || 0],
+        ['Page Cache API entries deleted', s.pageScriptCachesDeleted || 0],
+        ['Page service workers unregistered', s.pageScriptServiceWorkersUnregistered || 0],
+        ['Push subscriptions unsubscribed', s.pageScriptPushSubscriptionsUnsubscribed || 0],
+        ['Background sync tags observed', s.pageScriptBackgroundSyncTagsObserved || 0],
+        ['Periodic sync tags removed', s.pageScriptPeriodicSyncTagsUnregistered || 0],
+        ['Page Storage Buckets deleted', s.pageScriptStorageBucketsDeleted || 0],
+        ['OPFS entries deleted', s.pageScriptOPFSEntriesDeleted || 0],
+        ['App badges cleared', s.pageScriptAppBadgeCleared || 0],
+        [
+          'Persistent storage before',
+          s.pageScriptPersistentStorageBefore == null ? 'Unknown' : s.pageScriptPersistentStorageBefore ? 'Yes' : 'No'
+        ],
+        [
+          'Storage estimate usage before/after',
+          `${formatBytes(s.pageScriptStorageEstimateBeforeUsage)} / ${formatBytes(s.pageScriptStorageEstimateAfterUsage)}`
+        ],
+        ['Visible page cookies expired', s.pageScriptCookiesExpired || 0],
+        ['Page scrub worlds', s.pageScriptWorldsAttempted || 'None'],
+        ['Storage cleanup attempted', s.storageCleanupAttempted ? 'Yes' : 'No'],
+        ['Cache cleanup attempted', s.cacheCleanupAttempted ? 'Yes' : 'No'],
+        ['Origin cleanup plans succeeded', s.originStorageTypesSucceeded || 0],
+        ['Origin cleanup plans failed', s.originStorageTypesFailed || 0],
+        ['Service workers cleared', s.serviceWorkersCleared ? 'Attempted' : 'No']
+      ]
+    },
+    {
+      title: 'Safety and access boundaries',
+      description: 'Protected data, permission state, recovery, and temporary safeguards',
+      rows: [
+        ['Protected site data included', s.protectedWebCleanupAttempted ? 'Yes' : 'No'],
+        ['Autofill and payment methods', 'Protected — global form-data removal is never called'],
+        [
+          'Browser permission rules',
+          s.sitePermissionSettingsPreserved ? 'Preserved — manage manually in Chrome/Brave' : 'Not reported'
+        ],
+        [
+          'Protected browser data',
+          s.protectedBrowserDataGuardActive ? 'Passwords, bookmarks, and Sync protected' : 'Guard status unavailable'
+        ],
+        [
+          'Recovery preflight',
+          s.extensionStatePreflightRan
+            ? s.extensionStateRepaired
+              ? 'Repaired SiteWipe-owned state'
+              : 'Healthy'
+            : 'Not run'
+        ],
+        [
+          'Temporary request shield',
+          s.temporaryDnrShieldInstalled
+            ? s.temporaryDnrShieldRemoved
+              ? 'Used and removed'
+              : s.postWipeSessionBlockKept
+                ? 'Kept active'
+                : 'Installed'
+            : s.temporaryDnrShieldSkippedForNormalOnlyReview
+              ? 'Skipped — normal-only safety boundary'
+              : 'Skipped or unavailable'
+        ],
+        ['Host access mode', s.hostAccessMode || 'Preflight-bound target access'],
+        [
+          'Target site access available before cleanup',
+          s.targetSiteAccessGranted || report.hostPermissionsGranted ? 'Yes' : 'No'
+        ],
+        [
+          'Exact required host grants remaining after release',
+          s.exactRequiredHostPermissionOriginsGranted ?? 'Unknown'
+        ],
+        ['Broader host grants remaining after release', s.broadHostPermissionOriginsGranted ?? 'Unknown'],
+        [
+          'All-site host access observed',
+          s.allSitesAccessGranted == null ? 'Unknown' : s.allSitesAccessGranted ? 'Yes — preserved' : 'No'
+        ]
+      ]
+    },
+    {
+      title: 'Verification and diagnostics',
+      description: 'Measured residue, timings, progress UI, and local checksum',
+      rows: [
+        ['Report status', formatStatusLabel(report.status)],
+        ['Non-deduplicated operation events', formatOperationEventCount(s)],
+        ['Verification evidence confidence', confidence],
+        ['Four-surface verification', formatVerificationStatus(s)],
+        ['Total duration', formatDuration(s.totalDurationMs)],
+        ['Slowest phase', s.slowestPhase || 'N/A'],
+        [
+          'Four-surface residue C/T/H/D',
+          [
+            s.verificationCookiesRemaining,
+            s.verificationTabsRemaining,
+            s.verificationHistoryRemaining,
+            s.verificationDownloadsRemaining
+          ]
+            .map(formatVerificationCount)
+            .join('/')
+        ],
+        ['Known four-surface residue total', formatVerificationCount(s.verificationRemainingTotal)],
+        [
+          'Page progress overlay',
+          s.progressOverlayEnabled
+            ? `${s.progressOverlayTabsShown || 0} shown / ${s.progressOverlayTabsHidden || 0} hidden`
+            : 'Disabled'
+        ],
+        ['Overlay cancel button', s.progressOverlayCancelButtonEnabled ? 'Enabled' : 'Disabled'],
+        ['Progress overlay injection errors', s.progressOverlayInjectionErrors || 0],
+        ['Phase timing entries', report.phaseTimings ? Object.keys(report.phaseTimings).length : 0],
+        ['Report checksum', report.integrity?.digest || 'N/A']
+      ]
+    }
+  ];
+  const detailGroups = groups.map((group) => renderReportGroup(group, filter)).filter(Boolean);
+  const eventSections = [
+    renderEventCategory({
+      title: 'Runtime errors',
+      description: 'Failures recorded while SiteWipe attempted this cleanup',
+      events: filteredErrors,
+      total: runtimeErrorCount,
+      filter,
+      tone: 'error',
+      empty: runtimeErrorCount
+        ? `${runtimeErrorCount} runtime ${runtimeErrorCount === 1 ? 'error is' : 'errors are'} recorded in the summary, but this retained report has no detailed error entries.`
+        : 'No runtime errors were recorded for this cleanup.',
+      showEmpty: true
+    }),
+    renderEventCategory({
+      title: 'Skipped by safety or settings',
+      description: 'Categories intentionally preserved or not selected',
+      events: filteredSkipped,
+      total: report.skipped?.length || 0,
+      filter,
+      empty: 'No intentionally skipped categories were recorded.'
+    }),
+    renderEventCategory({
+      title: 'Unavailable browser limits',
+      description: 'Browser or platform surfaces SiteWipe could not access; these are not runtime errors',
+      events: filteredUnavailable,
+      total: unavailableLimitCount,
+      filter,
+      tone: 'limit',
+      empty: unavailableLimitCount
+        ? `${unavailableLimitCount} unavailable browser ${unavailableLimitCount === 1 ? 'limit is' : 'limits are'} recorded in the summary, but this retained report has no detailed limit entries.`
+        : 'No unavailable browser categories were recorded.'
+    }),
+    renderExecutionDetails(filteredSections, report.sections?.length || 0, filter)
+  ].filter(Boolean);
+  const filteredDetails = [...detailGroups, ...eventSections];
+  overviewRoot.innerHTML = `
+    <article class="card panel-card outcome-card ${outcome.tone}">
+      <div class="outcome-header">
+        <span class="outcome-badge ${outcome.tone}">${escapeHtml(outcome.badge)}</span>
+        <div>
+          <h2>${escapeHtml(outcome.title)}</h2>
+          <p class="outcome-target">${escapeHtml(report.targetDomain || 'Unknown target')}</p>
+          <p class="outcome-meta">${escapeHtml(report.finishedAt || report.startedAt || 'Time not recorded')} · ${report.redacted ? 'stored redacted' : 'stored with full details'}</p>
+        </div>
+        <p class="outcome-copy">${escapeHtml(outcome.copy)}</p>
       </div>
-    </article>
-    <article class="card panel-card">
-      <div class="section-title"><span>Errors and skipped items</span><small>${report.errors?.length || 0} errors${filterLabel}</small></div>
-      <div class="errors-list">
-        ${renderEvents(filteredErrors, 'No runtime errors reported.')}
-        ${renderEvents(filteredSkipped, 'No skipped safety categories reported.')}
-        ${renderEvents(filteredUnavailable, 'No unavailable categories reported.')}
+      <div class="outcome-metrics">
+        ${metric('Runtime status', formatStatusLabel(report.status))}
+        ${metric('Post-clean verification', formatVerificationStatus(s))}
+        ${metric('Known residue', formatKnownResidue(s))}
+        ${metric('Runtime errors', runtimeErrorCount)}
+        ${metric('Evidence confidence', confidence)}
+        ${metric('Total duration', formatDuration(s.totalDurationMs))}
       </div>
-    </article>
-    <article class="card panel-card">
-      <div class="section-title"><span>Execution details</span><small>${filteredSections.length}/${report.sections?.length || 0} steps${filterLabel}</small></div>
-      <div class="errors-list">${renderEvents(filteredSections, 'No execution sections yet.')}</div>
     </article>`;
+  root.innerHTML = filteredDetails.length
+    ? filteredDetails.join('')
+    : `<div class="empty-state"><strong>No report details matched</strong><p>Try a broader search term or clear the filter.</p></div>`;
+}
+
+function renderReportGroup({ title, description, rows, open = false }, filter) {
+  const visibleRows = filter
+    ? rows.filter(([label, value]) => `${label} ${String(value ?? '')}`.toLowerCase().includes(filter))
+    : rows;
+  if (!visibleRows.length) return '';
+  return `
+    <details class="report-disclosure" ${open || filter ? 'open' : ''}>
+      <summary>
+        <span class="disclosure-title">${escapeHtml(title)}</span>
+        <span class="disclosure-copy">${escapeHtml(description)} · ${visibleRows.length} ${visibleRows.length === 1 ? 'field' : 'fields'}</span>
+      </summary>
+      <div class="report-grid">${visibleRows.map(([label, value]) => row(label, value)).join('')}</div>
+    </details>`;
+}
+
+function renderEventCategory({ title, description, events, total, filter, tone = '', empty, showEmpty = false }) {
+  if (filter && !events.length) return '';
+  if (!filter && !total && !showEmpty) return '';
+  const successNote = !total && showEmpty ? ' success-note' : '';
+  return `
+    <article class="card event-section${successNote}">
+      <div class="section-title">
+        <span>${escapeHtml(title)}</span>
+        <small>${total} ${total === 1 ? 'item' : 'items'}${filter ? ' · filtered' : ''}</small>
+      </div>
+      <p class="section-copy">${escapeHtml(description)}</p>
+      <div class="errors-list">${renderEvents(events, empty, tone)}</div>
+    </article>`;
+}
+
+function renderExecutionDetails(events, total, filter) {
+  if (filter && !events.length) return '';
+  return `
+    <details class="report-disclosure" ${filter ? 'open' : ''}>
+      <summary>
+        <span class="disclosure-title">Execution details</span>
+        <span class="disclosure-copy">Per-phase evidence · ${events.length}/${total} ${total === 1 ? 'step' : 'steps'}${filter ? ' matched' : ''}</span>
+      </summary>
+      <div class="errors-list event-section">${renderEvents(events, 'No execution sections were recorded.')}</div>
+    </details>`;
+}
+
+function metric(label, value) {
+  return `<div class="outcome-metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value ?? ''))}</strong></div>`;
+}
+
+function historyFact(label, value) {
+  return `<div class="history-fact"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value ?? ''))}</strong></div>`;
+}
+
+function updateExportPrivacyNotes() {
+  const reportNote = document.querySelector('#storedReportPrivacyNote');
+  const reportSummary = document.querySelector('#reportSensitiveSummary');
+  if (currentReport?.redacted) {
+    reportSummary.textContent = 'Full stored exports — source already redacted';
+    reportNote.textContent =
+      'This report was stored redacted. A full stored export preserves every remaining field, but it cannot restore browsing details that were removed before storage. Review the file before sharing.';
+  } else {
+    reportSummary.textContent = 'Full stored exports — review before sharing';
+    reportNote.textContent =
+      'This report was stored with full details. A full stored export may include domains, URLs, filenames, local paths, and detailed errors.';
+  }
+  const historyNote = document.querySelector('#storedHistoryPrivacyNote');
+  const historySummary = document.querySelector('#historySensitiveSummary');
+  const storedRedacted = reportsAreStoredRedacted();
+  historySummary.textContent = storedRedacted
+    ? 'Full stored history — all reports already redacted'
+    : 'Full stored history — review before sharing';
+  historyNote.textContent = storedRedacted
+    ? 'Every retained report is already stored redacted. A full stored history export cannot restore removed details, but it preserves all remaining fields.'
+    : 'At least one retained report may contain full browsing details. Prefer the redacted history exports for sharing.';
+}
+
+function reportsAreStoredRedacted() {
+  return Boolean(currentReports.length && currentReports.every((report) => report?.redacted === true));
 }
 
 function renderMatrix() {
   const root = document.querySelector('#matrixContainer');
+  const search = String(document.querySelector('#matrixFilter')?.value || '')
+    .trim()
+    .toLowerCase();
+  const selectedStatus = document.querySelector('#matrixStatusFilter')?.value || 'all';
+  const items = CLEANUP_MATRIX.filter((item) => {
+    const searchable = [item.type, item.api, item.targeted, item.incognito, item.status].join(' ').toLowerCase();
+    const supportLevel = matrixSupportLevel(item.status);
+    return (!search || searchable.includes(search)) && (selectedStatus === 'all' || selectedStatus === supportLevel);
+  });
+  document.querySelector('#matrixCount').textContent =
+    `Showing ${items.length} of ${CLEANUP_MATRIX.length} capabilities.`;
+  if (!items.length) {
+    root.innerHTML = `
+      <div class="empty-state" role="listitem">
+        <strong>No capabilities matched</strong>
+        <p>Try a broader search term or choose a different support level.</p>
+      </div>`;
+    return;
+  }
   root.innerHTML = `
-    <div class="matrix-row header-row"><span>Data type</span><span>API used</span><span>Targeted by domain?</span><span>Incognito?</span><span>Status</span></div>
-    ${CLEANUP_MATRIX.map(
-      (item) => `
-      <div class="matrix-row">
-        <span>${escapeHtml(item.type)}</span>
-        <span class="mono">${escapeHtml(item.api)}</span>
-        <span>${escapeHtml(item.targeted)}</span>
-        <span>${escapeHtml(item.incognito)}</span>
-        <span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status)}</span>
+    ${items
+      .map(
+        (item) => `
+      <div class="matrix-list-item" role="listitem">
+        <details class="matrix-item">
+          <summary class="matrix-item-header">
+            <span class="matrix-title">${escapeHtml(item.type)}</span>
+            <span class="status-pill ${statusClass(item.status)}">${escapeHtml(formatMatrixStatus(item.status))}</span>
+          </summary>
+          <dl class="matrix-facts">
+            <div><dt>Reported support</dt><dd>${escapeHtml(item.status)}</dd></div>
+            <div><dt>Browser mechanism</dt><dd class="mono">${escapeHtml(item.api)}</dd></div>
+            <div><dt>Target behavior</dt><dd>${escapeHtml(item.targeted)}</dd></div>
+            <div><dt>Private windows</dt><dd>${escapeHtml(item.incognito)}</dd></div>
+          </dl>
+        </details>
       </div>
     `
-    ).join('')}`;
+      )
+      .join('')}`;
+}
+
+function matrixSupportLevel(status) {
+  const className = statusClass(String(status || ''));
+  return className === 'skipped' ? 'unavailable' : className;
+}
+
+function formatMatrixStatus(status) {
+  const value = String(status || 'unknown').toLowerCase();
+  if (value.includes('unavailable')) return 'Unavailable';
+  if (value.includes('manual')) return 'Manual only';
+  if (value.includes('skipped')) return 'Skipped';
+  if (value.includes('advanced')) return 'Advanced opt-in';
+  if (value.includes('optional')) return 'Optional';
+  if (value.includes('partial')) return 'Partial · pending';
+  if (value.includes('pending')) return 'Validation pending';
+  if (value.includes('fully')) return 'Fully supported';
+  return formatStatusLabel(value);
 }
 
 function renderHistory(reports) {
   const root = document.querySelector('#historyContainer');
+  const count = reports?.length || 0;
+  document.querySelector('#historyCount').textContent = `${count} ${count === 1 ? 'report' : 'reports'}`;
   const filter = String(document.querySelector('#historyFilter')?.value || '')
     .trim()
     .toLowerCase();
   const items = filterEvents(reports || [], filter);
   if (!items.length) {
     root.innerHTML = filter
-      ? '<div class="empty-state">No local cleanup history matched the filter.</div>'
-      : '<div class="empty-state">No local cleanup history stored.</div>';
+      ? '<div class="empty-state"><strong>No retained reports matched</strong><p>Try a broader search term or clear the filter.</p></div>'
+      : `<div class="empty-state"><strong>No stored cleanup history</strong><p>${
+          currentSettings.keepHistory
+            ? 'History retention is enabled. Completed cleanups will appear here when the browser stores them.'
+            : 'History retention is off. The latest report can still appear in the Report tab for its separate retention window.'
+        }</p></div>`;
     return;
   }
-  const completeVerificationReports = items.filter((report) =>
-    ['verified_zero', 'residue_found'].includes(report.summary?.verificationStatus)
-  );
-  const incompleteVerificationReports = items.length - completeVerificationReports.length;
-  const knownResidue = completeVerificationReports.reduce(
-    (sum, report) => sum + (Number(report.summary?.verificationRemainingTotal) || 0),
-    0
-  );
-  const header = `<div class="event-item"><strong>${items.length} report(s) shown</strong><p>${knownResidue} known cookie/tab/history/download-record residue item(s) across ${completeVerificationReports.length} complete four-surface verification report(s) · ${incompleteVerificationReports} report(s) incomplete or unknown${filter ? ` · filtered by “${escapeHtml(filter)}”` : ''}</p></div>`;
+  const verificationHistory = summarizeHistoryVerification(items);
+  const header = `<div class="history-overview"><strong>${items.length} ${items.length === 1 ? 'report' : 'reports'} shown</strong><p>${escapeHtml(verificationHistory.text)}${filter ? ` · Filter: “${escapeHtml(filter)}”` : ''}</p></div>`;
   root.innerHTML =
     header +
     items
@@ -249,18 +662,34 @@ function renderHistory(reports) {
           s.cleanupConfidenceScore == null
             ? s.cleanupConfidenceLabel || 'N/A'
             : `${s.cleanupConfidenceLabel || 'N/A'} (${s.cleanupConfidenceScore}/100)`;
+        const outcome = formatReportOutcome(report);
         return `
-    <div class="event-item">
-      <strong>${escapeHtml(report.targetDomain)}</strong>
-      <p>${escapeHtml(report.finishedAt || report.startedAt)} · ${escapeHtml(report.status)} · confidence ${escapeHtml(confidence)} · four-surface verification ${escapeHtml(formatVerificationStatus(s.verificationStatus))} · duration ${escapeHtml(formatDuration(s.totalDurationMs))} · non-deduplicated operations ${escapeHtml(formatOperationEventCount(s))} · known residue ${escapeHtml(formatVerificationCount(s.verificationRemainingTotal))} · origins ${formatDisplayCount(s.discoveredOrigins)} · frames ${formatDisplayCount(s.pageScriptFramesMatched)} · cookies ${formatDisplayCount(s.cookiesRemoved)} · associated ${formatDisplayCount(s.associatedTargetsIncluded)} · history ${formatDisplayCount(s.historyEntriesRemoved)}</p>
-    </div>`;
+    <article class="history-item">
+      <header class="history-item-header">
+        <div>
+          <strong>${escapeHtml(report.targetDomain || 'Unknown target')}</strong>
+          <time datetime="${escapeHtml(report.finishedAt || report.startedAt || '')}">${escapeHtml(report.finishedAt || report.startedAt || 'Time not recorded')}</time>
+        </div>
+        <span class="outcome-badge ${outcome.tone}">${escapeHtml(outcome.badge)}</span>
+      </header>
+      <div class="history-facts">
+        ${historyFact('Verification', formatVerificationStatus(s))}
+        ${historyFact('Confidence', confidence)}
+        ${historyFact('Duration', formatDuration(s.totalDurationMs))}
+        ${historyFact('Known residue', formatKnownResidue(s))}
+        ${historyFact('Operations', formatOperationEventCount(s))}
+        ${historyFact('Origins / frames', `${formatDisplayCount(s.discoveredOrigins)} / ${formatDisplayCount(s.pageScriptFramesMatched)}`)}
+        ${historyFact('Cookies / history', `${formatDisplayCount(s.cookiesRemoved)} / ${formatDisplayCount(s.historyEntriesRemoved)}`)}
+        ${historyFact('Associated targets', formatDisplayCount(s.associatedTargetsIncluded))}
+      </div>
+    </article>`;
       })
       .join('');
 }
 
 async function exportHistoryJson(redacted = false) {
   if (!currentReports.length) return;
-  if (!redacted && !confirmSensitiveExport('full cleanup history JSON')) return;
+  if (!redacted && !confirmSensitiveExport('full stored cleanup history JSON', reportsAreStoredRedacted())) return;
   const output = await Promise.all(currentReports.map((report) => prepareReportForExport(report, { redacted })));
   downloadText(
     JSON.stringify(
@@ -273,7 +702,7 @@ async function exportHistoryJson(redacted = false) {
       null,
       2
     ),
-    `sitewipe-history-${redacted ? 'redacted-' : ''}${Date.now()}.json`,
+    historyExportFilename({ redacted, extension: 'json' }),
     'application/json'
   );
 }
@@ -298,12 +727,12 @@ async function exportHistoryText() {
       `${report.targetDomain || 'unknown'} · ${report.status || 'unknown'} · ${report.finishedAt || report.startedAt || 'unknown'}`
     );
     lines.push(
-      `  Mode: ${s.cleanupMode === 'expert' ? 'expert' : 'standard'} cleanup · Verification evidence confidence: ${confidence} · Four-surface verification: ${formatVerificationStatus(s.verificationStatus)} · Duration: ${formatDuration(s.totalDurationMs)} · Non-deduplicated operations: ${formatOperationEventCount(s)} · Known residue: ${formatVerificationCount(s.verificationRemainingTotal)}`
+      `  Mode: ${s.cleanupMode === 'expert' ? 'expert' : 'standard'} cleanup · Approval: ${formatCleanupApprovalMode(s.cleanupApprovalMode)} · Verification evidence confidence: ${confidence} · Four-surface verification: ${formatVerificationStatus(s)} · Duration: ${formatDuration(s.totalDurationMs)} · Non-deduplicated operations: ${formatOperationEventCount(s)} · Known residue: ${formatKnownResidue(s)}`
     );
     lines.push(`  Checksum: ${report.integrity?.digest || 'N/A'}`);
     lines.push('');
   }
-  downloadText(lines.join('\n'), `sitewipe-history-${Date.now()}.txt`, 'text/plain');
+  downloadText(lines.join('\n'), historyExportFilename({ redacted: true, extension: 'txt' }), 'text/plain');
 }
 
 async function copyTroubleshootingSummary() {
@@ -319,21 +748,23 @@ async function copyTroubleshootingSummary() {
     `Started: ${report.startedAt || 'unknown'}`,
     `Finished: ${report.finishedAt || 'unknown'}`,
     `Mode: ${s.cleanupMode === 'expert' ? 'expert' : 'standard'} cleanup`,
+    `Approval: ${formatCleanupApprovalMode(s.cleanupApprovalMode)}`,
     `Target mode: ${findSectionDetail(report, 'targetDiagnostics', 'matchMode') || 'registrable_domain'}`,
     `Associated targets: ${s.associatedTargetsIncluded || findSectionDetail(report, 'targetDiagnostics', 'associatedTargetCount') || 0}`,
     `Non-deduplicated operation events: ${formatOperationEventCount(s)}`,
     `Verification evidence confidence: ${s.cleanupConfidenceScore == null ? s.cleanupConfidenceLabel || 'N/A' : `${s.cleanupConfidenceLabel || 'N/A'} (${s.cleanupConfidenceScore}/100)`}`,
-    `Four-surface verification: ${formatVerificationStatus(s.verificationStatus)}`,
+    `Four-surface verification: ${formatVerificationStatus(s)}`,
     `Total duration: ${formatDuration(s.totalDurationMs)}`,
     `Slowest phase: ${s.slowestPhase || 'N/A'}`,
-    `Known four-surface residue total: ${formatVerificationCount(s.verificationRemainingTotal)}`,
+    `Known four-surface residue: ${formatKnownResidue(s)}`,
     `Tabs closed normal/incognito: ${s.normalTabsClosed || 0}/${s.incognitoTabsClosed || 0}`,
     `Cookies removed: ${s.cookiesRemoved || 0}`,
     `Origins discovered: ${s.discoveredOrigins || 0}`,
     `History removed: ${s.historyEntriesRemoved || 0}`,
     `Downloads erased: ${s.downloadHistoryEntriesRemoved || 0}`,
     `Four-surface residue C/T/H/D: ${[s.verificationCookiesRemaining, s.verificationTabsRemaining, s.verificationHistoryRemaining, s.verificationDownloadsRemaining].map(formatVerificationCount).join('/')}`,
-    `Warnings/errors: ${(report.unavailable || []).length}/${(report.errors || []).length}`,
+    `Unavailable browser limits: ${getReportUnavailableCount(report)}`,
+    `Runtime errors: ${getReportRuntimeErrorCount(report)}`,
     `Last phase timings: ${
       report.phaseTimings
         ? Object.entries(report.phaseTimings)
@@ -358,24 +789,26 @@ async function copyTroubleshootingSummary() {
 
 async function exportReportJson(redacted = false) {
   if (!currentReport) return;
-  if (!redacted && !confirmSensitiveExport('full report JSON')) return;
+  if (!redacted && !confirmSensitiveExport('full stored report JSON', Boolean(currentReport.redacted))) return;
   const output = await prepareReportForExport(currentReport, { redacted });
-  const safeDomain =
-    String(output.targetDomain || currentReport.targetDomain || 'site')
-      .replace(/[^a-z0-9.-]+/gi, '-')
-      .slice(0, 80) || 'site';
   const blob = new Blob([JSON.stringify(output, null, 2)], {
     type: 'application/json'
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `sitewipe-report-${redacted ? 'redacted-' : ''}${safeDomain}-${Date.now()}.json`;
+  a.download = reportExportFilename(output, 'json');
   document.body.append(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1500);
-  announceStatus(`${redacted ? 'Redacted' : 'Sensitive full'} JSON report export started.`);
+  announceStatus(
+    redacted
+      ? 'Redacted JSON report export started.'
+      : currentReport.redacted
+        ? 'Full stored JSON export started. This report was already stored redacted.'
+        : 'Sensitive full JSON report export started.'
+  );
 }
 
 async function exportReportHtml() {
@@ -384,11 +817,11 @@ async function exportReportHtml() {
     redacted: true
   });
   const s = report.summary || {};
-  const safeDomain = safeFilename(report.targetDomain || 'site');
   const rows = [
     ['Target domain', report.targetDomain],
     ['Status', report.status],
     ['Mode', `${s.cleanupMode === 'expert' ? 'Expert' : 'Standard'} cleanup`],
+    ['Approval', formatCleanupApprovalMode(s.cleanupApprovalMode)],
     ['Non-deduplicated operation events', formatOperationEventCount(s)],
     [
       'Verification evidence confidence',
@@ -396,16 +829,16 @@ async function exportReportHtml() {
         ? s.cleanupConfidenceLabel || 'N/A'
         : `${s.cleanupConfidenceLabel || 'N/A'} (${s.cleanupConfidenceScore}/100)`
     ],
-    ['Four-surface verification', formatVerificationStatus(s.verificationStatus)],
+    ['Four-surface verification', formatVerificationStatus(s)],
     ['Total duration', formatDuration(s.totalDurationMs)],
     ['Slowest phase', s.slowestPhase || 'N/A'],
-    ['Known four-surface residue total', formatVerificationCount(s.verificationRemainingTotal)],
+    ['Known four-surface residue', formatKnownResidue(s)],
     ['Report checksum', report.integrity?.digest || 'N/A'],
     ['Started', report.startedAt],
     ['Finished', report.finishedAt || 'N/A'],
     ['Associated targets included', s.associatedTargetsIncluded || 0],
-    ['Errors', (report.errors || []).length],
-    ['Manual/unavailable notes', (report.unavailable || []).length]
+    ['Runtime errors', getReportRuntimeErrorCount(report)],
+    ['Unavailable browser limits', getReportUnavailableCount(report)]
   ];
   const sectionHtml = (report.sections || [])
     .map(
@@ -428,7 +861,7 @@ async function exportReportHtml() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `sitewipe-report-${safeDomain}-${Date.now()}.html`;
+  a.download = reportExportFilename(report, 'html');
   document.body.append(a);
   a.click();
   a.remove();
@@ -438,7 +871,7 @@ async function exportReportHtml() {
 
 async function exportReportText() {
   if (!currentReport) return;
-  if (!confirmSensitiveExport('full text report')) return;
+  if (!confirmSensitiveExport('full stored text report', Boolean(currentReport.redacted))) return;
   const report = await prepareReportForExport(currentReport, {
     redacted: false
   });
@@ -449,6 +882,7 @@ async function exportReportText() {
     `Target: ${report.targetDomain || 'unknown'}`,
     `Status: ${report.status || 'unknown'}`,
     `Mode: ${s.cleanupMode === 'expert' ? 'Expert' : 'Standard'} cleanup`,
+    `Approval: ${formatCleanupApprovalMode(s.cleanupApprovalMode)}`,
     `Checksum: ${report.integrity?.digest || 'N/A'}`,
     `Started: ${report.startedAt || 'N/A'}`,
     `Finished: ${report.finishedAt || 'N/A'}`,
@@ -457,15 +891,16 @@ async function exportReportText() {
     '-------',
     `Non-deduplicated operation events: ${formatOperationEventCount(s)}`,
     `Verification evidence confidence: ${s.cleanupConfidenceScore == null ? s.cleanupConfidenceLabel || 'N/A' : `${s.cleanupConfidenceLabel || 'N/A'} (${s.cleanupConfidenceScore}/100)`}`,
-    `Four-surface verification: ${formatVerificationStatus(s.verificationStatus)}`,
+    `Four-surface verification: ${formatVerificationStatus(s)}`,
     `Total duration: ${formatDuration(s.totalDurationMs)}`,
     `Slowest phase: ${s.slowestPhase || 'N/A'}`,
-    `Known four-surface residue total: ${formatVerificationCount(s.verificationRemainingTotal)}`,
+    `Known four-surface residue: ${formatKnownResidue(s)}`,
     `Tabs closed normal/incognito: ${s.normalTabsClosed || 0}/${s.incognitoTabsClosed || 0}`,
     `Cookies removed: ${s.cookiesRemoved || 0}`,
     `History entries removed: ${s.historyEntriesRemoved || 0}`,
     `Download records erased: ${s.downloadHistoryEntriesRemoved || 0}`,
-    `Warnings/errors: ${(report.unavailable || []).length}/${(report.errors || []).length}`,
+    `Unavailable browser limits: ${getReportUnavailableCount(report)}`,
+    `Runtime errors: ${getReportRuntimeErrorCount(report)}`,
     '',
     'Sections',
     '--------'
@@ -475,11 +910,7 @@ async function exportReportText() {
     lines.push(JSON.stringify(section.details || {}, null, 2));
     lines.push('');
   }
-  downloadText(
-    lines.join('\n'),
-    `sitewipe-report-${safeFilename(report.targetDomain || 'site')}-${Date.now()}.txt`,
-    'text/plain'
-  );
+  downloadText(lines.join('\n'), reportExportFilename(report, 'txt'), 'text/plain');
 }
 
 async function exportRedactedReportText() {
@@ -494,6 +925,7 @@ async function exportRedactedReportText() {
     `Target: ${report.targetDomain || 'unknown'}`,
     `Status: ${report.status || 'unknown'}`,
     `Mode: ${s.cleanupMode === 'expert' ? 'Expert' : 'Standard'} cleanup`,
+    `Approval: ${formatCleanupApprovalMode(s.cleanupApprovalMode)}`,
     `Checksum: ${report.integrity?.digest || 'N/A'}`,
     `Started: ${report.startedAt || 'N/A'}`,
     `Finished: ${report.finishedAt || 'N/A'}`,
@@ -502,15 +934,16 @@ async function exportRedactedReportText() {
     '-------',
     `Non-deduplicated operation events: ${formatOperationEventCount(s)}`,
     `Verification evidence confidence: ${s.cleanupConfidenceScore == null ? s.cleanupConfidenceLabel || 'N/A' : `${s.cleanupConfidenceLabel || 'N/A'} (${s.cleanupConfidenceScore}/100)`}`,
-    `Four-surface verification: ${formatVerificationStatus(s.verificationStatus)}`,
+    `Four-surface verification: ${formatVerificationStatus(s)}`,
     `Total duration: ${formatDuration(s.totalDurationMs)}`,
     `Slowest phase: ${s.slowestPhase || 'N/A'}`,
-    `Known four-surface residue total: ${formatVerificationCount(s.verificationRemainingTotal)}`,
+    `Known four-surface residue: ${formatKnownResidue(s)}`,
     `Tabs closed normal/incognito: ${s.normalTabsClosed || 0}/${s.incognitoTabsClosed || 0}`,
     `Cookies removed: ${s.cookiesRemoved || 0}`,
     `History entries removed: ${s.historyEntriesRemoved || 0}`,
     `Download records erased: ${s.downloadHistoryEntriesRemoved || 0}`,
-    `Warnings/errors: ${(report.unavailable || []).length}/${(report.errors || []).length}`,
+    `Unavailable browser limits: ${getReportUnavailableCount(report)}`,
+    `Runtime errors: ${getReportRuntimeErrorCount(report)}`,
     '',
     'Sections',
     '--------'
@@ -520,11 +953,7 @@ async function exportRedactedReportText() {
     lines.push(JSON.stringify(section.details || {}, null, 2));
     lines.push('');
   }
-  downloadText(
-    lines.join('\n'),
-    `sitewipe-report-redacted-${safeFilename(report.targetDomain || 'site')}-${Date.now()}.txt`,
-    'text/plain'
-  );
+  downloadText(lines.join('\n'), reportExportFilename(report, 'txt'), 'text/plain');
 }
 
 function downloadText(text, filename, type) {
@@ -540,12 +969,25 @@ function downloadText(text, filename, type) {
   announceStatus(`Export started: ${filename}`);
 }
 
+function reportExportFilename(report, extension) {
+  return `${joinFilenameParts('sitewipe', 'report', safeFilename(report?.targetDomain || 'site'), Date.now())}.${extension}`;
+}
+
+function historyExportFilename({ redacted, extension }) {
+  return `${joinFilenameParts('sitewipe', 'history', redacted ? 'redacted' : '', Date.now())}.${extension}`;
+}
+
+function joinFilenameParts(...parts) {
+  return parts.map(safeFilename).filter(Boolean).join('-');
+}
+
 function safeFilename(value) {
-  return (
-    String(value || 'site')
-      .replace(/[^a-z0-9.-]+/gi, '-')
-      .slice(0, 80) || 'site'
-  );
+  return String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[^a-z0-9.-]+/gi, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[.-]+|[.-]+$/g, '')
+    .slice(0, 80);
 }
 
 async function verifyReportDigest() {
@@ -558,9 +1000,12 @@ async function verifyReportDigest() {
   announceStatus(message, message.includes('mismatch') ? 'error' : 'success');
 }
 
-function confirmSensitiveExport(kind) {
+function confirmSensitiveExport(kind, alreadyStoredRedacted = false) {
+  const storedRedactionNote = alreadyStoredRedacted
+    ? ' This report was stored redacted, so removed details cannot be restored; the export still preserves every remaining stored field.'
+    : '';
   return confirm(
-    `Export ${kind}? It may contain browsing domains, URLs, filenames, local paths, and error details. Use a redacted export unless you have reviewed the destination and understand the privacy risk.`
+    `Export ${kind}?${storedRedactionNote} Full stored exports can contain browsing domains, URLs, filenames, local paths, and error details. Use a redacted export unless you have reviewed the destination and understand the privacy risk.`
   );
 }
 
@@ -575,13 +1020,13 @@ async function clearHistory() {
   button.disabled = true;
   try {
     await sendMessage(MESSAGE_TYPES.clearHistory);
-    await refresh();
+    await refreshBoundReport();
     announceStatus('Stored cleanup-report history deleted. The current report was preserved.', 'success');
   } catch (error) {
     announceStatus(`Report history could not be deleted: ${formatError(error)}`, 'error');
   } finally {
     button.disabled = false;
-    button.focus();
+    (button.hidden ? document.querySelector('#historyTabButton') : button).focus();
   }
 }
 
@@ -614,12 +1059,12 @@ function filterEvents(events, filter) {
   );
 }
 
-function renderEvents(events, empty) {
+function renderEvents(events, empty, tone = '') {
   if (!events || !events.length) return `<div class="empty-state">${escapeHtml(empty)}</div>`;
   return events
     .map(
       (event) => `
-    <div class="event-item">
+    <div class="event-item ${escapeHtml(tone)}">
       <strong>${escapeHtml(event.label || event.key || event.message || 'Item')}</strong>
       <p>${escapeHtml(eventDetailText(event))}</p>
     </div>`
@@ -679,8 +1124,11 @@ function formatDuration(ms) {
   return `${minutes}m ${seconds}s`;
 }
 
-function formatVerificationStatus(value) {
-  return String(value || 'unknown').replaceAll('_', ' ');
+function formatStatusLabel(value) {
+  const normalized = String(value || 'unknown')
+    .replaceAll('_', ' ')
+    .trim();
+  return normalized ? `${normalized.charAt(0).toUpperCase()}${normalized.slice(1)}` : 'Unknown';
 }
 
 function formatVerificationCount(value) {
@@ -697,18 +1145,18 @@ function formatOperationEventCount(summary) {
   return value !== null && Number.isFinite(Number(value)) ? String(Math.floor(Number(value))) : 'Not available';
 }
 
+function formatCleanupApprovalMode(value) {
+  if (value === 'settings_direct') return 'Settings direct cleanup';
+  if (value === 'detailed_review') return 'Detailed review';
+  if (value === 'quick') return 'Legacy unreviewed cleanup (retired)';
+  return 'Unknown';
+}
+
 function formatBytes(value) {
   if (!Number.isFinite(value)) return 'unknown';
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
   return `${Math.round(value / (1024 * 1024))} MB`;
-}
-function debounce(fn, delay) {
-  let timer;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
-  };
 }
 function statusClass(status) {
   if (status.includes('pending')) return 'partial';

@@ -10,8 +10,18 @@ import {
   runtimeArtifactBase
 } from './versioning.mjs';
 import { RUNTIME_FILES } from './release-files.mjs';
+import { assertDependencyInventoryMatchesLockfile } from './dependency-license-contract.mjs';
+import {
+  resetAccessibilityEvidence,
+  resetAutomatedValidationEvidence,
+  resetDependencyLicenseInventoryEvidence,
+  resetProvenanceTechnicalEvidence
+} from './evidence-reset.mjs';
 import { transactionalWriteFiles } from './transactional-files.mjs';
-import { resolveCurrentValidationEvidence } from './validation-evidence.mjs';
+import {
+  planValidationEvidenceVersionTransition,
+  stageValidationEvidenceVersionTransition
+} from './validation-evidence.mjs';
 
 const updates = new Map();
 const request = process.argv[2] || 'patch';
@@ -25,15 +35,20 @@ const date = localCalendarDate();
 
 queueJson('package.json', { ...pkg, version: nextVersion });
 
-const lock = await json('package-lock.json');
+const lockfileBefore = await source('package-lock.json');
+const dependencyInventory = await json('docs/evidence/dependency-license-inventory.json');
+assertDependencyInventoryMatchesLockfile(dependencyInventory, lockfileBefore);
+const lock = JSON.parse(lockfileBefore);
 lock.version = nextVersion;
 if (!lock.packages?.['']) throw new Error('package-lock workspace record is missing.');
 lock.packages[''].version = nextVersion;
 queueJson('package-lock.json', lock);
 
-const dependencyInventory = await json('docs/evidence/dependency-license-inventory.json');
-dependencyInventory.lockfileSha256 = sha256(await source('package-lock.json'));
-queueJson('docs/evidence/dependency-license-inventory.json', dependencyInventory);
+const resetDependencyInventory = resetDependencyLicenseInventoryEvidence(dependencyInventory, {
+  version: nextVersion,
+  currentLockfileSha256: sha256(await source('package-lock.json'))
+});
+queueJson('docs/evidence/dependency-license-inventory.json', resetDependencyInventory);
 
 for (const path of ['src/package.json', 'src/manifest.json']) {
   await queueRequiredReplacement(path, `"version": "${previousVersion}"`, `"version": "${nextVersion}"`);
@@ -45,6 +60,11 @@ for (const [path, before, after] of [
     'src/test-harness/release-selftest.mjs',
     `manifest.version, '${previousVersion}'`,
     `manifest.version, '${nextVersion}'`
+  ],
+  [
+    'tests/browser/fixtures/sidepanel-browser-mock.js',
+    `appVersion: '${previousVersion}'`,
+    `appVersion: '${nextVersion}'`
   ],
   ['README.md', `current candidate version \`${previousVersion}\``, `current candidate version \`${nextVersion}\``],
   ['PRIVACY.md', `SiteWipe \`${previousVersion}\``, `SiteWipe \`${nextVersion}\``],
@@ -76,10 +96,19 @@ updates.set('CHANGELOG.md', promoteUnreleased(await source('CHANGELOG.md'), next
 const browser = await json('docs/evidence/browser-validation.json');
 browser.status = 'pending';
 browser.attemptedAt = null;
+delete browser.attemptedAtApproximate;
 browser.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sha256: null };
 browser.chrome = emptyBrowserEvidence();
 browser.brave = emptyBrowserEvidence();
+browser.syntheticInAppBrowser = emptySyntheticInAppBrowserEvidence();
 browser.automationAttempt = null;
+browser.limitations = [
+  'Node tests and static checks do not establish installed Chrome behavior.',
+  'Chrome evidence cannot be reused as Brave evidence.',
+  'No browser version or extension artifact hash is approved until the matrix is actually run.',
+  'Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion.',
+  'ChatGPT in-app Browser synthetic UI results are not installed-extension evidence and remain isolated in their separate evidence object.'
+];
 browser.reviewerApproval = false;
 queueJson('docs/evidence/browser-validation.json', browser);
 
@@ -92,15 +121,10 @@ performance.fixtures = [];
 performance.reviewerApproval = false;
 queueJson('docs/evidence/performance-results.json', performance);
 
-const accessibility = await json('docs/evidence/accessibility-results.json');
-accessibility.status = 'pending_installed_validation';
-accessibility.installedChecks = Object.fromEntries(
-  Object.keys(accessibility.installedChecks || {}).map((key) => [key, 'pending'])
-);
-accessibility.browserVersions = {};
-accessibility.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sha256: null };
-delete accessibility.artifactSha256;
-accessibility.reviewerApproval = false;
+const accessibility = resetAccessibilityEvidence(await json('docs/evidence/accessibility-results.json'), {
+  version: nextVersion,
+  artifactBase
+});
 queueJson('docs/evidence/accessibility-results.json', accessibility);
 
 const media = await json('docs/evidence/media-inventory.json');
@@ -120,35 +144,22 @@ media.storeAssets = {
 media.reviewerApproval = false;
 queueJson('docs/evidence/media-inventory.json', media);
 
-const validationEvidence = await resolveCurrentValidationEvidence(projectRoot);
-const automated = await json(validationEvidence.relativePath);
-automated.status = 'version_bumped_pending_validation';
-automated.validatedAt = null;
-automated.releaseState = currentStatus;
-automated.fullCheck.status = 'pending';
-automated.fullCheck.versionContract = {
-  status: 'pending',
+const validationEvidenceTransition = await planValidationEvidenceVersionTransition(projectRoot, {
+  previousVersion,
+  nextVersion,
+  date
+});
+const automated = resetAutomatedValidationEvidence(validationEvidenceTransition.previousEvidence, {
   version: nextVersion,
-  runtimeFiles: RUNTIME_FILES.length,
-  runtimeFingerprintSha256: null
-};
-automated.fullCheck.manifest.version = nextVersion;
-automated.artifacts = {
-  ...automated.artifacts,
-  status: 'pending_rebuild',
-  runtimeZip: `${artifactBase}.zip`,
-  runtimeZipSha256: null,
-  runtimeZipBytes: null,
-  sourceZip: `${artifactBase}-source.zip`,
-  sourceFiles: null,
-  sourcePackageEquivalence: 'pending',
-  checksumFilesVerified: 0,
-  consecutiveBuildOutputsCompared: 0,
-  byteIdenticalAcrossConsecutiveBuilds: false,
-  runtimeSbom: `${artifactBase}.runtime-sbom.cdx.json`,
-  unsignedProvenanceInput: `${artifactBase}.unsigned-provenance-input.json`
-};
-queueJson(validationEvidence.relativePath, automated);
+  artifactBase,
+  runtimeFileCount: RUNTIME_FILES.length,
+  releaseState: currentStatus
+});
+
+const provenance = resetProvenanceTechnicalEvidence(await json('docs/evidence/provenance-audit.json'), {
+  runtimeFileCount: RUNTIME_FILES.length
+});
+queueJson('docs/evidence/provenance-audit.json', provenance);
 
 const fingerprint = await computeRuntimeFingerprint(projectRoot, updates);
 const releaseInputFingerprint = await computeReleaseInputFingerprint(projectRoot, updates);
@@ -171,7 +182,14 @@ updates.set(
     2
   )}\n`
 );
-await transactionalWriteFiles(projectRoot, updates);
+const validationCreateOnlyPaths = stageValidationEvidenceVersionTransition(
+  updates,
+  validationEvidenceTransition,
+  automated
+);
+await transactionalWriteFiles(projectRoot, updates, 'sitewipe-version-bump', {
+  createOnlyPaths: validationCreateOnlyPaths
+});
 
 console.log(
   JSON.stringify(
@@ -240,5 +258,21 @@ function emptyBrowserEvidence() {
     operatingSystem: null,
     disposableProfile: null,
     assertions: []
+  };
+}
+
+function emptySyntheticInAppBrowserEvidence() {
+  return {
+    status: 'pending',
+    attemptedAt: null,
+    environment: 'ChatGPT in-app Browser',
+    fixture: 'HTTP-served SiteWipe UI with synthetic browser-API mocks',
+    assertions: [],
+    qualifiesAsInstalledExtensionEvidence: false,
+    limitations: [
+      'Does not load the runtime ZIP or a chrome-extension:// origin.',
+      'Does not exercise native host-permission prompts, incognito spanning, MV3 worker lifecycle, or privileged browser-data mutation APIs.',
+      'Cannot satisfy Chrome, Brave, installed accessibility, exact-artifact performance, compatibility, or store-media approval fields.'
+    ]
   };
 }
