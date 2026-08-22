@@ -2445,13 +2445,16 @@ async function waitForWallClock(predicate, iterations = 200) {
   throw new Error('Timed out while waiting for the expected lifecycle state.');
 }
 
-async function driveZeroDelayTimers(testContext, predicate, iterations = 100) {
-  for (let index = 0; index < iterations; index += 1) {
+async function driveZeroDelayTimers(testContext, predicate, timeoutMs = 2_000) {
+  const deadline = performance.now() + timeoutMs;
+  do {
     if (predicate()) return;
     testContext.mock.timers.tick(0);
     await flushMicrotasks();
     await new Promise((resolve) => setImmediate(resolve));
-  }
+  } while (performance.now() < deadline);
+
+  if (predicate()) return;
   throw new Error('Timed out while driving zero-delay lifecycle work.');
 }
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "local_automated_checks_passed",
-  "validatedAt": "2026-08-21T23:28:00-05:00",
+  "validatedAt": "2026-08-21T23:57:00-05:00",
   "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
   "environment": {
     "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
@@ -24,7 +24,7 @@
       "version": "1.11.46",
       "runtimeFiles": 55,
       "runtimeFingerprintSha256": "74AB50F0429AFB18317452903D06F5C36D4EA83F8CB8A0FD779FAA3406F80978",
-      "stableReleaseInputFingerprintSha256": "EA801CBCFCF19E1D94576E8F01558E9D0149B59D00B33DF3FD9E67D9847ACA9D"
+      "stableReleaseInputFingerprintSha256": "3BB36594AA238BF7AAD0E84CB4D4B7696811589EC8F26DF5EEF4E1EE86AA9831"
     },
     "syntaxModules": 535,
     "typeCheck": "passed",
@@ -105,10 +105,10 @@
       "lines": 80
     },
     "all": {
-      "statements": 88.06,
-      "branches": 74.66,
+      "statements": 88.07,
+      "branches": 74.67,
       "functions": 91.36,
-      "lines": 88.06
+      "lines": 88.07
     },
     "shared": {
       "statements": 99.14,
@@ -117,16 +117,16 @@
       "lines": 99.14
     },
     "background": {
-      "statements": 80.25,
-      "branches": 73.94,
+      "statements": 80.27,
+      "branches": 73.96,
       "functions": 91.75,
-      "lines": 80.25
+      "lines": 80.27
     },
     "serviceWorker": {
-      "statements": 85.74,
-      "branches": 78.31,
+      "statements": 85.78,
+      "branches": 78.33,
       "functions": 98.76,
-      "lines": 85.74
+      "lines": 85.78
     },
     "cleanupAuthorization": {
       "statements": 100,
@@ -233,7 +233,7 @@
     ]
   },
   "postWriteValidation": {
-    "validatedAt": "2026-08-21T23:30:00-05:00",
+    "validatedAt": "2026-08-22T00:01:00-05:00",
     "status": "passed",
     "format": "passed",
     "versionContract": "passed",
@@ -282,7 +282,7 @@
     "components": 329,
     "dependencyNodes": 388,
     "bytes": 807991,
-    "sha256": "D7203BEEDEA5743785FEDBF1ABD74542A73808BD8C112E6BAC9E375445AA8F3D",
-    "generatedAt": "2026-08-22T04:26:54.603Z"
+    "sha256": "9F997198896B585FAED8BC0C521C769F1E8A8A27EF6811630FF10DF95FD31C34",
+    "generatedAt": "2026-08-22T04:53:48.02Z"
   }
 }
