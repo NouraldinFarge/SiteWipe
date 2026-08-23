@@ -9,10 +9,13 @@ import {
   discoverCookiesOnly,
   MAX_COOKIE_DISCOVERY_QUERIES,
   normalizeCookiePath,
+  removeCookies,
   safeGetCookies,
   safeGetCookieStores
 } from '../../src/background/cookies.js';
 import { normalizeSiteInput } from '../../src/background/domain.js';
+import { createReport } from '../../src/background/report.js';
+import { discoverCleanupScope } from '../../src/background/scope-discovery.js';
 
 async function withChrome(chromeValue, callback) {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
@@ -48,6 +51,89 @@ test('cookie identity includes store and partition metadata', () => {
   assert.notEqual(
     cookieKey(base, '0'),
     cookieKey({ ...base, partitionKey: { topLevelSite: 'https://embed.example' } }, '0')
+  );
+});
+
+test('an example.com partition key never brings a chips.localhost cookie into the reviewed cookie scope', async () => {
+  const normalized = normalizeSiteInput('example.com');
+  assert.equal(normalized.ok, true);
+  const partitionKey = { topLevelSite: 'https://example.com' };
+  const targetCookie = {
+    name: 'sitewipe_partitioned',
+    domain: '.selected.example.com',
+    path: '/',
+    secure: true,
+    partitionKey
+  };
+  const preservedCookie = {
+    name: 'sitewipe_partitioned',
+    domain: 'chips.localhost',
+    path: '/',
+    secure: true,
+    partitionKey
+  };
+  const cookieJar = [targetCookie, preservedCookie];
+  const removalCalls = [];
+  let exhaustiveQueries = 0;
+
+  await withChrome(
+    {
+      tabs: {
+        query: async () => [],
+        get: async (tabId) => ({ id: tabId, incognito: false })
+      },
+      cookies: {
+        getAllCookieStores: async () => [{ id: 'regular', tabIds: [1] }],
+        getAll: async (details) => {
+          if (details.storeId === 'regular' && Object.keys(details).length === 1) {
+            exhaustiveQueries += 1;
+            return cookieJar;
+          }
+          return [];
+        },
+        remove: async (details) => {
+          removalCalls.push(structuredClone(details));
+          const host = new URL(details.url).hostname;
+          const index = cookieJar.findIndex(
+            (cookie) => cookie.name === details.name && cookie.domain.replace(/^\./, '') === host
+          );
+          if (index < 0) return null;
+          cookieJar.splice(index, 1);
+          return { name: details.name, url: details.url };
+        }
+      }
+    },
+    async () => {
+      const report = createReport(normalized.target, normalized.input);
+      const context = await discoverCleanupScope(normalized.target, report, {
+        incognitoAccess: false,
+        exhaustiveCookieStoreScan: true
+      });
+
+      assert.equal(exhaustiveQueries, 1);
+      assert.deepEqual(
+        context.cookieCandidates.map(({ cookie }) => cookie.domain),
+        ['.selected.example.com']
+      );
+
+      await removeCookies(normalized.target, report, false, context, { aggressiveCookieSweep: false });
+
+      assert.equal(report.summary.partitionedCookiesAttempted, 1);
+      assert.equal(report.summary.partitionedCookiesRemoved, 1);
+      assert.deepEqual(
+        removalCalls.map(({ url }) => new URL(url).hostname),
+        ['selected.example.com']
+      );
+      assert.equal(
+        removalCalls.some(({ url }) => new URL(url).hostname === 'chips.localhost'),
+        false,
+        'the out-of-scope chips.localhost cookie must be preserved'
+      );
+      assert.deepEqual(
+        cookieJar.map(({ domain }) => domain),
+        ['chips.localhost']
+      );
+    }
   );
 });
 

@@ -23,7 +23,7 @@ Run the benchmark only in disposable, unsigned test profiles with the loopback f
 For each scale:
 
 1. Run Standard mode at least ten times from a clean fixture reset.
-2. Run Expert mode at least ten times with each risky option in default detailed review, including every applicable acknowledgement and downloaded-file confirmation, and repeat a separately identified ten-run sample with the explicitly enabled direct setting. Direct runs must finish hidden preflight before **Clean now**, truthfully omit the typed phrase, and retain the same preflight-bound file IDs/live revalidation.
+2. Run Expert mode at least ten times with each risky option in default detailed review, including every applicable acknowledgement and downloaded-file confirmation, and repeat a separately identified ten-run sample with the explicitly enabled direct setting. Direct runs must finish hidden preflight before **Clean now**, truthfully omit the typed phrase, and retain the same preflight-bound file IDs/live revalidation. Identify pregranted one-activation samples separately from first-grant samples; a first-grant sample must record activation-one durable arm, exact worker-created handoff-tab readiness, activation-two native-prompt settlement, and exactly-once admission without treating those user-controlled pauses as cleanup speed.
 3. Force one service-worker termination and one browser restart recovery case.
 4. Repeat a smoke subset in the exact Brave version under claim.
 5. Verify unrelated controls and the SiteWipe DNR range after each run.
@@ -35,6 +35,8 @@ For each scale:
 - internal product version, source commit once Git exists, and artifact SHA-256;
 - fixture generator version/seed and exact counts;
 - popup first render and first usable response;
+- activation-one click to durable `armed` acknowledgement and exact handoff-tab first interactive state, including whether a pre-existing bound tab was focused;
+- activation-two click to accepted native request, browser-controlled prompt settlement, authenticated handoff outcome, and worker admission, recorded as separate intervals rather than one cleanup-duration claim;
 - total cleanup duration plus each report `phaseTimings` value;
 - median, p95, maximum, warm/cold classification, and sample count;
 - service-worker wakes/terminations where measurable;
@@ -69,3 +71,4 @@ No universal time target is asserted before baseline measurement. Release review
 - DNR residue, stuck job state, or control-site mutation after any run;
 - material degradation across ten consecutive runs without explanation;
 - a UI that becomes unusable or fails to announce progress/cancellation during long phases.
+- a handoff tab that is not interactive after bounded creation/navigation, opens outside the reviewed normal source window, resizes that window, or leaves ambiguous state after native-prompt settlement; no numeric latency threshold is claimed until exact-artifact baseline data exists.

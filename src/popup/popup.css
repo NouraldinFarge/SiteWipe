@@ -845,12 +845,14 @@ form {
 
 body.cleanup-active :is(.candidate-notice, .active-tab-card, .target-card, .review-card, .summary-card, .popup-footer),
 body.review-active :is(.candidate-notice, .active-tab-card, .target-card, .summary-card, .progress-card, .popup-footer),
+body.recovery-active :is(.candidate-notice, .active-tab-card, .target-card, .review-card, .summary-card, .popup-footer),
 body.has-summary :is(.candidate-notice, .active-tab-card, .target-card, .review-card, .progress-card, .popup-footer) {
   display: none !important;
 }
 
 body.cleanup-active .popup-shell,
 body.review-active .popup-shell,
+body.recovery-active .popup-shell,
 body.has-summary .popup-shell {
   gap: 12px;
 }

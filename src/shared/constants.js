@@ -1,6 +1,6 @@
 export const APP = Object.freeze({
   name: 'SiteWipe',
-  version: '1.11.46',
+  version: '1.11.63',
   maxReports: 10
 });
 
@@ -32,6 +32,16 @@ export const MESSAGE_TYPES = Object.freeze({
   cancelCleanupReview: 'sitewipe.cancelCleanupReview',
   settleCleanupPermissionPrompt: 'sitewipe.settleCleanupPermissionPrompt',
   armCleanupApproval: 'sitewipe.armCleanupApproval',
+  openCleanupPermissionHandoff: 'sitewipe.openCleanupPermissionHandoff',
+  claimCleanupPermissionHandoff: 'sitewipe.claimCleanupPermissionHandoff',
+  beginCleanupPermissionHandoff: 'sitewipe.beginCleanupPermissionHandoff',
+  confirmCleanupPermissionHandoffInvocation: 'sitewipe.confirmCleanupPermissionHandoffInvocation',
+  confirmCleanupPermissionHandoffGrant: 'sitewipe.confirmCleanupPermissionHandoffGrant',
+  resumeCleanupPermissionHandoff: 'sitewipe.resumeCleanupPermissionHandoff',
+  settleCleanupPermissionHandoff: 'sitewipe.settleCleanupPermissionHandoff',
+  beginCleanupPermissionPrompt: 'sitewipe.beginCleanupPermissionPrompt',
+  confirmCleanupPermissionPromptInvocation: 'sitewipe.confirmCleanupPermissionPromptInvocation',
+  confirmCleanupPermissionGrantOutcome: 'sitewipe.confirmCleanupPermissionGrantOutcome',
   resumeArmedCleanup: 'sitewipe.resumeArmedCleanup',
   runDeepClean: 'sitewipe.runDeepClean',
   getReport: 'sitewipe.getReport',
@@ -76,6 +86,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   stabilityDefaultsAppliedAt: null,
   performanceDefaultsAppliedAt: null,
   privacyDefaultsAppliedAt: null,
+  storagePartitionDisclosureAppliedAt: null,
   deleteDownloadedFiles: false,
   temporaryDnrShield: true,
   progressOverlay: true,
@@ -117,9 +128,9 @@ const CLEANUP_MATRIX_IMPLEMENTATION = Object.freeze([
     type: 'Detailed review or saved direct-cleanup authorization',
     api: 'Read-only impact preflight + session-scoped single-use mode-bound authorization',
     targeted:
-      'Default Standard and Expert runs display the complete scope before approval; the explicit Skip detailed cleanup review completely setting instead binds the same fresh target/settings/private/impact evidence to one Clean now activation',
+      'Default runs show the complete review; saved direct mode binds the same fresh evidence. Pregranted access runs in one activation; missing normal-window access first waits for an exact durable arm with no prompt or cleanup, then needs a fresh permission activation in the same live popup document',
     incognito:
-      'Private access remains browser-controlled; private-source direct cleanup requires exact target access already granted, and private reports remain transient',
+      'Private access remains browser-controlled; private-source cleanup requires exact target access already granted, and private reports remain transient',
     status: 'fully supported'
   },
   {
@@ -275,9 +286,9 @@ const CLEANUP_MATRIX_IMPLEMENTATION = Object.freeze([
   },
   {
     type: 'Localhost/IP exact-origin cleanup',
-    api: 'Exact-origin URL matching + normal Chrome cleanup APIs',
+    api: 'Exact-origin URL/live-page matching + guarded Chrome cleanup APIs',
     targeted:
-      'Optional advanced developer mode for localhost, loopback, LAN IP, and bracketed IPv6 origins; storage/tabs/history/downloads are exact-origin, cookies are host-scoped because browsers do not scope cookies by port',
+      'Optional advanced developer mode for localhost, loopback, LAN IP, and bracketed IPv6 origins; tabs/history/download URLs and accessible live-page storage are exact-origin, browser-level closed-page storage/cache is skipped because Chrome partition keys do not preserve ports, and cookies are host-scoped because browsers do not scope cookies by port',
     incognito: 'Yes, only if allowed',
     status: 'advanced opt-in'
   },
@@ -405,16 +416,18 @@ const CLEANUP_MATRIX_IMPLEMENTATION = Object.freeze([
   {
     type: 'LocalStorage',
     api: 'chrome.browsingData.remove origins + page scrub',
-    targeted: 'Yes, discovered matching origins and open frames',
+    targeted:
+      'Registrable-site cleanup includes first-party origins plus third-party storage partitioned beneath the selected top-level site; exact-origin-only scope uses matching open frames and skips browser-level closed-page deletion to preserve ports',
     incognito: 'Browser-limited; reported honestly',
-    status: 'fully supported'
+    status: 'partially supported'
   },
   {
     type: 'IndexedDB',
     api: 'chrome.browsingData.remove origins + live page deletion',
-    targeted: 'Yes, origin-scoped plus open-frame direct delete',
+    targeted:
+      'Registrable-site cleanup includes first-party origins plus third-party databases partitioned beneath the selected top-level site; exact-origin-only scope uses matching open frames and skips browser-level closed-page deletion to preserve ports',
     incognito: 'Browser-limited; reported honestly',
-    status: 'fully supported'
+    status: 'partially supported'
   },
   {
     type: 'Storage Buckets API data',
@@ -426,23 +439,26 @@ const CLEANUP_MATRIX_IMPLEMENTATION = Object.freeze([
   {
     type: 'Origin Private File System / OPFS',
     api: 'navigator.storage.getDirectory in live pages + browsingData fileSystems',
-    targeted: 'Yes, matching open pages/frames where the web API exists; capped for performance',
+    targeted:
+      'Matching open pages/frames where the web API exists; capped for performance. Browser-level file-system cleanup follows selected-top-level-site partition semantics and is skipped for exact-origin-only scope',
     incognito: 'Yes, only if allowed',
     status: 'partially supported'
   },
   {
     type: 'Cache Storage',
     api: 'chrome.browsingData.remove origins',
-    targeted: 'Yes, origin-scoped',
+    targeted:
+      'Selected-top-level-site scope for registrable targets, including embedded third-party partitions under that site; skipped for exact-origin-only scope',
     incognito: 'Browser-limited; reported honestly',
-    status: 'fully supported'
+    status: 'partially supported'
   },
   {
     type: 'Service Workers',
     api: 'chrome.browsingData.remove origins + page unregister',
-    targeted: 'Yes, discovered matching origins and open frames',
+    targeted:
+      'Selected-top-level-site browser scope for registrable targets plus matching open frames; browser-level removal is skipped for exact-origin-only scope',
     incognito: 'Browser-limited; reported honestly',
-    status: 'fully supported'
+    status: 'partially supported'
   },
   {
     type: 'Push subscriptions / Background Sync / Periodic Sync',

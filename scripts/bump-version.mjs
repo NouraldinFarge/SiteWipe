@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+import { format, resolveConfig } from 'prettier';
+
 import {
   computeReleaseInputFingerprint,
   computeRuntimeFingerprint,
@@ -70,26 +72,24 @@ for (const [path, before, after] of [
   ['PRIVACY.md', `SiteWipe \`${previousVersion}\``, `SiteWipe \`${nextVersion}\``],
   ['SECURITY.md', `public-source \`${previousVersion}\` prerelease`, `public-source \`${nextVersion}\` prerelease`],
   ['src/README.md', `Version \`${previousVersion}\``, `Version \`${nextVersion}\``],
-  [
-    'docs/architecture.md',
-    `\`${previousVersion}\` remains a public-source prerelease version`,
-    `\`${nextVersion}\` remains a public-source prerelease version`
-  ],
-  ['docs/threat-model.md', `SiteWipe \`${previousVersion}\` candidate`, `SiteWipe \`${nextVersion}\` candidate`],
   ['.github/ISSUE_TEMPLATE/bug.yml', `${previousVersion} / SHA-256`, `${nextVersion} / SHA-256`]
 ]) {
   await queueRequiredReplacement(path, before, after);
 }
 
-let readiness = await source('docs/release-readiness.md');
-readiness = replaceRequired(readiness, `v${previousVersion},`, `v${nextVersion},`, 'docs/release-readiness.md');
-readiness = replaceRequired(
-  readiness,
-  `Public-source \`${previousVersion}\` prerelease`,
-  `Public-source \`${nextVersion}\` prerelease`,
-  'docs/release-readiness.md'
+await assertRequiredMarker(
+  'docs/architecture.md',
+  `\`${nextVersion}\` is the forward public-source prerelease candidate`
 );
-updates.set('docs/release-readiness.md', readiness);
+await assertRequiredMarker('docs/threat-model.md', `the ${nextVersion} corrective working source`);
+await assertRequiredMarker('docs/release-readiness.md', `local ${nextVersion} corrective handoff-tab source`);
+
+// Release-readiness prose is deliberately staged for the exact successor
+// before the transaction. Requiring the next-version marker keeps the update
+// fail-closed without coupling future patch bumps to one prior paragraph's
+// wording or rewriting historical failed-version references.
+updates.set('docs/release-readiness.md', await source('docs/release-readiness.md'));
+updates.set('docs/architecture.md', await source('docs/architecture.md'));
 
 updates.set('CHANGELOG.md', promoteUnreleased(await source('CHANGELOG.md'), nextVersion, date));
 
@@ -161,6 +161,17 @@ const provenance = resetProvenanceTechnicalEvidence(await json('docs/evidence/pr
 });
 queueJson('docs/evidence/provenance-audit.json', provenance);
 
+const prettierConfig = (await resolveConfig(resolve(projectRoot, 'package.json'))) || {};
+for (const path of ['CHANGELOG.md', 'docs/architecture.md', 'docs/release-readiness.md']) {
+  updates.set(
+    path,
+    await format(await source(path), {
+      ...prettierConfig,
+      filepath: resolve(projectRoot, path)
+    })
+  );
+}
+
 const fingerprint = await computeRuntimeFingerprint(projectRoot, updates);
 const releaseInputFingerprint = await computeReleaseInputFingerprint(projectRoot, updates);
 updates.set(
@@ -220,6 +231,12 @@ function queueJson(relative, value) {
 
 async function queueRequiredReplacement(relative, before, after) {
   updates.set(relative, replaceRequired(await source(relative), before, after, relative));
+}
+
+async function assertRequiredMarker(relative, marker) {
+  const value = await source(relative);
+  const occurrences = value.split(marker).length - 1;
+  if (occurrences !== 1) throw new Error(`${relative} must contain exactly one staged next-version marker: ${marker}`);
 }
 
 function replaceRequired(value, before, after, label) {

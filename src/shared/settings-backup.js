@@ -1,5 +1,10 @@
 import { EXPERT_ONLY_CLEANUP_SETTINGS } from './cleanup-mode.js';
 
+import {
+  EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION,
+  SELECTED_SITE_PARTITION_STORAGE_DISCLOSURE
+} from './storage-partition-policy.js';
+
 export const SETTINGS_BACKUP_SCHEMA = 'sitewipe.settings.backup';
 export const SETTINGS_BACKUP_SCHEMA_VERSION = 1;
 export const SETTINGS_BACKUP_MAX_BYTES = 128 * 1024;
@@ -158,7 +163,7 @@ export function getSettingsImportRisks(settings) {
   const risks = [];
   if (settings.skipCleanupReview === true) {
     risks.push(
-      'Skip detailed cleanup review completely: cleanup can start directly in Standard or Expert mode; enabled Expert actions and private-window data can be affected without a per-run detail screen, while browser permission prompts may still appear.'
+      `Skip detailed cleanup review completely: with exact site access pregranted, cleanup can start from one activation in Standard or Expert mode; missing normal-window access requires a durable approval activation followed by a fresh browser-permission activation. Enabled Expert actions and private-window data can be affected without a per-run detail screen. ${SELECTED_SITE_PARTITION_STORAGE_DISCLOSURE} ${EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION}`
     );
   }
   if (settings.redactReports === false) {
@@ -226,7 +231,7 @@ export function buildSettingsImportConfirmation({ recognizedKeys, unknownKeyCoun
   }
   lines.push(
     'Reports, logs, active jobs, shields, and browser website data are not imported.',
-    'If “Skip detailed cleanup review completely” is enabled after import, cleanup can start directly; Chrome or Brave permission prompts may still appear.',
+    'If “Skip detailed cleanup review completely” is enabled after import, pregranted cleanup can start from one activation; missing normal-window access requires a durable approval activation followed by a fresh Chrome or Brave permission activation.',
     '',
     'Privacy and expanded-scope preview:'
   );

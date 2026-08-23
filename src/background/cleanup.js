@@ -182,8 +182,8 @@ export async function runDeepClean(target, report, options = {}) {
       await checkCanceled('origin storage cleanup');
       await updateProgress(
         72,
-        'Clearing origin storage…',
-        'Removing origin-scoped cache, LocalStorage, IndexedDB, Cache Storage, file-system storage, service workers, WebSQL, and protected data if enabled.'
+        'Clearing browser-exposed storage…',
+        'For registrable sites, Chrome/Brave clear selected-site storage, including embedded third-party partitions under that site. Exact-origin-only scope uses accessible matching live pages and skips browser-level closed-page storage/cache to preserve ports.'
       );
       await removeOriginScopedStorage(target, report, context, options);
 

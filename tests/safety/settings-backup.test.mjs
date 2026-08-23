@@ -139,13 +139,18 @@ test('settings import confirmation previews retention, full-report, history, and
   assert.match(preview, /Expert mode/i);
   assert.match(preview, /Skip detailed cleanup review completely/i);
   assert.match(preview, /private-window data/i);
-  assert.match(preview, /browser permission prompts may still appear/i);
+  assert.match(preview, /missing normal-window access requires a durable approval activation/i);
+  assert.match(preview, /fresh (?:browser-permission|Chrome or Brave permission) activation/i);
+  assert.match(preview, /selected-top-level-site cleanup/i);
+  assert.match(preview, /embedded third parties/i);
+  assert.match(preview, /do not preserve port boundaries/i);
+  assert.match(preview, /closed-page LocalStorage/i);
   assert.match(preview, /protected browser-service web origins/i);
   assert.match(preview, /delete approved downloaded files from disk/i);
   assert.match(preview, /keep a target request block after cleanup/i);
   assert.match(preview, /post-clean target request block until browser restart/i);
   assert.match(preview, /associated domains/i);
-  assert.match(preview, /cleanup can start directly/i);
+  assert.match(preview, /pregranted cleanup can start from one activation/i);
   assert.match(preview, /Cancel to keep every current setting unchanged/i);
 });
 

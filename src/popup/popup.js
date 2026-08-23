@@ -16,8 +16,8 @@ let directPreparationGeneration = 0;
 let directPreparationPending = false;
 let directPreparationOperation = null;
 let directInvalidatedBySettings = false;
-let permissionPromptInFlight = false;
-let initiatedPermissionPrompt = null;
+let permissionRecoveryPending = false;
+let permissionRecoveryUiVisible = false;
 let latestReportVisible = false;
 let displayedReportBinding = null;
 let displayedReportBindingGeneration = 0;
@@ -51,10 +51,16 @@ async function init() {
     if (Object.prototype.hasOwnProperty.call(changes, STORAGE_KEYS.settings)) {
       void handleStoredSettingsChange(changes[STORAGE_KEYS.settings].newValue || {});
     }
+    if (Object.prototype.hasOwnProperty.call(changes, STORAGE_KEYS.permissionLease)) {
+      // The raw storage payload is not authority. Re-query the worker's
+      // normalized, redacted lease status before changing the popup lock.
+      void refreshPermissionRecoveryState();
+    }
     if (Object.prototype.hasOwnProperty.call(changes, 'sitewipe.activeJob.v1'))
       renderActiveJob(changes['sitewipe.activeJob.v1'].newValue || null);
     if (changes[STORAGE_KEYS.activeReport]?.newValue) {
       renderSummary(changes[STORAGE_KEYS.activeReport].newValue, { focus: true, persisted: true });
+      void refreshPermissionRecoveryState();
     }
   });
   if (shouldFocusInput) focusInput();
@@ -65,7 +71,7 @@ function bindEvents() {
   qs('#targetInput').addEventListener('input', () => {
     if (cleanupReview) void discardCleanupReview({ announce: false, focus: false });
     if (directCleanupReview || directPreparationPending) {
-      void discardDirectCleanupPreparation({ settleLease: !permissionPromptInFlight });
+      void discardDirectCleanupPreparation();
     }
     if (normalized?.input !== qs('#targetInput').value.trim()) {
       normalized = null;
@@ -96,16 +102,86 @@ function bindEvents() {
 async function hydrateState() {
   try {
     const state = await sendMessage(MESSAGE_TYPES.getPopupState);
+    permissionRecoveryPending = temporaryHostAccessNeedsRecovery(state.temporaryHostAccess);
     applySettings(state.settings);
     renderIncognito(state.incognitoAccess);
     const cleanupRunning = state.activeJob?.status === 'running';
-    await hydrateActiveTabTarget({ autoSelect: !state.report && !cleanupRunning });
+    await hydrateActiveTabTarget({ autoSelect: !state.report && !cleanupRunning && !permissionRecoveryPending });
     if (state.activeJob?.status === 'running') renderActiveJob(state.activeJob);
     if (state.report) renderSummary(state.report, { focus: !cleanupRunning, persisted: true });
-    return !state.report && !cleanupRunning;
+    if (!cleanupRunning && permissionRecoveryPending) {
+      renderPermissionRecoveryPending(state.temporaryHostAccess);
+    }
+    return !state.report && !cleanupRunning && !permissionRecoveryPending;
   } catch (error) {
     showError(formatError(error));
     return true;
+  }
+}
+
+function temporaryHostAccessNeedsRecovery(access) {
+  if (!access || access.state === 'none') return false;
+  // A newly opened popup cannot inherit a prior popup document's capability.
+  // Only the live in-document review suppression in
+  // refreshPermissionRecoveryState() may treat its own prompt-pending lease as
+  // actionable; every other durable lease remains a recovery obligation.
+  return true;
+}
+
+async function refreshPermissionRecoveryState({ forceRecoveryUi = false } = {}) {
+  let state;
+  try {
+    state = await sendMessage(MESSAGE_TYPES.getPopupState);
+  } catch {
+    permissionRecoveryPending = true;
+    if (forceRecoveryUi || (!busy && !cleanupReview && !directCleanupReview && !directPreparationPending)) {
+      renderPermissionRecoveryPending({ state: 'unknown', temporaryOriginCount: null });
+    } else {
+      setReviewMode(Boolean(cleanupReview));
+      updatePrimaryAction();
+    }
+    return false;
+  }
+
+  const access = state.temporaryHostAccess || { state: 'unknown', temporaryOriginCount: null };
+  const localApprovalFlowActive = Boolean(
+    cleanupReview || directCleanupReview || directPreparationPending || popupAuthorityContinuations.size > 0
+  );
+  const localPreparedPromptLease =
+    !forceRecoveryUi && access.state === 'prompt_pending' && (busy || localApprovalFlowActive);
+  permissionRecoveryPending = temporaryHostAccessNeedsRecovery(access) && !localPreparedPromptLease;
+  if (!permissionRecoveryPending) {
+    clearPermissionRecoveryUi();
+    return true;
+  }
+
+  if (state.activeJob?.status === 'running' && !forceRecoveryUi) {
+    renderActiveJob(state.activeJob);
+    setReviewMode(false);
+    return false;
+  }
+
+  if (!forceRecoveryUi && (busy || localApprovalFlowActive)) {
+    setReviewMode(Boolean(cleanupReview));
+    updatePrimaryAction();
+    return false;
+  }
+
+  renderPermissionRecoveryPending(access);
+  return false;
+}
+
+function clearPermissionRecoveryUi() {
+  const recoveryWasVisible = permissionRecoveryUiVisible;
+  permissionRecoveryPending = false;
+  permissionRecoveryUiVisible = false;
+  setReviewMode(Boolean(cleanupReview));
+  if (recoveryWasVisible && !busy) qs('#progressCard').hidden = true;
+  if (latestReportVisible) {
+    document.body.classList.add('has-summary');
+  } else if (!busy && !cleanupReview) {
+    setReadyStatus('Ready', 'success');
+    updatePrimaryAction();
   }
 }
 
@@ -113,10 +189,13 @@ function renderActiveJob(job) {
   if (!job) {
     busy = false;
     setBusy(false);
-    if (directCleanupEnabled() && !latestReportVisible) void prepareDirectCleanup(qs('#targetInput').value.trim());
+    if (directCleanupEnabled() && !latestReportVisible && !permissionRecoveryPending) {
+      void prepareDirectCleanup(qs('#targetInput').value.trim());
+    }
     return;
   }
   if (job.status === 'running') {
+    permissionRecoveryUiVisible = false;
     if (cleanupReview && !popupAuthorityContinuations.has(cleanupReview.approvalToken)) {
       popupPreparationBindings.delete(cleanupReview.approvalToken);
       clearPreparedReviewExpiry(false);
@@ -157,7 +236,9 @@ function renderActiveJob(job) {
     if (!localAuthorityContinuationInFlight) {
       busy = false;
       setBusy(false);
-      if (directCleanupEnabled() && !latestReportVisible) void prepareDirectCleanup(qs('#targetInput').value.trim());
+      if (directCleanupEnabled() && !latestReportVisible && !permissionRecoveryPending) {
+        void prepareDirectCleanup(qs('#targetInput').value.trim());
+      }
     }
   }
 }
@@ -197,10 +278,10 @@ async function hydrateActiveTabTarget({ autoSelect = true } = {}) {
 }
 
 function useActiveTabTarget(announce) {
-  if (!activeTabTarget?.supported || !activeTabTarget.normalized?.ok) return;
+  if (permissionRecoveryPending || !activeTabTarget?.supported || !activeTabTarget.normalized?.ok) return;
   if (cleanupReview) void discardCleanupReview({ announce: false, focus: false });
   if (directCleanupReview || directPreparationPending) {
-    void discardDirectCleanupPreparation({ settleLease: !permissionPromptInFlight });
+    void discardDirectCleanupPreparation();
   }
   const input = activeTabTarget.normalized.target.domain;
   qs('#targetInput').value = input;
@@ -223,9 +304,9 @@ function applySettings(settings) {
   document.body.classList.toggle('direct-cleanup-enabled', directCleanupEnabled());
   qs('#directCleanupNotice').hidden = !directCleanupEnabled();
   const mode = settings?.cleanupMode === 'expert' ? 'Expert' : 'Standard';
-  qs('#cleanupModeBadge').textContent = `${mode} · ${directCleanupEnabled() ? 'One click' : 'Review'}`;
+  qs('#cleanupModeBadge').textContent = `${mode} · ${directCleanupEnabled() ? 'Direct' : 'Review'}`;
   qs('#directCleanupMode').textContent =
-    `Clean now uses your current ${mode} settings and eligible normal/private scope. A browser site-access prompt may still appear.`;
+    `Clean now uses your current ${mode} settings and eligible normal/private scope. If target access is missing, SiteWipe first saves the exact approval and then requires a separate Grant access and clean activation before Chrome opens its prompt.`;
   updatePrimaryAction();
 }
 
@@ -240,9 +321,9 @@ async function handleStoredSettingsChange(settings) {
   }
   if (directReviewWasActive) {
     directInvalidatedBySettings = true;
-    await discardDirectCleanupPreparation({ settleLease: !permissionPromptInFlight });
+    await discardDirectCleanupPreparation();
   }
-  if (directCleanupEnabled() && !permissionPromptInFlight && !latestReportVisible) {
+  if (directCleanupEnabled() && !latestReportVisible && !permissionRecoveryPending) {
     void prepareDirectCleanup(qs('#targetInput').value.trim());
   }
 }
@@ -254,6 +335,7 @@ function renderIncognito(allowed) {
 }
 
 async function onInput() {
+  if (permissionRecoveryPending) return;
   const input = qs('#targetInput').value.trim();
   if (!input) {
     normalized = null;
@@ -302,6 +384,7 @@ async function performDirectCleanupPreparation(input) {
   const currentInput = String(input || '').trim();
   if (
     !directCleanupEnabled() ||
+    permissionRecoveryPending ||
     busy ||
     directPreparationPending ||
     !currentInput ||
@@ -356,7 +439,6 @@ async function performDirectCleanupPreparation(input) {
     }
     if (!directPreparationIsCurrent(generation, currentInput)) {
       await cancelCleanupReviewToken(preparedReview?.approvalToken, { promptNotStarted: true });
-      await settleCleanupPermissionPrompt(preparedReview, 'abandoned');
       if (preparedReview?.approvalToken) popupPreparationBindings.delete(preparedReview.approvalToken);
       return;
     }
@@ -377,11 +459,18 @@ async function performDirectCleanupPreparation(input) {
     };
     setNormalized(preparedReview.normalizedTarget);
     showError('');
-    if (preparedReview.approvalHandoffStatus) {
+    if (cleanupApprovalHandoffIsArmed(preparedReview)) {
       showProgress(
         20,
-        'Cleanup approved',
-        'Chrome target access is settling. SiteWipe will continue automatically; do not approve again.',
+        'Cleanup approval saved',
+        'No cleanup has started. Keep this popup open and activate Grant access and clean to open Chrome target access and run this exact cleanup.',
+        { cancelable: false }
+      );
+    } else if (preparedReview.approvalHandoffStatus) {
+      showProgress(
+        10,
+        'Cleanup approval is still saving',
+        'Wait for SiteWipe to finish durably binding this exact cleanup before requesting Chrome target access.',
         { cancelable: false }
       );
     }
@@ -393,7 +482,6 @@ async function performDirectCleanupPreparation(input) {
     }
     if (preparedReview?.approvalToken) {
       await cancelCleanupReviewToken(preparedReview.approvalToken, { promptNotStarted: true });
-      await settleCleanupPermissionPrompt(preparedReview, 'abandoned');
       popupPreparationBindings.delete(preparedReview.approvalToken);
     }
   } finally {
@@ -406,11 +494,6 @@ async function performDirectCleanupPreparation(input) {
 }
 
 async function openOptionsFromPopup() {
-  if (permissionPromptInFlight) {
-    showError('Finish the Chrome site-access prompt before opening SiteWipe settings.');
-    return;
-  }
-
   // A direct-mode preflight can still be returning when Settings is clicked.
   // Wait for that exact operation so its same-document, prompt-not-started
   // cancellation settles before Options can change the reviewed settings.
@@ -509,7 +592,6 @@ async function onSubmit(event) {
     cleanupReview = null;
     if (failedReview?.approvalToken) {
       await cancelCleanupReviewToken(failedReview.approvalToken, { promptNotStarted: true });
-      await settleCleanupPermissionPrompt(failedReview, 'abandoned');
       popupPreparationBindings.delete(failedReview.approvalToken);
     }
     showError(formatError(error));
@@ -522,14 +604,16 @@ async function onSubmit(event) {
 }
 
 async function runApprovedCleanup() {
-  if (!cleanupReview || cleanupReview.approvalHandoffStatus || busy || !approvalIsComplete()) return;
+  if (!cleanupReview || busy) return;
+  const handoffArmed = cleanupApprovalHandoffIsArmed(cleanupReview);
+  if ((cleanupReview.approvalHandoffStatus && !handoffArmed) || (!handoffArmed && !approvalIsComplete())) return;
   if (cleanupReviewIsExpired(cleanupReview)) return expirePreparedCleanupReview(cleanupReview, false);
   return runPreparedCleanup(cleanupReview, reviewSourceContext, collectApproval(), false);
 }
 
 async function runPreparedDirectCleanup() {
   if (!directCleanupReview || busy || directPreparationPending) return;
-  if (directCleanupReview.approvalHandoffStatus) return;
+  if (directCleanupReview.approvalHandoffStatus && !cleanupApprovalHandoffIsArmed(directCleanupReview)) return;
   if (cleanupReviewIsExpired(directCleanupReview)) {
     return expirePreparedCleanupReview(directCleanupReview, true);
   }
@@ -550,29 +634,28 @@ async function runPreparedDirectCleanup() {
 
 async function runPreparedCleanup(review, sourceContext, approval, direct) {
   let invalidatedBySettings = false;
-  let permissionRequestGranted = false;
-  let permissionRequestDenied = false;
-  let permissionRequestInvoked = false;
-  let permissionPromptSettlementSubmitted = false;
-  let reviewExpiredDuringPermissionPrompt = false;
-  let postPromptHandoffOutcome = null;
   let detailedReviewRetryError = '';
-  let approvalHandoffPromise = null;
-  // Keep the review deadline live while Chrome's native permission prompt is
-  // open. A prompt may outlive the five-minute cleanup authority even though
-  // its eventual grant still needs exact temporary-access reconciliation.
+  const permissionHandoffArmedAtStart = cleanupApprovalHandoffIsArmed(review);
+  const approvalCommitRequired = !review.hostPermissionsGranted && !permissionHandoffArmedAtStart;
   if (review.hostPermissionsGranted) clearPreparedReviewExpiry(direct);
   if (!direct) setReviewApprovalError('');
   busy = true;
-  setBusy(true, review.hostPermissionsGranted ? 'Cleaning…' : 'Requesting access…');
+  setBusy(
+    true,
+    review.hostPermissionsGranted ? 'Cleaning…' : approvalCommitRequired ? 'Saving approval…' : 'Requesting access…'
+  );
   showProgress(
     2,
-    review.hostPermissionsGranted ? 'Consuming authorization…' : 'Requesting target site access…',
+    review.hostPermissionsGranted
+      ? 'Consuming authorization…'
+      : approvalCommitRequired
+        ? 'Saving reviewed cleanup approval…'
+        : 'Opening target site access…',
     review.hostPermissionsGranted
       ? 'The single-use authorization is being validated before any browser data changes.'
-      : direct
-        ? 'Chrome/Brave may require its own confirmation for the exact preflight-bound target patterns. No cleanup has started.'
-        : 'Chrome/Brave will request only the target patterns shown in this review. No cleanup has started.',
+      : approvalCommitRequired
+        ? 'The worker is durably binding this exact approval before Chrome is allowed to open its site-access prompt. No cleanup has started.'
+        : 'SiteWipe is opening a persistent extension tab for the exact reviewed browser prompt. No cleanup has started.',
     { cancelable: false }
   );
   try {
@@ -586,109 +669,71 @@ async function runPreparedCleanup(review, sourceContext, approval, direct) {
       if (!review.approvalHandoffNonce) {
         throw new Error('The worker-owned cleanup handoff is unavailable. Start the cleanup again.');
       }
-      if (globalThis.navigator?.userActivation && globalThis.navigator.userActivation.isActive !== true) {
-        throw new Error(
-          'Chrome/Brave requires a fresh user activation for target site access. Activate Clean now again; no cleanup has started.'
-        );
-      }
       popupAuthorityContinuations.add(review.approvalToken);
-      // Invoke Chrome's gesture-gated permission request first, then dispatch
-      // the worker-owned approval marker without awaiting it in the same
-      // synchronous JS task. The first await remains the native prompt; Chrome
-      // cannot tear down this popup task between these two invocations.
-      initiatedPermissionPrompt = {
+      if (!permissionHandoffArmedAtStart) {
+        let armed;
+        try {
+          armed = await sendMessage(MESSAGE_TYPES.armCleanupApproval, {
+            approvalToken: review.approvalToken,
+            handoffNonce: review.approvalHandoffNonce,
+            approval,
+            ...popupBinding,
+            ...sourceContext
+          });
+          if (
+            armed?.approvalArmed !== true ||
+            armed?.handoffStatus !== 'armed' ||
+            armed?.handoffNonce !== review.approvalHandoffNonce
+          ) {
+            throw new Error('The worker did not durably confirm this exact cleanup approval. Start again.');
+          }
+          if ((direct ? directCleanupReview : cleanupReview) !== review) {
+            invalidatedBySettings = direct ? directInvalidatedBySettings : reviewInvalidatedBySettings;
+            throw new Error(
+              invalidatedBySettings
+                ? SETTINGS_CHANGED_REVIEW_MESSAGE
+                : 'This cleanup review changed before approval was saved. Start again.'
+            );
+          }
+          if (cleanupReviewIsExpired(review)) {
+            await expirePreparedCleanupReview(review, direct);
+            return;
+          }
+          review.approvalHandoffArmed = true;
+          review.approvalHandoffStatus = 'armed';
+          if (!direct) {
+            updateReviewApprovalPhase(review);
+            renderReviewEffects(review);
+            updateApprovalAvailability();
+          }
+        } catch (error) {
+          if (direct) {
+            directCleanupReview = null;
+            directPreparedInput = '';
+          } else {
+            cleanupReview = null;
+            retireDetailedReviewUi();
+          }
+          throw error;
+        }
+      }
+      const opened = await sendMessage(MESSAGE_TYPES.openCleanupPermissionHandoff, {
         approvalToken: review.approvalToken,
         handoffNonce: review.approvalHandoffNonce,
-        permissionLeaseId: review.permissionLeaseId
-      };
-      permissionPromptInFlight = true;
-      let permissionRequest;
-      try {
-        permissionRequest = chrome.permissions.request({ origins });
-        permissionRequestInvoked = true;
-        approvalHandoffPromise = sendMessage(MESSAGE_TYPES.armCleanupApproval, {
-          approvalToken: review.approvalToken,
-          handoffNonce: review.approvalHandoffNonce,
-          approval,
-          ...popupBinding,
-          ...sourceContext
-        });
-        void approvalHandoffPromise.catch(() => {});
-      } catch (error) {
-        permissionPromptInFlight = false;
-        initiatedPermissionPrompt = null;
-        if (direct) {
-          directCleanupReview = null;
-          directPreparedInput = '';
-        } else {
-          cleanupReview = null;
-        }
-        throw error;
+        ...popupBinding
+      });
+      if (opened?.handoffOpened !== true) {
+        throw new Error('Chrome/Brave did not open the reviewed target-access handoff tab.');
       }
-      let granted;
-      try {
-        granted = await permissionRequest;
-        // Record Chrome's native decision before awaiting the worker handoff.
-        // If the popup survives a grant but the arm rejects, the worker still
-        // owns terminal reconciliation; the popup must not revoke access while
-        // an onAdded-driven admission may already be running.
-        permissionRequestGranted = granted === true;
-        permissionRequestDenied = granted === false;
-        const armed = await approvalHandoffPromise;
-        if (armed.handoffNonce !== review.approvalHandoffNonce) {
-          throw new Error('The worker-owned cleanup handoff changed before Chrome target access settled.');
-        }
-      } catch (error) {
-        await approvalHandoffPromise.catch(() => null);
-        if (direct) {
-          directCleanupReview = null;
-          directPreparedInput = '';
-        } else {
-          cleanupReview = null;
-        }
-        if (permissionRequestDenied) {
-          // A native false result is conclusive even if the worker arm reply
-          // timed out or rejected. Transfer that exact initiating-document
-          // settlement to the worker before leaving this error path; no
-          // onAdded event will arrive to repair a denied prompt later.
-          permissionPromptSettlementSubmitted = true;
-          await settleCleanupPermissionPrompt(review, 'denied');
-        }
-        if (permissionRequestGranted && cleanupReviewIsExpired(review)) {
-          reviewExpiredDuringPermissionPrompt = true;
-          permissionPromptSettlementSubmitted = true;
-          retireExpiredPermissionPromptReview(direct);
-          postPromptHandoffOutcome = await reconcileExpiredPermissionHandoff(review);
-          forgetResolvedPermissionHandoffBinding(review, postPromptHandoffOutcome);
-          renderPermissionHandoffOutcome(postPromptHandoffOutcome, { focus: true });
-          return;
-        }
-        throw error;
-      } finally {
-        permissionPromptInFlight = false;
-      }
-      if (!granted) {
-        await approvalHandoffPromise.catch(() => null);
-        if (direct) {
-          directCleanupReview = null;
-          directPreparedInput = '';
-        } else {
-          cleanupReview = null;
-        }
-        permissionPromptSettlementSubmitted = true;
-        await settleCleanupPermissionPrompt(review, 'denied');
-        throw new Error('Site access was not granted. No cleanup has started.');
-      }
-      if (cleanupReviewIsExpired(review)) {
-        reviewExpiredDuringPermissionPrompt = true;
-        permissionPromptSettlementSubmitted = true;
-        retireExpiredPermissionPromptReview(direct);
-        postPromptHandoffOutcome = await reconcileExpiredPermissionHandoff(review);
-        forgetResolvedPermissionHandoffBinding(review, postPromptHandoffOutcome);
-        renderPermissionHandoffOutcome(postPromptHandoffOutcome, { focus: true });
-        return;
-      }
-      review.hostPermissionsGranted = true;
+      clearPreparedReviewExpiry(direct);
+      popupPreparationBindings.delete(review.approvalToken);
+      showProgress(
+        100,
+        'Continue in the SiteWipe access tab',
+        'Use the fresh action in the persistent SiteWipe tab. The browser permission prompt and cleanup no longer depend on this popup staying open.',
+        { cancelable: false }
+      );
+      return;
     }
     clearPreparedReviewExpiry(direct);
     if ((direct ? directCleanupReview : cleanupReview) !== review) {
@@ -712,16 +757,6 @@ async function runPreparedCleanup(review, sourceContext, approval, direct) {
       'The single-use authorization is being validated before any browser data changes.',
       { cancelable: false }
     );
-    if (approvalHandoffPromise) {
-      const response = await sendMessage(MESSAGE_TYPES.resumeArmedCleanup, {
-        handoffNonce: review.approvalHandoffNonce,
-        ...requirePopupPreparationBinding(review)
-      });
-      postPromptHandoffOutcome = classifyPermissionHandoffResponse(response, review);
-      forgetResolvedPermissionHandoffBinding(review, postPromptHandoffOutcome);
-      renderPermissionHandoffOutcome(postPromptHandoffOutcome, { focus: true });
-      return;
-    }
     const response = await sendMessage(MESSAGE_TYPES.runDeepClean, {
       approvalToken: review.approvalToken,
       approval,
@@ -735,24 +770,14 @@ async function runPreparedCleanup(review, sourceContext, approval, direct) {
     popupPreparationBindings.delete(review.approvalToken);
   } catch (error) {
     const reviewStillUsable = (direct ? directCleanupReview : cleanupReview) === review;
-    // Once Chrome grants access after the arm dispatch, only the worker may
-    // reconcile the nonce-bound lease. The initiating popup may submit the
-    // exact terminal prompt-settlement message after local review expiry, but
-    // it never mutates permissions itself. Other popup errors can be a stale
-    // or delayed view of an automatically admitted cleanup.
-    const handedOffPromptIsWorkerOwned =
-      Boolean(approvalHandoffPromise) && (permissionRequestGranted || permissionPromptSettlementSubmitted);
-    if (!reviewStillUsable && !handedOffPromptIsWorkerOwned) {
-      await cancelCleanupReviewToken(review.approvalToken, { promptNotStarted: !permissionRequestInvoked });
-    }
+    if (!reviewStillUsable) await cancelCleanupReviewToken(review.approvalToken, { promptNotStarted: true });
     if (!reviewStillUsable) popupPreparationBindings.delete(review.approvalToken);
     invalidatedBySettings ||=
       (direct ? directInvalidatedBySettings : reviewInvalidatedBySettings) && !reviewStillUsable;
     const approvalError = reviewStillUsable
       ? formatError(error)
       : `${formatError(error)} Review the current scope again before retrying.`;
-    if (reviewExpiredDuringPermissionPrompt) showError('');
-    else if (invalidatedBySettings) showError('');
+    if (invalidatedBySettings) showError('');
     else if (reviewStillUsable && !direct) showError('');
     else showError(approvalError);
     if (reviewStillUsable && !direct) {
@@ -767,25 +792,13 @@ async function runPreparedCleanup(review, sourceContext, approval, direct) {
       busy = false;
       setBusy(false);
       setReviewMode(Boolean(cleanupReview));
-      if (postPromptHandoffOutcome) {
-        if (!direct) retireDetailedReviewUi();
-        if (postPromptHandoffOutcome?.kind !== 'terminal') {
-          renderPermissionHandoffOutcome(postPromptHandoffOutcome);
-        }
-      }
       if (detailedReviewRetryError && cleanupReview === review) {
         setReviewApprovalError(detailedReviewRetryError, { runtime: true });
         qs('#approveCleanup').focus({ preventScroll: true });
       }
       if (invalidatedBySettings) {
         announceSettingsChangedReview();
-      } else if (
-        direct &&
-        directCleanupEnabled() &&
-        !directCleanupReview &&
-        !latestReportVisible &&
-        (!postPromptHandoffOutcome || postPromptHandoffOutcome.kind === 'released')
-      ) {
+      } else if (direct && directCleanupEnabled() && !directCleanupReview && !latestReportVisible) {
         void prepareDirectCleanup(qs('#targetInput').value.trim());
       }
     }, 250);
@@ -823,7 +836,7 @@ function renderCleanupReview(review) {
   renderHostPermissionOrigins(review);
 
   const requirements = review.requirements || {};
-  qs('#reviewHostPermission').hidden = Boolean(review.hostPermissionsGranted);
+  updateReviewApprovalPhase(review);
   setConditionalAcknowledgement(
     '#reviewAssociatedAcknowledgeWrap',
     '#reviewAssociatedAcknowledge',
@@ -848,14 +861,6 @@ function renderCleanupReview(review) {
     ? 'This approval is short-lived and single-use.'
     : `This single-use review expires at ${expiry.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}.`;
   updateApprovalAvailability();
-  if (review.approvalHandoffStatus) {
-    showProgress(
-      20,
-      'Cleanup approved',
-      'Chrome target access is settling. SiteWipe will continue automatically; do not approve again.',
-      { cancelable: false }
-    );
-  }
   setReviewMode(true);
   focusReviewHeading();
 }
@@ -884,7 +889,9 @@ function renderHostPermissionOrigins(review) {
     : [];
   qs('#reviewHostPermissionOriginsSummary').textContent = review.hostPermissionsGranted
     ? `${origins.length} exact target pattern(s) are required: ${exactRequired.length} exist as exact grants and ${coveredByBroad.length} are covered by broader pre-existing access.`
-    : `Chrome/Brave will be asked only for missing patterns in this ${origins.length}-pattern exact target scope after final approval.`;
+    : cleanupApprovalHandoffIsArmed(review)
+      ? `Approval is saved. Chrome/Brave will now be asked only for missing patterns in this ${origins.length}-pattern exact target scope.`
+      : `Chrome/Brave will be asked only for missing patterns in this ${origins.length}-pattern exact target scope after SiteWipe durably saves approval.`;
   replaceList(
     '#reviewHostPermissionOrigins',
     origins.length ? origins : ['No valid target site-access pattern was provided. Cleanup cannot start.']
@@ -906,9 +913,8 @@ async function discardCleanupReview({ announce = false, focus = false } = {}) {
   qs('#reviewCard').hidden = true;
   resetReviewInputs();
   setReviewMode(false);
-  if (token && !permissionPromptInFlight) {
+  if (token) {
     await cancelCleanupReviewToken(token, { promptNotStarted: true });
-    await settleCleanupPermissionPrompt(review, 'abandoned');
     popupPreparationBindings.delete(token);
   }
   if (announce) {
@@ -923,7 +929,7 @@ async function discardCleanupReview({ announce = false, focus = false } = {}) {
   if (focus) focusInput();
 }
 
-async function discardDirectCleanupPreparation({ settleLease = true } = {}) {
+async function discardDirectCleanupPreparation() {
   const review = directCleanupReview;
   clearPreparedReviewExpiry(true);
   directCleanupReview = null;
@@ -931,9 +937,8 @@ async function discardDirectCleanupPreparation({ settleLease = true } = {}) {
   directPreparationPending = false;
   directPreparationGeneration += 1;
   updatePrimaryAction();
-  if (!review || !settleLease) return;
+  if (!review) return;
   await cancelCleanupReviewToken(review.approvalToken, { promptNotStarted: true });
-  await settleCleanupPermissionPrompt(review, 'abandoned');
   popupPreparationBindings.delete(review.approvalToken);
 }
 
@@ -961,129 +966,21 @@ function cleanupReviewIsExpired(review, now = Date.now()) {
   return !Number.isFinite(expiresAtMs) || Number(now) > expiresAtMs;
 }
 
-async function reconcileExpiredPermissionHandoff(review) {
-  let resumeWarning;
-  try {
-    const response = await sendMessage(MESSAGE_TYPES.resumeArmedCleanup, {
-      handoffNonce: review.approvalHandoffNonce,
-      ...requirePopupPreparationBinding(review)
-    });
-    const outcome = classifyPermissionHandoffResponse(response, review);
-    if (outcome.kind !== 'unknown') return outcome;
-    resumeWarning = outcome.warning;
-  } catch (error) {
-    resumeWarning = formatError(error);
-  }
-
-  const popupSettlement = await settleCleanupPermissionPrompt(review, 'abandoned', {
-    retainBindingUntilReleaseProof: true
-  });
-  if (permissionSettlementProvesRelease(popupSettlement)) return { kind: 'released' };
-  return {
-    kind: 'unknown',
-    warning:
-      resumeWarning ||
-      'SiteWipe could not prove whether the reviewed cleanup started or whether temporary target access was released.'
-  };
-}
-
-function classifyPermissionHandoffResponse(response, review) {
-  const matchingNonce = response?.approvalHandoffNonce === review.approvalHandoffNonce;
-  if (matchingNonce && response.report && typeof response.report === 'object') {
-    return { kind: 'terminal', response };
-  }
-  if (
-    matchingNonce &&
-    response.approvalHandoffRunning === true &&
-    response.cleanupStarted === true &&
-    response.activeJob?.status === 'running' &&
-    response.activeJob.admissionPhase === 'admitted' &&
-    response.activeJob.approvalHandoffNonce === review.approvalHandoffNonce
-  ) {
-    return { kind: 'running', activeJob: response.activeJob };
-  }
-  if (
-    matchingNonce &&
-    response.approvalHandoffCanceled === true &&
-    response.cleanupStarted === false &&
-    response.temporaryAccessReleased === true &&
-    permissionSettlementProvesRelease(response)
-  ) {
-    return { kind: 'released' };
-  }
-  return {
-    kind: 'unknown',
-    warning:
-      typeof response?.warning === 'string' && response.warning
-        ? response.warning
-        : 'SiteWipe could not prove whether the reviewed cleanup started or whether temporary target access was released.'
-  };
-}
-
-function forgetResolvedPermissionHandoffBinding(review, outcome) {
-  if (['terminal', 'released'].includes(outcome?.kind)) {
-    popupPreparationBindings.delete(review.approvalToken);
-  }
-}
-
-function permissionSettlementProvesRelease(value) {
-  const settlement = value?.settlement;
-  return Boolean(
-    settlement?.released === true && settlement.accessRemains === false && settlement.recordRetained === false
-  );
-}
-
-function renderPermissionHandoffOutcome(outcome, { focus = false } = {}) {
-  if (outcome?.kind === 'terminal') {
-    showProgress(100, 'Cleanup attempt finished', 'The nonce-bound cleanup and verification outcome was recovered.', {
-      cancelable: false
-    });
-    renderSummary(outcome.response.report, {
-      focus,
-      persisted: outcome.response.reportPersisted === true
-    });
-    return;
-  }
-  if (outcome?.kind === 'running') {
-    renderActiveJob(outcome.activeJob);
-    return;
-  }
-  if (outcome?.kind === 'released') {
-    showExpiredPermissionPromptSettlement();
-    return;
-  }
-
+function renderPermissionRecoveryPending(access = {}) {
+  const state = String(access.state || 'unknown').replaceAll('_', ' ');
+  const count = Number.isInteger(access.temporaryOriginCount) ? access.temporaryOriginCount : null;
+  permissionRecoveryUiVisible = true;
+  document.body.classList.remove('has-summary');
+  setBusy(false);
+  setReviewMode(false);
   showError('');
   showProgress(
     0,
-    'Cleanup status needs verification',
-    'SiteWipe could not prove whether this cleanup started or whether temporary target access was released. Do not start another cleanup yet. Reopen SiteWipe to check the current job or report, or open Options to finish access recovery.',
+    'Previous target access needs recovery',
+    `SiteWipe is still reconciling a previous browser permission handoff (${state}${count === null ? '' : `; ${count} exact pattern(s)`}). No new cleanup can start. Open Options and use Maintenance to inspect or retry recovery.`,
     { cancelable: false }
   );
-  setReviewMode(true);
-  setReadyStatus('Check cleanup status', 'warning');
-}
-
-function showExpiredPermissionPromptSettlement() {
-  showError('');
-  showProgress(
-    0,
-    'Cleanup review expired',
-    'No cleanup started. SiteWipe released the temporary target access. Prepare a fresh review so the scope, impact, and browser access are checked again.',
-    { cancelable: false }
-  );
-  setReadyStatus('Review expired', 'warning');
-}
-
-function retireExpiredPermissionPromptReview(direct) {
-  clearPreparedReviewExpiry(direct);
-  if (direct) {
-    directCleanupReview = null;
-    directPreparedInput = '';
-    return;
-  }
-  cleanupReview = null;
-  retireDetailedReviewUi();
+  setReadyStatus('Recovery pending', 'warning');
 }
 
 function retireDetailedReviewUi() {
@@ -1097,7 +994,6 @@ async function expirePreparedCleanupReview(review, direct) {
   if ((direct ? directCleanupReview : cleanupReview) !== review || !cleanupReviewIsExpired(review)) {
     return { expired: false, promptSettlement: null };
   }
-  const nativePermissionPromptStillOpen = permissionPromptInFlight;
   clearPreparedReviewExpiry(direct);
   if (direct) {
     directCleanupReview = null;
@@ -1114,63 +1010,16 @@ async function expirePreparedCleanupReview(review, direct) {
   showProgress(
     0,
     'Cleanup review expired',
-    nativePermissionPromptStillOpen
-      ? 'Chrome target access is still settling. SiteWipe will verify the nonce-bound cleanup or permission-release outcome before saying what happened. Do not start another cleanup yet.'
-      : 'No cleanup started. Prepare a fresh review so the scope, impact, and browser access are checked again.',
+    'No cleanup started. Prepare a fresh review so the scope, impact, and browser access are checked again.',
     { cancelable: false }
   );
   setReadyStatus('Review expired', 'warning');
-  await cancelCleanupReviewToken(review.approvalToken, {
-    promptNotStarted: !nativePermissionPromptStillOpen
-  });
-  // The final-click marker remains the only owner of a native prompt that can
-  // still settle after this popup is torn down. Do not discard that tombstone
-  // until Chrome returns granted/denied, onAdded observes the exact grant, or
-  // a real browser-session startup proves the old prompt cannot survive.
-  let promptSettlement = null;
-  if (!nativePermissionPromptStillOpen) {
-    promptSettlement = await settleCleanupPermissionPrompt(review, 'abandoned');
-    popupPreparationBindings.delete(review.approvalToken);
-  }
-  if (direct && !nativePermissionPromptStillOpen && directCleanupEnabled() && !latestReportVisible) {
+  await cancelCleanupReviewToken(review.approvalToken, { promptNotStarted: true });
+  popupPreparationBindings.delete(review.approvalToken);
+  if (direct && directCleanupEnabled() && !latestReportVisible) {
     void prepareDirectCleanup(qs('#targetInput').value.trim());
   }
-  return { expired: true, promptSettlement };
-}
-
-async function settleCleanupPermissionPrompt(review, outcome, { retainBindingUntilReleaseProof = false } = {}) {
-  if (
-    !review?.permissionLeaseId ||
-    initiatedPermissionPrompt?.approvalToken !== review.approvalToken ||
-    initiatedPermissionPrompt?.handoffNonce !== review.approvalHandoffNonce ||
-    initiatedPermissionPrompt?.permissionLeaseId !== review.permissionLeaseId
-  ) {
-    if (review?.approvalToken && !retainBindingUntilReleaseProof) {
-      popupPreparationBindings.delete(review.approvalToken);
-    }
-    return null;
-  }
-  let settlementResponse = null;
-  try {
-    const popupBinding = requirePopupPreparationBinding(review);
-    const response = await sendMessage(MESSAGE_TYPES.settleCleanupPermissionPrompt, {
-      approvalToken: review.approvalToken,
-      handoffNonce: review.approvalHandoffNonce,
-      permissionLeaseId: review.permissionLeaseId,
-      ...popupBinding,
-      outcome
-    });
-    settlementResponse = response;
-    return response;
-  } catch {
-    // The durable lease remains the recovery obligation when prompt settlement
-    // cannot be confirmed in this popup lifetime.
-    return null;
-  } finally {
-    if (!retainBindingUntilReleaseProof || permissionSettlementProvesRelease(settlementResponse)) {
-      popupPreparationBindings.delete(review.approvalToken);
-    }
-  }
+  return { expired: true, promptSettlement: null };
 }
 
 async function cancelCleanupReviewToken(token, { promptNotStarted = false } = {}) {
@@ -1223,6 +1072,22 @@ function announceSettingsChangedReview() {
   focusInput();
 }
 
+function cleanupApprovalHandoffIsArmed(review) {
+  return review?.approvalHandoffStatus === 'armed' && review?.approvalHandoffArmed === true;
+}
+
+function updateReviewApprovalPhase(review) {
+  const handoffArmed = cleanupApprovalHandoffIsArmed(review);
+  qs('#reviewAcknowledgements').hidden = handoffArmed;
+  qs('#reviewApprovalCommitted').hidden = !handoffArmed;
+  qs('#reviewHostPermission').hidden = Boolean(review?.hostPermissionsGranted) || handoffArmed;
+  if (!review?.hostPermissionsGranted && !handoffArmed) {
+    qs('#reviewHostPermissionTitle').textContent = 'Approval is saved before target-specific site access is requested';
+    qs('#reviewHostPermissionDetail').textContent =
+      'First activate Approve reviewed cleanup so the worker can durably bind this exact approval. SiteWipe will then expose a separate Grant reviewed access and run action. Chrome will request only the reviewed target patterns, and access newly granted for this review is tracked until Chrome/Brave proves it has been released. Access that existed before the review is preserved.';
+  }
+}
+
 function collectApproval() {
   return {
     approvalMode: 'detailed_review',
@@ -1249,10 +1114,12 @@ function approvalIsComplete() {
 
 function updateApprovalAvailability() {
   const complete = approvalIsComplete();
-  const approvalContinuing = Boolean(cleanupReview?.approvalHandoffStatus);
+  const handoffArmed = cleanupApprovalHandoffIsArmed(cleanupReview);
+  const approvalContinuing = Boolean(cleanupReview?.approvalHandoffStatus) && !handoffArmed;
   const approveButton = qs('#approveCleanup');
-  approveButton.disabled = approvalContinuing || !complete;
-  approveButton.setAttribute('aria-disabled', String(approvalContinuing || !complete));
+  const approvalUnavailable = approvalContinuing || (!handoffArmed && !complete);
+  approveButton.disabled = approvalUnavailable;
+  approveButton.setAttribute('aria-disabled', String(approvalUnavailable));
   updateApprovalButtonLabel();
   const requirements = cleanupReview?.requirements || {};
   for (const [selector, required] of [
@@ -1269,7 +1136,9 @@ function updateApprovalAvailability() {
     Boolean(requirements.downloadedFiles) && fileInput.value.trim() !== requirements.fileConfirmationText;
   fileInput.setAttribute('aria-invalid', String(fileInvalid));
   if (approvalContinuing) {
-    setReviewApprovalError('Approval received. SiteWipe will continue automatically after Chrome settles access.');
+    setReviewApprovalError('SiteWipe is still durably saving this exact approval. Wait before continuing.');
+  } else if (handoffArmed) {
+    setReviewApprovalError('');
   } else if (!reviewApprovalRuntimeError) {
     setReviewApprovalError(
       cleanupReview && !complete ? 'Complete every displayed acknowledgement before cleanup can begin.' : ''
@@ -1284,19 +1153,23 @@ function handleApprovalInput() {
 
 function updateApprovalButtonLabel() {
   const approveButton = qs('#approveCleanup');
+  if (cleanupApprovalHandoffIsArmed(cleanupReview)) {
+    approveButton.textContent = 'Grant reviewed access and run';
+    return;
+  }
   if (cleanupReview?.approvalHandoffStatus) {
-    approveButton.textContent = 'Cleanup approved — continuing';
+    approveButton.textContent = 'Saving reviewed approval…';
     return;
   }
   if (reviewApprovalRuntimeError) {
     approveButton.textContent = cleanupReview?.hostPermissionsGranted
       ? 'Retry approval and run'
-      : 'Retry approval, grant access, and run';
+      : 'Retry saving reviewed approval';
     return;
   }
   approveButton.textContent = cleanupReview?.hostPermissionsGranted
     ? 'Approve and run cleanup'
-    : 'Approve, grant access, and run';
+    : 'Approve reviewed cleanup';
 }
 
 function setReviewApprovalError(message, { runtime = false } = {}) {
@@ -1332,6 +1205,8 @@ function resetReviewInputs() {
   qs('#reviewFileConfirmation').required = false;
   qs('#reviewFileConfirmation').setAttribute('aria-required', 'false');
   qs('#reviewFileConfirmation').setAttribute('aria-invalid', 'false');
+  qs('#reviewAcknowledgements').hidden = false;
+  qs('#reviewApprovalCommitted').hidden = true;
   setReviewApprovalError('');
   qs('#approveCleanup').disabled = true;
 }
@@ -1364,15 +1239,18 @@ function renderReviewEffects(review) {
   const rows = [
     [
       'Target site access',
-      review.approvalHandoffStatus
-        ? 'Approval committed; continuing automatically'
-        : review.hostPermissionsGranted
-          ? 'Already available'
-          : 'Requested with final approval'
+      cleanupApprovalHandoffIsArmed(review)
+        ? 'Approval saved — target access still required'
+        : review.approvalHandoffStatus
+          ? 'Approval is still being saved'
+          : review.hostPermissionsGranted
+            ? 'Already available'
+            : 'Requested in a separate activation after approval is saved'
     ],
     ['Tabs will close', formatEnabledCount(effects.closeTabs, 'currently matched')],
     ['Target-tab state changes', formatTargetTabState(configured.targetTabState)],
     ['Live page scrub', formatLivePageScrub(configured.livePageScrub)],
+    ['Browser-level storage/cache', formatBrowserLevelStorage(effects.browserLevelStorage)],
     [
       'Embedded-frame discovery',
       formatEnabledDetail(configured.embeddedFrameDiscovery, 'matching target frames across accessible tabs')
@@ -1431,6 +1309,19 @@ function formatLivePageScrub(effect = {}) {
   return `Enabled for matching target pages/frames — Storage Buckets ${onOff(effect.storageBuckets)}, OPFS ${onOff(effect.opfs)}, push/periodic-sync cleanup ${onOff(effect.serviceWorkerExtras)}, app-badge clear ${onOff(effect.appBadgeClear)}`;
 }
 
+function formatBrowserLevelStorage(effect = {}) {
+  if (effect.selectedSiteCleanupEnabled && effect.exactOriginOnlyCleanupSkipped) {
+    return 'Selected-site cleanup for reviewed registrable sites; exact-origin-only closed-page storage/cache skipped to preserve port scope';
+  }
+  if (effect.selectedSiteCleanupEnabled) {
+    return 'Selected-site cleanup — embedded third-party partitions under the selected site may also be deleted';
+  }
+  if (effect.exactOriginOnlyCleanupSkipped) {
+    return 'Skipped for exact-origin-only scope — exact live-page cleanup still runs';
+  }
+  return 'Unavailable';
+}
+
 function formatCookieDiscovery(effect = {}) {
   return `Browser cookie sweep ${onOff(effect.browserCookieSweep)}; partitioned embedding-site probes ${onOff(effect.partitionedEmbeddingSiteProbes)}; exhaustive accessible-store scan ${onOff(effect.exhaustiveAccessibleStoreScan)}`;
 }
@@ -1470,8 +1361,10 @@ async function getSourceContext() {
 }
 
 function setReviewMode(active) {
-  const locked = Boolean(active || busy);
-  document.body.classList.toggle('review-active', Boolean(active));
+  const reviewActive = Boolean(active);
+  const locked = Boolean(reviewActive || busy || permissionRecoveryPending);
+  document.body.classList.toggle('review-active', reviewActive);
+  document.body.classList.toggle('recovery-active', permissionRecoveryPending && !reviewActive);
   qs('#targetInput').disabled = locked;
   qs('#deepCleanButton').disabled = locked;
   qs('#useActiveTab').disabled = locked || !activeTabTarget?.supported;
@@ -1697,8 +1590,9 @@ async function forgetLatestReport() {
 }
 
 async function startAnotherCleanup() {
+  if (!(await refreshPermissionRecoveryState({ forceRecoveryUi: true }))) return;
   if (directCleanupReview || directPreparationPending) {
-    await discardDirectCleanupPreparation({ settleLease: !permissionPromptInFlight });
+    await discardDirectCleanupPreparation();
   }
   latestReportVisible = false;
   clearDisplayedReportBinding();
@@ -1770,10 +1664,11 @@ function openSidePanel() {
 
 function setBusy(isBusy, busyLabel = 'Working…') {
   const lockedForReview = Boolean(cleanupReview);
+  const lockedForRecovery = permissionRecoveryPending;
   document.body.classList.toggle('cleanup-active', Boolean(isBusy));
-  qs('#deepCleanButton').disabled = isBusy || lockedForReview;
-  qs('#targetInput').disabled = isBusy || lockedForReview;
-  qs('#useActiveTab').disabled = isBusy || lockedForReview || !activeTabTarget?.supported;
+  qs('#deepCleanButton').disabled = isBusy || lockedForReview || lockedForRecovery;
+  qs('#targetInput').disabled = isBusy || lockedForReview || lockedForRecovery;
+  qs('#useActiveTab').disabled = isBusy || lockedForReview || lockedForRecovery || !activeTabTarget?.supported;
   qs('#targetForm').setAttribute('aria-busy', String(isBusy));
   qs('#deepCleanSpinner').hidden = !isBusy;
   qs('#deepCleanLabel').textContent = isBusy ? busyLabel : primaryActionLabel();
@@ -1782,10 +1677,12 @@ function setBusy(isBusy, busyLabel = 'Working…') {
     ? 'Working'
     : hasError
       ? 'Needs attention'
-      : lockedForReview
-        ? 'Awaiting approval'
-        : 'Ready';
-  const readyTone = isBusy || lockedForReview ? 'warning' : hasError ? 'danger' : 'success';
+      : lockedForRecovery
+        ? 'Recovery pending'
+        : lockedForReview
+          ? 'Awaiting approval'
+          : 'Ready';
+  const readyTone = isBusy || lockedForReview || lockedForRecovery ? 'warning' : hasError ? 'danger' : 'success';
   setReadyStatus(readyLabel, readyTone);
   qs('#progressCard').hidden = !isBusy;
   if (!isBusy) qs('#cancelActiveJob').hidden = true;
@@ -1813,7 +1710,10 @@ function setNormalized(domain) {
 }
 
 function primaryActionLabel() {
-  return directCleanupEnabled() ? 'Clean now' : 'Review cleanup';
+  if (!directCleanupEnabled()) return 'Review cleanup';
+  return cleanupApprovalHandoffIsArmed(directCleanupReview) && !directCleanupReview?.hostPermissionsGranted
+    ? 'Grant access and clean'
+    : 'Clean now';
 }
 
 function updatePrimaryAction() {
@@ -1822,11 +1722,14 @@ function updatePrimaryAction() {
   qs('#deepCleanSpinner').hidden = !preparing;
   qs('#deepCleanButton').setAttribute('aria-busy', String(preparing));
   qs('#deepCleanLabel').textContent = preparing ? 'Preparing…' : primaryActionLabel();
-  if (cleanupReview) return;
+  if (cleanupReview || permissionRecoveryPending) {
+    qs('#deepCleanButton').disabled = true;
+    return;
+  }
   qs('#deepCleanButton').disabled = directCleanupEnabled()
     ? directPreparationPending ||
       !directCleanupReview ||
-      Boolean(directCleanupReview.approvalHandoffStatus) ||
+      Boolean(directCleanupReview.approvalHandoffStatus && !cleanupApprovalHandoffIsArmed(directCleanupReview)) ||
       !normalized?.ok
     : false;
 }

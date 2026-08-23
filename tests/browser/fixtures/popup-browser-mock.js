@@ -20,13 +20,21 @@
     document.documentElement.dataset.fixtureSimulatedZoom = simulatedZoom;
   }
   const settingsListeners = [];
+  const permissionAddedListeners = [];
+  const permissionRemovedListeners = [];
   const state = {
     messages: [],
+    permissionOperations: [],
+    permissionSnapshots: [],
     permissionRequests: [],
+    permissionEvents: [],
     permissionRemovals: [],
     promptSettlements: [],
     armAttempts: 0,
     armRejections: 0,
+    promptIntents: 0,
+    promptInvocations: 0,
+    grantOutcomes: 0,
     resumeAttempts: 0,
     approvedRuns: 0,
     canceledReviews: 0,
@@ -35,7 +43,8 @@
     armedApproval: null,
     lastApprovalMode: null,
     lastReviewedScope: null,
-    latestReport: null
+    latestReport: null,
+    grantedOrigins: new Set(pregrantedHostAccess ? ['<all_urls>'] : [])
   };
   const syncEvidence = () => {
     document.documentElement.dataset.fixtureUserAgent = navigator.userAgent;
@@ -47,6 +56,9 @@
     document.documentElement.dataset.fixturePromptSettlements = String(state.promptSettlements.length);
     document.documentElement.dataset.fixtureArmAttempts = String(state.armAttempts);
     document.documentElement.dataset.fixtureArmRejections = String(state.armRejections);
+    document.documentElement.dataset.fixturePromptIntents = String(state.promptIntents);
+    document.documentElement.dataset.fixturePromptInvocations = String(state.promptInvocations);
+    document.documentElement.dataset.fixtureGrantOutcomes = String(state.grantOutcomes);
     document.documentElement.dataset.fixtureResumeAttempts = String(state.resumeAttempts);
     document.documentElement.dataset.fixtureLastApprovalMode = String(state.lastApprovalMode || '');
     document.documentElement.dataset.fixtureLastReviewedScope = String(state.lastReviewedScope ?? '');
@@ -72,7 +84,7 @@
     schemaVersion: 1,
     approvalMode: directCleanup ? 'settings_direct' : 'detailed_review',
     approvalToken: '0'.repeat(48),
-    approvalHandoffNonce: pregrantedHostAccess ? null : '0'.repeat(64),
+    approvalHandoffNonce: pregrantedHostAccess ? null : '0'.repeat(48),
     permissionLeaseId: pregrantedHostAccess ? null : 'synthetic-permission-lease',
     createdAt: new Date(fixtureLoadedAt).toISOString(),
     expiresAt: new Date(fixtureLoadedAt + 5 * 60 * 1000).toISOString(),
@@ -260,7 +272,7 @@
     const sequenceHex = state.preparationSequence.toString(16);
     const preparedReview = structuredClone(review);
     preparedReview.approvalToken = sequenceHex.padStart(48, '0');
-    preparedReview.approvalHandoffNonce = pregrantedHostAccess ? null : sequenceHex.padStart(64, '0');
+    preparedReview.approvalHandoffNonce = pregrantedHostAccess ? null : sequenceHex.padStart(48, '0');
     preparedReview.permissionLeaseId = pregrantedHostAccess
       ? null
       : `synthetic-permission-lease-${state.preparationSequence}`;
@@ -306,6 +318,78 @@
       reportPersisted: !transientReport,
       ...handoffResult
     });
+  }
+
+  function arraysEqual(left, right) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => value === right[index])
+    );
+  }
+
+  function currentPermissionSnapshot() {
+    return { permissions: [], origins: [...state.grantedOrigins] };
+  }
+
+  function snapshotCoversTemporaryOrigins(snapshot, origins) {
+    const grantedOrigins = Array.isArray(snapshot?.origins) ? snapshot.origins : [];
+    return origins.some((origin) => grantedOrigins.some((granted) => hostPermissionPatternCovers(granted, origin)));
+  }
+
+  function hostPermissionPatternCovers(grantedPattern, requiredPattern) {
+    if (grantedPattern === '<all_urls>') return true;
+    const granted = parseHostPermissionPattern(grantedPattern);
+    const required = parseHostPermissionPattern(requiredPattern);
+    if (!granted || !required) return false;
+    if (
+      granted.scheme !== required.scheme &&
+      !(granted.scheme === '*' && (required.scheme === 'http' || required.scheme === 'https'))
+    ) {
+      return false;
+    }
+    if (granted.path !== '/*' && granted.path !== required.path) return false;
+    if (granted.host === '*') return true;
+    if (granted.host.startsWith('*.')) {
+      const grantedBase = granted.host.slice(2);
+      const requiredBase = required.host.startsWith('*.') ? required.host.slice(2) : required.host;
+      return requiredBase === grantedBase || requiredBase.endsWith(`.${grantedBase}`);
+    }
+    return !required.host.startsWith('*.') && granted.host === required.host;
+  }
+
+  function parseHostPermissionPattern(pattern) {
+    const match = /^(\*|https?|file|ftp):\/\/([^/]*)(\/.*)$/i.exec(String(pattern || ''));
+    if (!match) return null;
+    return { scheme: match[1].toLowerCase(), host: match[2].toLowerCase(), path: match[3] };
+  }
+
+  function grantedOriginsCover(origin) {
+    return [...state.grantedOrigins].some((granted) => hostPermissionPatternCovers(granted, origin));
+  }
+
+  function emitPermissionAdded(event) {
+    const payload = structuredClone(event);
+    state.permissionEvents.push(payload);
+    for (const listener of permissionAddedListeners) listener(structuredClone(payload));
+    syncEvidence();
+  }
+
+  function emitPermissionRemoved(event) {
+    const payload = structuredClone(event);
+    for (const listener of permissionRemovedListeners) listener(structuredClone(payload));
+    syncEvidence();
+  }
+
+  function releaseSyntheticTemporaryAccess() {
+    const removedOrigins = targetOrigins.filter((origin) => state.grantedOrigins.delete(origin));
+    if (!removedOrigins.length) return false;
+    const request = { origins: removedOrigins };
+    state.permissionRemovals.push(structuredClone(request));
+    state.permissionOperations.push('remove');
+    emitPermissionRemoved({ permissions: [], origins: removedOrigins });
+    return true;
   }
 
   async function sendMessage(request) {
@@ -383,21 +467,109 @@
         state.armedApproval = null;
         syncEvidence();
         return envelope(request, {
-          settlement: { released: true, accessRemains: false, recordRetained: false }
+          settlement: {
+            released: false,
+            accessRemains: null,
+            recordRetained: false,
+            permissionsPreserved: true
+          }
         });
       case 'sitewipe.armCleanupApproval':
         state.armAttempts += 1;
-        if (expireAfterNativeGrant) {
-          state.armRejections += 1;
-          syncEvidence();
-          throw new Error('This synthetic cleanup review expired while target access was being requested.');
-        }
         state.armedApproval = {
           approval: structuredClone(request.payload.approval),
-          handoffNonce: request.payload.handoffNonce
+          handoffNonce: request.payload.handoffNonce,
+          promptIntentRecorded: false,
+          promptInvocationRecorded: false,
+          preRequestSnapshotStarted: false,
+          preRequestTemporaryOriginsAbsent: false,
+          nativeRequestResult: null,
+          promptGrantObserved: false,
+          grantOutcomeRecorded: false
         };
         syncEvidence();
-        return envelope(request, { handoffNonce: request.payload.handoffNonce });
+        return envelope(request, {
+          approvalArmed: true,
+          handoffStatus: 'armed',
+          handoffNonce: request.payload.handoffNonce
+        });
+      case 'sitewipe.beginCleanupPermissionPrompt':
+        if (!state.armedApproval || request.payload.handoffNonce !== state.armedApproval.handoffNonce) {
+          throw new Error('Synthetic fixture refused a missing or different cleanup handoff.');
+        }
+        if (
+          expireAfterNativeGrant &&
+          state.activePreparedReview &&
+          Date.parse(state.activePreparedReview.expiresAt) < Date.now()
+        ) {
+          state.armRejections += 1;
+          syncEvidence();
+          throw new Error('This synthetic cleanup review expired before target-access invocation was recorded.');
+        }
+        state.promptIntents += 1;
+        state.armedApproval.promptIntentRecorded = true;
+        state.permissionOperations.push('begin');
+        syncEvidence();
+        return envelope(request, {
+          promptIntentRecorded: true,
+          handoffNonce: request.payload.handoffNonce
+        });
+      case 'sitewipe.confirmCleanupPermissionPromptInvocation':
+        if (
+          !state.armedApproval ||
+          request.payload.handoffNonce !== state.armedApproval.handoffNonce ||
+          state.armedApproval.promptIntentRecorded !== true
+        ) {
+          throw new Error('Synthetic fixture refused an invocation marker without its authenticated prompt intent.');
+        }
+        state.promptInvocations += 1;
+        state.armedApproval.promptInvocationRecorded = true;
+        state.permissionOperations.push('confirm-invocation');
+        syncEvidence();
+        return envelope(request, {
+          promptInvocationRecorded: true,
+          handoffNonce: request.payload.handoffNonce,
+          ...(state.activePreparedReview && Date.parse(state.activePreparedReview.expiresAt) < Date.now()
+            ? { authorityRevoked: true, handoffStatus: 'prompt_tombstone' }
+            : {})
+        });
+      case 'sitewipe.confirmCleanupPermissionGrantOutcome':
+        if (
+          !state.armedApproval ||
+          request.payload.handoffNonce !== state.armedApproval.handoffNonce ||
+          state.armedApproval.promptInvocationRecorded !== true ||
+          state.armedApproval.nativeRequestResult !== true ||
+          state.armedApproval.preRequestTemporaryOriginsAbsent !== true ||
+          request.payload.preRequestTemporaryOriginsAbsent !== true
+        ) {
+          throw new Error('Synthetic fixture refused a grant outcome without the exact literal-true request proof.');
+        }
+        state.grantOutcomes += 1;
+        state.armedApproval.grantOutcomeRecorded = true;
+        state.permissionOperations.push('confirm-outcome');
+        if (
+          expireAfterNativeGrant &&
+          state.activePreparedReview &&
+          Date.parse(state.activePreparedReview.expiresAt) < Date.now()
+        ) {
+          releaseSyntheticTemporaryAccess();
+          state.activePreparedReview = null;
+          state.armedApproval = null;
+          syncEvidence();
+          return envelope(request, {
+            promptGrantOutcomeRecorded: true,
+            handoffNonce: request.payload.handoffNonce,
+            cleanupStarted: false,
+            temporaryAccessReleased: true,
+            grantObservationTerminal: true,
+            settlement: { released: true, accessRemains: false, recordRetained: false }
+          });
+        }
+        syncEvidence();
+        return envelope(request, {
+          promptGrantOutcomeRecorded: true,
+          handoffNonce: request.payload.handoffNonce
+        });
       case 'sitewipe.resumeArmedCleanup':
         state.resumeAttempts += 1;
         syncEvidence();
@@ -407,9 +579,20 @@
         if (!state.armedApproval || request.payload.handoffNonce !== state.armedApproval.handoffNonce) {
           throw new Error('Synthetic fixture refused a missing or different cleanup handoff.');
         }
+        if (
+          state.armedApproval.promptIntentRecorded !== true ||
+          state.armedApproval.promptInvocationRecorded !== true ||
+          state.armedApproval.promptGrantObserved !== true ||
+          state.armedApproval.nativeRequestResult !== true ||
+          state.armedApproval.preRequestTemporaryOriginsAbsent !== true ||
+          state.armedApproval.grantOutcomeRecorded !== true
+        ) {
+          throw new Error('Synthetic fixture refused cleanup without the complete independent permission proof.');
+        }
         {
           const { approval } = state.armedApproval;
           state.armedApproval = null;
+          releaseSyntheticTemporaryAccess();
           return completeSyntheticCleanup(request, approval, {
             approvalHandoffNonce: request.payload.handoffNonce
           });
@@ -459,8 +642,55 @@
       }
     },
     permissions: {
+      onAdded: {
+        addListener(listener) {
+          permissionAddedListeners.push(listener);
+        }
+      },
+      onRemoved: {
+        addListener(listener) {
+          permissionRemovedListeners.push(listener);
+        }
+      },
+      async getAll() {
+        const snapshot = currentPermissionSnapshot();
+        state.permissionOperations.push('getAll');
+        state.permissionSnapshots.push(structuredClone(snapshot));
+        if (state.armedApproval) {
+          state.armedApproval.preRequestSnapshotStarted = true;
+          state.armedApproval.preRequestSnapshot = structuredClone(snapshot);
+        }
+        syncEvidence();
+        return snapshot;
+      },
       async request(request) {
         state.permissionRequests.push(structuredClone(request));
+        const snapshot = state.armedApproval?.preRequestSnapshot;
+        const snapshotStartedImmediatelyBeforeRequest = state.permissionOperations.at(-1) === 'getAll';
+        state.permissionOperations.push('request');
+        if (!state.armedApproval || state.armedApproval.promptIntentRecorded !== true) {
+          throw new Error('Synthetic fixture refused permissions.request without authenticated prompt intent.');
+        }
+        if (!snapshotStartedImmediatelyBeforeRequest || !snapshot) {
+          throw new Error('Synthetic fixture refused permissions.request without a synchronous pre-request inventory.');
+        }
+        state.armedApproval.preRequestTemporaryOriginsAbsent = !snapshotCoversTemporaryOrigins(
+          snapshot,
+          request.origins || []
+        );
+        if (denyPermission) {
+          state.armedApproval.nativeRequestResult = false;
+          syncEvidence();
+          return false;
+        }
+        const newlyGrantedOrigins = (request.origins || []).filter((origin) => !grantedOriginsCover(origin));
+        for (const origin of newlyGrantedOrigins) state.grantedOrigins.add(origin);
+        if (arraysEqual(newlyGrantedOrigins, targetOrigins)) {
+          const event = { permissions: [], origins: newlyGrantedOrigins };
+          state.armedApproval.promptGrantObserved = true;
+          emitPermissionAdded(event);
+        }
+        state.armedApproval.nativeRequestResult = true;
         if (expireAfterNativeGrant && state.activePreparedReview) {
           // Keep the review usable for manual inspection, then make only the
           // synthetic native-grant settlement late. The production popup owns
@@ -469,15 +699,18 @@
           await new Promise((resolve) => setTimeout(resolve, 50));
         }
         syncEvidence();
-        return !denyPermission;
+        return true;
       },
       async remove(request) {
-        state.permissionRemovals.push(structuredClone(request));
+        state.permissionOperations.push('remove');
+        const removedOrigins = (request.origins || []).filter((origin) => state.grantedOrigins.delete(origin));
+        state.permissionRemovals.push({ ...structuredClone(request), origins: removedOrigins });
+        if (removedOrigins.length) emitPermissionRemoved({ permissions: [], origins: removedOrigins });
         syncEvidence();
         return true;
       },
-      async contains() {
-        return false;
+      async contains(request = {}) {
+        return (request.origins || []).every((origin) => grantedOriginsCover(origin));
       }
     },
     windows: {
@@ -493,6 +726,19 @@
   globalThis.__sitewipeBrowserFixture = Object.freeze({
     state,
     review,
+    grantExternally(origins = ['<all_urls>']) {
+      const newlyGrantedOrigins = origins.filter((origin) => !state.grantedOrigins.has(origin));
+      for (const origin of newlyGrantedOrigins) state.grantedOrigins.add(origin);
+      if (newlyGrantedOrigins.length) {
+        emitPermissionAdded({ permissions: [], origins: newlyGrantedOrigins });
+      }
+      return currentPermissionSnapshot();
+    },
+    expireActiveReview() {
+      if (state.activePreparedReview) {
+        state.activePreparedReview.expiresAt = new Date(Date.now() - 1000).toISOString();
+      }
+    },
     emitSettingsChange(
       next = { cleanupMode: cleanupMode === 'standard' ? 'expert' : 'standard', skipCleanupReview: false }
     ) {

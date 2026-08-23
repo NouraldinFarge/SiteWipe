@@ -261,7 +261,8 @@ const directCleanupSources = Object.fromEntries(
 );
 const directCleanupContractFindings = findDirectCleanupPublicationContractFindings({
   sources: directCleanupSources,
-  decision: directCleanupDecision
+  decision: directCleanupDecision,
+  version: pkg?.version
 });
 if (directCleanupContractFindings.length) {
   blockers.push(

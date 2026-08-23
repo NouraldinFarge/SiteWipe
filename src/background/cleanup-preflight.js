@@ -11,7 +11,10 @@ import {
 } from '../shared/host-permissions.js';
 import {
   markPermissionLeaseActive,
+  markPermissionLeasePromptGrantOwned,
   markPermissionLeasePromptPending,
+  discardInvalidReviewPermissionLease,
+  discardUninvokedPermissionLease,
   getPermissionLease,
   preparePermissionLease,
   reconcilePermissionLease,
@@ -20,7 +23,11 @@ import {
 
 export const CLEANUP_REVIEW_STORAGE_KEY = 'sitewipe.cleanupReview.v1';
 export const CLEANUP_REVIEW_TTL_MS = 5 * 60 * 1000;
-export const CLEANUP_APPROVAL_HANDOFF_SCHEMA_VERSION = 1;
+// Schema 3 retires the action-popup-bound permission protocol. Schema-2
+// approvals are discarded as proofless legacy state and can never be rebound
+// to the persistent extension-tab handoff.
+export const CLEANUP_APPROVAL_HANDOFF_SCHEMA_VERSION = 3;
+export const CLEANUP_PERMISSION_PROMPT_CONFIRM_GRACE_MS = 30 * 1000;
 // Schema 8 also binds every review to the exact popup context Chrome reported
 // at preparation time and to a worker-minted capability digest. Raw
 // capabilities are never persisted. Legacy records are discarded before any
@@ -97,6 +104,20 @@ export async function prepareCleanupReviewRequest(payload = {}, dependencies = {
         'A canceled or expired Chrome target-access prompt is still being reconciled. Close any native prompt or restart the browser before reviewing again.'
       );
     }
+    if (cleanupReviewPromptIntentMayStillConfirm(existingRecord, createdAtMs)) {
+      const retainedRecord =
+        existingRecord.approvalHandoff.status === 'prompt_intent_tombstone'
+          ? existingRecord
+          : createPromptIntentTombstoneRecord(
+              existingRecord,
+              createdAtMs,
+              'cleanup_review_replaced_while_permission_request_started'
+            );
+      await storageSession.set({ [CLEANUP_REVIEW_STORAGE_KEY]: retainedRecord });
+      throw new Error(
+        'A Chrome target-access request is still being confirmed. Wait briefly for it to settle before reviewing again.'
+      );
+    }
     if (Number.isFinite(existingRecord.expiresAtMs) && createdAtMs <= existingRecord.expiresAtMs) {
       const resumed = await resumeEquivalentCleanupReview(payload, existingRecord, {
         ...dependencies,
@@ -108,7 +129,7 @@ export async function prepareCleanupReviewRequest(payload = {}, dependencies = {
         'Another cleanup review is active. Reopen its original target to resume and cancel it. If a Chrome site-access prompt may still be open, close it or restart the browser before reviewing a different target.'
       );
     }
-    if (cleanupReviewPromptMayStillSettle(existingRecord, dependencies)) {
+    if (cleanupReviewPromptMayStillSettle(existingRecord)) {
       await storageSession.set({
         [CLEANUP_REVIEW_STORAGE_KEY]: createPromptTombstoneRecord(existingRecord, createdAtMs, 'cleanup_review_expired')
       });
@@ -126,12 +147,9 @@ export async function prepareCleanupReviewRequest(payload = {}, dependencies = {
     }
   }
 
-  const orphanedLease = await reconcilePermissionLease(storageLocal, {
-    containsHostPermissions,
-    getAllHostPermissions,
-    releaseHostPermissions: dependencies.releaseHostPermissions,
-    now
-  });
+  // No valid session review exists to prove that SiteWipe owns any matching
+  // browser grant. Retire only the orphaned bookkeeping and preserve access.
+  const orphanedLease = await discardUninvokedPermissionLease(storageLocal, null);
   if (orphanedLease.recordRetained) {
     throw new Error(
       'SiteWipe still has an unresolved temporary target-access lease. Revoke its site access in the browser extension settings or retry maintenance before starting another cleanup.'
@@ -209,17 +227,7 @@ export async function prepareCleanupReviewRequest(payload = {}, dependencies = {
       permissionLease = await markPermissionLeasePromptPending(storageLocal, permissionLease.id, now);
       if (!permissionLease) throw new Error('The durable target-access prompt lease could not be armed.');
     } catch (error) {
-      await reconcilePermissionLease(
-        storageLocal,
-        {
-          containsHostPermissions,
-          getAllHostPermissions,
-          releaseHostPermissions: dependencies.releaseHostPermissions,
-          forcePromptSettlement: true,
-          now
-        },
-        permissionLease?.id
-      ).catch(() => {});
+      await discardUninvokedPermissionLease(storageLocal, permissionLease?.id).catch(() => {});
       throw error;
     }
   }
@@ -261,17 +269,7 @@ export async function prepareCleanupReviewRequest(payload = {}, dependencies = {
     await storageSession.set({ [CLEANUP_REVIEW_STORAGE_KEY]: record });
   } catch (error) {
     if (permissionLease) {
-      await reconcilePermissionLease(
-        storageLocal,
-        {
-          containsHostPermissions,
-          getAllHostPermissions,
-          releaseHostPermissions: dependencies.releaseHostPermissions,
-          forcePromptSettlement: true,
-          now
-        },
-        permissionLease.id
-      ).catch(() => {});
+      await discardUninvokedPermissionLease(storageLocal, permissionLease.id).catch(() => {});
     }
     throw error;
   }
@@ -333,27 +331,22 @@ async function resumeEquivalentCleanupReview(payload, record, dependencies) {
   );
   if (!preparationContextId || !popupPreparationCapabilityDigest || !storageSession?.set) return null;
 
-  // A final-click handoff owns prompt settlement and cannot be rebound or have
-  // its capability rotated. The worker resumes it independently of popup
-  // lifetime. Before a handoff, same-context retry may rotate its capability.
+  // A durably armed handoff cannot be rebound or have its popup capability
+  // rotated. If Chrome later grants the exact request, the worker can resume it
+  // independently of popup lifetime. Before a handoff, same-context retry may
+  // rotate its capability.
   if (record.approvalHandoff || getPendingPromptContextId(record, dependencies)) return null;
   if (preparationContextId !== record.preparationContextId) {
     if (typeof dependencies.isPreparationContextActive !== 'function') return null;
     if (await dependencies.isPreparationContextActive(record.preparationContextId)) return null;
     if (record.permissionLeaseId) {
-      // A missing-access review may have invoked Chrome's native prompt just
-      // before its popup disappeared. Without a retired-owner handshake, never
-      // transfer it to a new context. Retain non-runnable settlement ownership
-      // until the browser-session boundary can reconcile the lease.
-      await storageSession.set({
-        [CLEANUP_REVIEW_STORAGE_KEY]: createPromptTombstoneRecord(
-          record,
-          Number(typeof dependencies.now === 'function' ? dependencies.now() : Date.now()),
-          'popup_context_retired_before_prompt_settlement'
-        )
-      });
+      // A prepared review has not received the authenticated second-activation
+      // marker and therefore cannot own any exact grant that appeared after its
+      // popup retired. Drop only SiteWipe's bookkeeping; never turn that
+      // externally controlled access into a prompt-settlement tombstone.
+      await discardUninvokedCleanupReviewRecord(record, dependencies);
       throw new Error(
-        'The popup that prepared Chrome target access closed before settlement could be proven. Restart the browser before preparing a fresh review.'
+        'The popup that prepared Chrome target access closed before the reviewed prompt activation. Start the cleanup again.'
       );
     }
   }
@@ -405,6 +398,56 @@ function permissionLeaseBindingForReview(record, requestedOrigins) {
   };
 }
 
+async function persistCleanupPermissionLeaseOwnership(record, dependencies = {}) {
+  const handoff = record?.approvalHandoff;
+  if (
+    !record?.permissionLeaseId ||
+    !handoff?.promptInvocation ||
+    handoff.promptGrant?.complete !== true ||
+    handoff.promptGrantOutcome?.granted !== true ||
+    handoff.promptGrantOutcome.preRequestTemporaryOriginsAbsent !== true
+  ) {
+    return null;
+  }
+  const storageLocal = dependencies.storageLocal || dependencies.storageSession?.durable;
+  if (!storageLocal?.get || !storageLocal?.set) {
+    throw new Error('Cleanup permission lease storage is unavailable.');
+  }
+  const requestedOrigins = normalizeOrigins(record.target?.hostPermissionOrigins);
+  const invalidateSplitOwnershipProof = async () => {
+    // The complete session proof and durable ownership marker are one
+    // authority boundary. If the marker cannot be committed (including at the
+    // prompt TTL), erase the session half immediately and drop only proofless
+    // bookkeeping. Any browser access is preserved; an already-owned lease is
+    // retained solely for safe recovery.
+    await discardUninvokedPermissionLease(storageLocal, record.permissionLeaseId).catch(() => {});
+    if (dependencies.storageSession?.remove) {
+      await dependencies.storageSession.remove(CLEANUP_REVIEW_STORAGE_KEY).catch(() => {});
+    }
+  };
+  let ownedLease;
+  try {
+    ownedLease = await markPermissionLeasePromptGrantOwned(
+      storageLocal,
+      record.permissionLeaseId,
+      dependencies.now || (() => Date.now()),
+      permissionLeaseBindingForReview(record, requestedOrigins)
+    );
+  } catch (error) {
+    // storage.set may reject either before or after Chrome accepted the write.
+    // The safe rollback preserves any landed ownership marker for recovery,
+    // but always erases the session half so cleanup cannot be admitted from an
+    // uncertain split commit.
+    await invalidateSplitOwnershipProof();
+    throw error;
+  }
+  if (!ownedLease) {
+    await invalidateSplitOwnershipProof();
+    throw new Error('The durable target-access lease could not record reviewed prompt ownership. Start again.');
+  }
+  return ownedLease;
+}
+
 async function inspectLeaseOwnedPromptGrantTransition({
   record,
   lease,
@@ -413,8 +456,12 @@ async function inspectLeaseOwnedPromptGrantTransition({
   getAllHostPermissions,
   allowedLeaseStatuses = ['prompt_pending']
 }) {
+  const ownershipProofMatchesStatus =
+    (lease?.status === 'prompt_pending' && lease.ownershipProof === 'reviewed_prompt_grant') ||
+    (lease?.status === 'active_cleanup' && lease.ownershipProof === 'admitted_cleanup');
   if (
     !allowedLeaseStatuses.includes(lease?.status) ||
+    !ownershipProofMatchesStatus ||
     typeof getAllHostPermissions !== 'function' ||
     !jsonEquivalent(currentCoveredOrigins, requestedOrigins)
   ) {
@@ -526,7 +573,20 @@ export async function cancelCleanupReviewRequest(payload = {}, dependencies = {}
     !pendingPromptContextId
   );
   if (promptNotStartedByPreparingContext) dependencies = { ...dependencies, promptNotStartedProven: true };
-  if (cleanupReviewPromptMayStillSettle(record, dependencies) && dependencies.promptSettled !== true) {
+  const canceledAtMs = Number(typeof dependencies.now === 'function' ? dependencies.now() : Date.now());
+  if (dependencies.promptSettled !== true && cleanupReviewPromptIntentMayStillConfirm(record, canceledAtMs)) {
+    const retainedRecord =
+      record.approvalHandoff.status === 'prompt_intent_tombstone'
+        ? record
+        : createPromptIntentTombstoneRecord(
+            record,
+            canceledAtMs,
+            dependencies.tombstoneReason || 'cleanup_review_canceled'
+          );
+    await storageSession.set({ [CLEANUP_REVIEW_STORAGE_KEY]: retainedRecord });
+    return promptIntentConfirmationPendingResult(retainedRecord, { canceled: true });
+  }
+  if (cleanupReviewPromptMayStillSettle(record) && dependencies.promptSettled !== true) {
     await storageSession.set({
       [CLEANUP_REVIEW_STORAGE_KEY]: createPromptTombstoneRecord(
         record,
@@ -558,6 +618,10 @@ export async function cancelCleanupReviewRequest(payload = {}, dependencies = {}
 
 export async function stageCleanupReviewApprovalRequest(payload = {}, dependencies = {}) {
   const storageSession = dependencies.storageSession;
+  dependencies = {
+    ...dependencies,
+    storageLocal: dependencies.storageLocal || storageSession?.durable
+  };
   const now = dependencies.now || (() => Date.now());
   if (!storageSession?.get || !storageSession?.set) {
     throw new Error('Cleanup review session storage is unavailable.');
@@ -597,18 +661,12 @@ export async function stageCleanupReviewApprovalRequest(payload = {}, dependenci
   }
 
   if (!record.approvalHandoff && record.preparationContextId !== promptContextId) {
-    // permissions.request() was already invoked by this mismatched popup. It
-    // may still grant after this rejection, so retain exact, non-runnable
-    // settlement ownership rather than merely denying the staged approval.
-    await storageSession.set({
-      [CLEANUP_REVIEW_STORAGE_KEY]: createPromptTombstoneRecord(
-        record,
-        Number(now()),
-        'approval_preparation_context_changed',
-        promptContextId
-      )
-    });
-    throw new Error('The popup context preparing this cleanup changed. Start again after prompt settlement.');
+    // Activation one never invokes permissions.request(). A mismatched popup
+    // cannot inherit authority, and SiteWipe has no permission-removal
+    // ownership to retain. Preserve any external grant and discard only the
+    // stale review/lease bookkeeping.
+    await discardUninvokedCleanupReviewRecord(record, dependencies);
+    throw new Error('The popup context preparing this cleanup changed. Start the cleanup again.');
   }
 
   if (record.approvalHandoff) {
@@ -644,20 +702,18 @@ export async function stageCleanupReviewApprovalRequest(payload = {}, dependenci
     armedAtMs: boundedArmingAtMs,
     updatedAtMs: boundedArmingAtMs,
     promptContextId,
+    promptIntent: null,
+    promptInvocation: null,
+    promptGrant: null,
+    promptGrantOutcome: null,
     approval: normalizedApproval
   };
   const armingRecord = { ...record, approvalHandoff: armingHandoff };
   if (!Number.isFinite(armingAtMs) || armingAtMs > record.expiresAtMs) {
-    // The popup invokes Chrome's native permission request before dispatching
-    // this marker. Even when the worker first observes the click after expiry,
-    // retain exact prompt-settlement ownership so a late grant cannot escape.
-    await storageSession.set({
-      [CLEANUP_REVIEW_STORAGE_KEY]: createPromptTombstoneRecord(
-        armingRecord,
-        Number.isFinite(armingAtMs) ? armingAtMs : Date.now(),
-        'approval_arrived_after_expiry'
-      )
-    });
+    // Activation one never invokes Chrome's permission UI. If its durable arm
+    // arrives after expiry, SiteWipe has no prompt ownership to tombstone and
+    // must preserve any exact grant that appeared independently meanwhile.
+    await discardUninvokedCleanupReviewRecord(record, dependencies);
     throw new Error('This cleanup approval expired. Start the cleanup again.');
   }
   await storageSession.set({ [CLEANUP_REVIEW_STORAGE_KEY]: armingRecord });
@@ -732,15 +788,10 @@ export async function armCleanupReviewApprovalRequest(payload = {}, dependencies
       }
     });
   } catch (error) {
-    await storageSession
-      .set({
-        [CLEANUP_REVIEW_STORAGE_KEY]: createPromptTombstoneRecord(
-          armingRecord,
-          Number(now()),
-          'approval_authority_rejected'
-        )
-      })
-      .catch(() => {});
+    // Revalidation and lease arming occur during activation one, before any
+    // native permission request. A failure here must never manufacture prompt
+    // ownership or revoke an independently granted exact pattern.
+    await discardUninvokedCleanupReviewRecord(armingRecord, dependencies).catch(() => {});
     throw error;
   }
   return {
@@ -760,7 +811,21 @@ export async function getReadyArmedCleanupReview(dependencies = {}) {
   if (state.invalid || !state.record?.approvalHandoff) return null;
   const record = state.record;
   const handoff = record.approvalHandoff;
-  if (handoff.status !== 'armed') return null;
+  // A durable approval alone is deliberately non-runnable. Only the exact
+  // popup that owns the one-use preparation capability must durably record both
+  // the accepted invocation and the native request's resolved-true result. The
+  // worker also needs the browser's exact complete host-only onAdded event.
+  // Neither an external/manual grant nor a popup lost before reporting true can
+  // turn the durable approval into cleanup authority.
+  if (
+    handoff.status !== 'armed' ||
+    !handoff.promptInvocation ||
+    handoff.promptGrant?.complete !== true ||
+    handoff.promptGrantOutcome?.granted !== true ||
+    handoff.promptGrantOutcome.preRequestTemporaryOriginsAbsent !== true
+  ) {
+    return null;
+  }
   const nowMs = Number(typeof dependencies.now === 'function' ? dependencies.now() : Date.now());
   if (!Number.isFinite(nowMs) || nowMs > record.expiresAtMs) return null;
 
@@ -770,6 +835,7 @@ export async function getReadyArmedCleanupReview(dependencies = {}) {
     !lease ||
     lease.id !== record.permissionLeaseId ||
     lease.status !== 'prompt_pending' ||
+    lease.ownershipProof !== 'reviewed_prompt_grant' ||
     !permissionLeaseMatchesReview(lease, record, requestedOrigins)
   ) {
     return null;
@@ -799,6 +865,400 @@ export async function getReadyArmedCleanupReview(dependencies = {}) {
       sourceIncognito: handoff.sourceIncognito
     }
   };
+}
+
+export async function recordCleanupPermissionPromptIntent(payload = {}, dependencies = {}) {
+  const storageSession = dependencies.storageSession;
+  const now = dependencies.now || (() => Date.now());
+  if (!storageSession?.get || !storageSession?.set) {
+    throw new Error('Cleanup review session storage is unavailable.');
+  }
+  const state = await readRecordState(storageSession);
+  if (state.invalid) {
+    await discardInvalidCleanupReview(storageSession, dependencies);
+    throw new Error('The stored cleanup approval failed integrity validation and was discarded. Start again.');
+  }
+  const record = state.record;
+  const handoffNonce = String(payload.handoffNonce || '');
+  if (
+    !record?.approvalHandoff ||
+    record.approvalHandoff.status !== 'armed' ||
+    record.approvalHandoff.nonce !== handoffNonce
+  ) {
+    throw new Error('The armed cleanup approval is missing or no longer matches this popup.');
+  }
+  if (dependencies.requirePopupPreparationCapability === true) {
+    await assertCleanupReviewPopupBinding(record, payload);
+  }
+  const popupContextId = normalizePopupContextId(payload.popupContextId);
+  if (!popupContextId || popupContextId !== record.approvalHandoff.promptContextId) {
+    throw new Error('The Chrome target-access request changed popup context. Start again.');
+  }
+  const existing = record.approvalHandoff.promptIntent;
+  if (existing) {
+    return {
+      promptIntentRecorded: true,
+      handoffNonce,
+      recordedAt: new Date(existing.recordedAtMs).toISOString(),
+      confirmationDeadlineAt: new Date(existing.confirmationDeadlineMs).toISOString()
+    };
+  }
+  const recordedAtMs = Number(now());
+  const promptIntentAtMs = Number.isSafeInteger(recordedAtMs)
+    ? Math.max(record.approvalHandoff.armedAtMs, Math.min(recordedAtMs, record.expiresAtMs))
+    : Math.max(record.expiresAtMs, record.approvalHandoff.armedAtMs);
+  const promptIntent = {
+    popupContextId,
+    recordedAtMs: promptIntentAtMs,
+    confirmationDeadlineMs: promptIntentAtMs + CLEANUP_PERMISSION_PROMPT_CONFIRM_GRACE_MS
+  };
+  const intentRecord = {
+    ...record,
+    approvalHandoff: {
+      ...record.approvalHandoff,
+      updatedAtMs: promptIntent.recordedAtMs,
+      promptIntent
+    }
+  };
+  const authorityRevoked = !Number.isSafeInteger(recordedAtMs) || recordedAtMs > record.expiresAtMs;
+  const retainedRecord = authorityRevoked
+    ? createPromptIntentTombstoneRecord(
+        intentRecord,
+        promptIntent.recordedAtMs,
+        'permission_prompt_intent_observed_after_cleanup_review_expiry'
+      )
+    : intentRecord;
+  await storageSession.set({ [CLEANUP_REVIEW_STORAGE_KEY]: retainedRecord });
+  return {
+    promptIntentRecorded: true,
+    handoffNonce,
+    recordedAt: new Date(promptIntent.recordedAtMs).toISOString(),
+    confirmationDeadlineAt: new Date(promptIntent.confirmationDeadlineMs).toISOString(),
+    ...(authorityRevoked ? { authorityRevoked: true, handoffStatus: 'prompt_intent_tombstone' } : {})
+  };
+}
+
+export async function recordCleanupPermissionPromptInvocation(payload = {}, dependencies = {}) {
+  const storageSession = dependencies.storageSession;
+  const now = dependencies.now || (() => Date.now());
+  if (!storageSession?.get || !storageSession?.set) {
+    throw new Error('Cleanup review session storage is unavailable.');
+  }
+  const state = await readRecordState(storageSession);
+  if (state.invalid) {
+    await discardInvalidCleanupReview(storageSession, dependencies);
+    throw new Error('The stored cleanup approval failed integrity validation and was discarded. Start again.');
+  }
+  const record = state.record;
+  const handoffNonce = String(payload.handoffNonce || '');
+  if (
+    !record?.approvalHandoff ||
+    !['armed', 'prompt_intent_tombstone', 'prompt_tombstone'].includes(record.approvalHandoff.status) ||
+    record.approvalHandoff.nonce !== handoffNonce
+  ) {
+    throw new Error('The armed cleanup approval is missing or no longer matches this popup.');
+  }
+  if (dependencies.requirePopupPreparationCapability === true) {
+    await assertCleanupReviewPopupBinding(record, payload);
+  }
+  const popupContextId = normalizePopupContextId(payload.popupContextId);
+  if (
+    !popupContextId ||
+    popupContextId !== record.approvalHandoff.promptContextId ||
+    record.approvalHandoff.promptIntent?.popupContextId !== popupContextId
+  ) {
+    throw new Error('The accepted Chrome target-access request is missing its initiating popup intent. Start again.');
+  }
+  const existing = record.approvalHandoff.promptInvocation;
+  if (existing) {
+    return {
+      promptInvocationRecorded: true,
+      handoffNonce,
+      recordedAt: new Date(existing.recordedAtMs).toISOString()
+    };
+  }
+  const recordedAtMs = Number(now());
+  if (
+    !Number.isSafeInteger(recordedAtMs) ||
+    recordedAtMs >= record.approvalHandoff.promptIntent.confirmationDeadlineMs
+  ) {
+    await discardUninvokedCleanupReviewRecord(record, dependencies);
+    throw new Error('Chrome target-access confirmation arrived too late. Start again.');
+  }
+  if (record.approvalHandoff.status === 'prompt_intent_tombstone' || recordedAtMs > record.expiresAtMs) {
+    // The exact popup confirms this marker immediately after
+    // permissions.request() accepts the call, without awaiting its result. Even
+    // when the worker observes confirmation just after expiry (or its clock
+    // cannot be trusted), SiteWipe must retain non-runnable ownership long
+    // enough to remove a grant produced by that same request. This is
+    // intentionally different from activation-one expiry or an unconfirmed
+    // activation-two intent, neither of which owns a prompt.
+    const promptInvocationAtMs = Math.max(recordedAtMs, record.approvalHandoff.promptIntent.recordedAtMs);
+    const invokedRecord = {
+      ...record,
+      approvalHandoff: {
+        ...record.approvalHandoff,
+        updatedAtMs: promptInvocationAtMs,
+        promptInvocation: { popupContextId, recordedAtMs: promptInvocationAtMs }
+      }
+    };
+    await storageSession.set({
+      [CLEANUP_REVIEW_STORAGE_KEY]: createPromptTombstoneRecord(
+        invokedRecord,
+        promptInvocationAtMs,
+        record.approvalHandoff.status === 'prompt_intent_tombstone'
+          ? record.approvalHandoff.tombstoneReason
+          : 'permission_prompt_invocation_observed_after_expiry'
+      )
+    });
+    return {
+      promptInvocationRecorded: true,
+      authorityRevoked: true,
+      handoffStatus: 'prompt_tombstone',
+      handoffNonce,
+      recordedAt: new Date(promptInvocationAtMs).toISOString()
+    };
+  }
+  const promptInvocation = {
+    popupContextId,
+    recordedAtMs: Math.max(recordedAtMs, record.approvalHandoff.promptIntent.recordedAtMs)
+  };
+  await storageSession.set({
+    [CLEANUP_REVIEW_STORAGE_KEY]: {
+      ...record,
+      approvalHandoff: {
+        ...record.approvalHandoff,
+        updatedAtMs: promptInvocation.recordedAtMs,
+        promptInvocation
+      }
+    }
+  });
+  return {
+    promptInvocationRecorded: true,
+    handoffNonce,
+    recordedAt: new Date(promptInvocation.recordedAtMs).toISOString()
+  };
+}
+
+export async function recordCleanupPermissionGrantObservation(payload = {}, dependencies = {}) {
+  const storageSession = dependencies.storageSession;
+  const now = dependencies.now || (() => Date.now());
+  if (!storageSession?.get || !storageSession?.set) {
+    throw new Error('Cleanup review session storage is unavailable.');
+  }
+  const rawOrigins = payload?.origins;
+  const rawNamedPermissions = payload?.permissions;
+  if (
+    !Array.isArray(rawOrigins) ||
+    !rawOrigins.length ||
+    rawOrigins.some((origin) => typeof origin !== 'string') ||
+    new Set(rawOrigins).size !== rawOrigins.length ||
+    (rawNamedPermissions != null &&
+      (!Array.isArray(rawNamedPermissions) ||
+        rawNamedPermissions.some((permission) => typeof permission !== 'string') ||
+        rawNamedPermissions.length > 0))
+  ) {
+    return { promptGrantObserved: false, reason: 'invalid_or_non_host_only_permission_event' };
+  }
+  const addedOrigins = canonicalizeHostPermissionOrigins(rawOrigins);
+  if (addedOrigins.length !== rawOrigins.length || rawOrigins.some((origin) => !addedOrigins.includes(origin))) {
+    return { promptGrantObserved: false, reason: 'noncanonical_permission_event' };
+  }
+
+  const state = await readRecordState(storageSession);
+  if (state.invalid || !state.record?.approvalHandoff) {
+    return { promptGrantObserved: false, reason: 'no_valid_cleanup_handoff' };
+  }
+  const record = state.record;
+  const handoff = record.approvalHandoff;
+  if (!['armed', 'prompt_intent_tombstone', 'prompt_tombstone'].includes(handoff.status) || !handoff.promptIntent) {
+    return { promptGrantObserved: false, reason: 'no_authenticated_permission_request_intent' };
+  }
+
+  const requestedOrigins = canonicalizeHostPermissionOrigins(record.target?.hostPermissionOrigins);
+  const preexistingOrigins = new Set(canonicalizeHostPermissionOrigins(record.preexistingHostPermissionOrigins));
+  const temporaryOrigins = requestedOrigins.filter((origin) => !preexistingOrigins.has(origin));
+  if (!jsonEquivalent(addedOrigins, canonicalizeHostPermissionOrigins(temporaryOrigins))) {
+    return { promptGrantObserved: false, reason: 'permission_event_not_exact_complete_reviewed_set' };
+  }
+
+  const observedOrigins = addedOrigins;
+  const recordedAtMs = Number(now());
+  if (!Number.isSafeInteger(recordedAtMs)) {
+    throw new Error('Cleanup permission-grant observation clock is unavailable.');
+  }
+  if (!handoff.promptInvocation && recordedAtMs >= handoff.promptIntent.confirmationDeadlineMs) {
+    await discardUninvokedCleanupReviewRecord(record, dependencies);
+    return {
+      promptGrantObserved: false,
+      permissionsPreserved: true,
+      reason: 'permission_event_after_unconfirmed_intent_deadline'
+    };
+  }
+  const promptGrant = {
+    observedOrigins,
+    complete: true,
+    recordedAtMs: Math.max(recordedAtMs, (handoff.promptInvocation || handoff.promptIntent).recordedAtMs)
+  };
+  const observedRecord = {
+    ...record,
+    approvalHandoff: {
+      ...handoff,
+      ...(handoff.status === 'armed' && recordedAtMs <= record.expiresAtMs
+        ? { updatedAtMs: Math.max(handoff.updatedAtMs, recordedAtMs) }
+        : {}),
+      promptGrant
+    }
+  };
+  let retainedRecord = observedRecord;
+  if (handoff.status === 'armed' && recordedAtMs > record.expiresAtMs) {
+    retainedRecord = handoff.promptInvocation
+      ? createPromptTombstoneRecord(
+          observedRecord,
+          recordedAtMs,
+          'permission_grant_observed_after_cleanup_review_expiry'
+        )
+      : createPromptIntentTombstoneRecord(
+          observedRecord,
+          recordedAtMs,
+          'permission_grant_observed_before_request_confirmation_after_expiry'
+        );
+  }
+  await storageSession.set({ [CLEANUP_REVIEW_STORAGE_KEY]: retainedRecord });
+  await persistCleanupPermissionLeaseOwnership(retainedRecord, dependencies);
+  return {
+    promptGrantObserved: true,
+    promptGrantComplete: promptGrant.complete,
+    handoffNonce: handoff.nonce,
+    observedOrigins: cloneJson(promptGrant.observedOrigins)
+  };
+}
+
+export async function recordCleanupPermissionGrantOutcome(payload = {}, dependencies = {}) {
+  const storageSession = dependencies.storageSession;
+  const now = dependencies.now || (() => Date.now());
+  if (!storageSession?.get || !storageSession?.set) {
+    throw new Error('Cleanup review session storage is unavailable.');
+  }
+  if (payload.preRequestTemporaryOriginsAbsent !== true) {
+    throw new Error('Chrome target access was not proved absent before the requested prompt. Start again.');
+  }
+  const state = await readRecordState(storageSession);
+  if (state.invalid) {
+    await discardInvalidCleanupReview(storageSession, dependencies);
+    throw new Error('The stored cleanup approval failed integrity validation and was discarded. Start again.');
+  }
+  const record = state.record;
+  const handoffNonce = String(payload.handoffNonce || '');
+  if (
+    !record?.approvalHandoff ||
+    !['armed', 'prompt_tombstone'].includes(record.approvalHandoff.status) ||
+    record.approvalHandoff.nonce !== handoffNonce ||
+    !record.approvalHandoff.promptInvocation
+  ) {
+    throw new Error('The accepted Chrome target-access result has no matching invoked request. Start again.');
+  }
+  if (dependencies.requirePopupPreparationCapability === true) {
+    await assertCleanupReviewPopupBinding(record, payload);
+  }
+  const popupContextId = normalizePopupContextId(payload.popupContextId);
+  if (
+    !popupContextId ||
+    popupContextId !== record.approvalHandoff.promptContextId ||
+    record.approvalHandoff.promptInvocation.popupContextId !== popupContextId
+  ) {
+    throw new Error('Only the initiating popup can confirm Chrome granted the requested target access.');
+  }
+  const existing = record.approvalHandoff.promptGrantOutcome;
+  if (existing?.granted === true) {
+    await persistCleanupPermissionLeaseOwnership(record, dependencies);
+    return {
+      promptGrantOutcomeRecorded: true,
+      handoffNonce,
+      recordedAt: new Date(existing.recordedAtMs).toISOString()
+    };
+  }
+  const recordedAtMs = Number(now());
+  if (!Number.isSafeInteger(recordedAtMs)) {
+    throw new Error('Cleanup permission-result clock is unavailable.');
+  }
+  const promptGrantOutcome = {
+    popupContextId,
+    granted: true,
+    preRequestTemporaryOriginsAbsent: true,
+    recordedAtMs: Math.max(recordedAtMs, record.approvalHandoff.promptInvocation.recordedAtMs)
+  };
+  const outcomeRecord = {
+    ...record,
+    approvalHandoff: {
+      ...record.approvalHandoff,
+      ...(record.approvalHandoff.status === 'armed' && recordedAtMs <= record.expiresAtMs
+        ? {
+            updatedAtMs: Math.max(record.approvalHandoff.updatedAtMs, promptGrantOutcome.recordedAtMs)
+          }
+        : {}),
+      promptGrantOutcome
+    }
+  };
+  const retainedRecord =
+    record.approvalHandoff.status === 'armed' && recordedAtMs > record.expiresAtMs
+      ? createPromptTombstoneRecord(
+          outcomeRecord,
+          promptGrantOutcome.recordedAtMs,
+          'permission_request_granted_after_cleanup_review_expiry'
+        )
+      : outcomeRecord;
+  await storageSession.set({ [CLEANUP_REVIEW_STORAGE_KEY]: retainedRecord });
+  await persistCleanupPermissionLeaseOwnership(retainedRecord, dependencies);
+  return {
+    promptGrantOutcomeRecorded: true,
+    handoffNonce,
+    authorityRevoked: retainedRecord.approvalHandoff.status === 'prompt_tombstone',
+    recordedAt: new Date(promptGrantOutcome.recordedAtMs).toISOString()
+  };
+}
+
+export async function discardCleanupPermissionPromptWithoutInvocation(payload = {}, dependencies = {}) {
+  const storageSession = dependencies.storageSession;
+  const storageLocal = dependencies.storageLocal || storageSession?.durable;
+  if (!storageSession?.get || !storageSession?.set || !storageSession?.remove || !storageLocal) {
+    throw new Error('Cleanup review session storage is unavailable.');
+  }
+  const state = await readRecordState(storageSession);
+  if (state.invalid) throw new Error('The target-access prompt record failed integrity validation.');
+  const record = state.record;
+  const handoffNonce = String(payload.handoffNonce || '');
+  if (
+    !record?.approvalHandoff ||
+    !['armed', 'prompt_intent_tombstone'].includes(record.approvalHandoff.status) ||
+    !record.approvalHandoff.promptIntent ||
+    record.approvalHandoff.promptInvocation ||
+    record.approvalHandoff.nonce !== handoffNonce ||
+    record.token !== String(payload.approvalToken || '') ||
+    record.permissionLeaseId !== String(payload.permissionLeaseId || '')
+  ) {
+    throw new Error('The uninvoked target-access intent no longer matches this popup.');
+  }
+  if (dependencies.requirePopupPreparationCapability === true) {
+    await assertCleanupReviewPopupBinding(record, payload);
+  }
+  const popupContextId = normalizePopupContextId(payload.popupContextId);
+  if (record.approvalHandoff.promptIntent.popupContextId !== popupContextId) {
+    throw new Error('Only the initiating popup can report that Chrome target access was not invoked.');
+  }
+
+  await storageSession.set({
+    [CLEANUP_REVIEW_STORAGE_KEY]: {
+      ...record,
+      approvalHandoff: null
+    }
+  });
+  const settlement = await discardUninvokedPermissionLease(storageLocal, record.permissionLeaseId);
+  if (settlement.recordRetained === true || settlement.permissionsPreserved !== true) {
+    throw new Error('The uninvoked target-access lease could not be discarded safely.');
+  }
+  await storageSession.remove(CLEANUP_REVIEW_STORAGE_KEY);
+  return { ...settlement, promptNotInvoked: true, ownershipCleared: true };
 }
 
 export async function finalizeArmedCleanupReviewAdmission(payload = {}, storageSession) {
@@ -853,6 +1313,10 @@ export async function consumeCleanupReviewRequest(payload = {}, dependencies = {
     if (record.approvalHandoff) {
       if (
         record.approvalHandoff.status !== 'armed' ||
+        !record.approvalHandoff.promptInvocation ||
+        record.approvalHandoff.promptGrant?.complete !== true ||
+        record.approvalHandoff.promptGrantOutcome?.granted !== true ||
+        record.approvalHandoff.promptGrantOutcome.preRequestTemporaryOriginsAbsent !== true ||
         String(dependencies.expectedApprovalHandoffNonce || '') !== record.approvalHandoff.nonce ||
         !approvalHandoffMatchesPayload(
           record.approvalHandoff,
@@ -949,9 +1413,12 @@ async function revalidateCleanupReviewAuthority(
     const requestedOrigins = normalizeOrigins(record.target?.hostPermissionOrigins);
     const admittingHandoff = record.approvalHandoff?.status === 'admitting';
     const leaseStatusAccepted =
-      (!activatePermissionLease && lease?.status === 'prepared') ||
-      lease?.status === 'prompt_pending' ||
-      (admittingHandoff && lease?.status === 'active_cleanup');
+      (!activatePermissionLease && lease?.status === 'prepared' && lease.ownershipProof == null) ||
+      (lease?.status === 'prompt_pending' &&
+        (activatePermissionLease
+          ? lease.ownershipProof === 'reviewed_prompt_grant'
+          : [null, 'reviewed_prompt_grant'].includes(lease.ownershipProof))) ||
+      (admittingHandoff && lease?.status === 'active_cleanup' && lease.ownershipProof === 'admitted_cleanup');
     if (
       !lease ||
       lease.id !== record.permissionLeaseId ||
@@ -1034,8 +1501,29 @@ export async function clearExpiredCleanupReview(storageSession, now = Date.now()
     };
   }
   const record = state.record;
-  if (!record || (Number.isFinite(record.expiresAtMs) && Number(now) <= record.expiresAtMs)) return false;
-  if (cleanupReviewPromptMayStillSettle(record, dependencies)) {
+  if (!record) return false;
+  const confirmationDeadlineMs = getCleanupPermissionPromptConfirmationDeadline(record);
+  if (confirmationDeadlineMs !== null && Number(now) >= confirmationDeadlineMs) {
+    const removal = await removeReviewAndReleaseUnlessPromptOwnerArrived(record, dependencies, {
+      tombstoneReason: 'permission_prompt_confirmation_deadline_expired'
+    });
+    return {
+      expired: false,
+      authorityRevoked: true,
+      promptIntentExpired: true,
+      hostPermissionCleanup: removal.hostPermissionCleanup
+    };
+  }
+  if (Number.isFinite(record.expiresAtMs) && Number(now) <= record.expiresAtMs) return false;
+  if (cleanupReviewPromptIntentMayStillConfirm(record, now)) {
+    const retainedRecord =
+      record.approvalHandoff.status === 'prompt_intent_tombstone'
+        ? record
+        : createPromptIntentTombstoneRecord(record, Number(now), 'cleanup_review_expired');
+    await storageSession.set({ [CLEANUP_REVIEW_STORAGE_KEY]: retainedRecord });
+    return promptIntentConfirmationPendingResult(retainedRecord, { expired: true });
+  }
+  if (cleanupReviewPromptMayStillSettle(record)) {
     await storageSession.set({
       [CLEANUP_REVIEW_STORAGE_KEY]: createPromptTombstoneRecord(
         record,
@@ -1080,7 +1568,20 @@ export async function clearCleanupReviewState(storageSession, dependencies = {})
   }
   const record = state.record;
   if (!record) return { cleared: false, hostPermissionCleanup: null };
-  if (cleanupReviewPromptMayStillSettle(record, dependencies) && dependencies.promptSettled !== true) {
+  const invalidatedAtMs = Number(typeof dependencies.now === 'function' ? dependencies.now() : Date.now());
+  if (dependencies.promptSettled !== true && cleanupReviewPromptIntentMayStillConfirm(record, invalidatedAtMs)) {
+    const retainedRecord =
+      record.approvalHandoff.status === 'prompt_intent_tombstone'
+        ? record
+        : createPromptIntentTombstoneRecord(
+            record,
+            invalidatedAtMs,
+            dependencies.tombstoneReason || 'cleanup_review_invalidated'
+          );
+    await storageSession.set({ [CLEANUP_REVIEW_STORAGE_KEY]: retainedRecord });
+    return promptIntentConfirmationPendingResult(retainedRecord, { cleared: true });
+  }
+  if (cleanupReviewPromptMayStillSettle(record) && dependencies.promptSettled !== true) {
     await storageSession.set({
       [CLEANUP_REVIEW_STORAGE_KEY]: createPromptTombstoneRecord(
         record,
@@ -1108,7 +1609,10 @@ export async function clearCleanupReviewState(storageSession, dependencies = {})
 
 async function removeReviewAndReleaseUnlessPromptOwnerArrived(record, dependencies = {}, options = {}) {
   const storageSession = dependencies.storageSession;
-  await storageSession.remove(CLEANUP_REVIEW_STORAGE_KEY);
+  const retireReviewAfterSettledRelease = dependencies.promptSettled === true;
+  if (!retireReviewAfterSettledRelease) {
+    await storageSession.remove(CLEANUP_REVIEW_STORAGE_KEY);
+  }
 
   let hostPermissionCleanup;
   let releaseError = null;
@@ -1127,6 +1631,7 @@ async function removeReviewAndReleaseUnlessPromptOwnerArrived(record, dependenci
   if (
     dependencies.promptSettled !== true &&
     pendingPromptContextId &&
+    record?.approvalHandoff?.promptInvocation &&
     record?.permissionLeaseId &&
     record.hostPermissionsGranted !== true
   ) {
@@ -1154,6 +1659,9 @@ async function removeReviewAndReleaseUnlessPromptOwnerArrived(record, dependenci
   }
 
   if (releaseError) throw releaseError;
+  if (retireReviewAfterSettledRelease) {
+    await storageSession.remove(CLEANUP_REVIEW_STORAGE_KEY);
+  }
   return { promptTombstoneRetained: false, hostPermissionCleanup };
 }
 
@@ -1166,17 +1674,53 @@ function notifyPromptTombstoneRestored(record, dependencies = {}) {
   }
 }
 
-function cleanupReviewPromptMayStillSettle(record, dependencies = {}) {
+function cleanupReviewPromptMayStillSettle(record) {
+  const handoff = record?.approvalHandoff;
   return Boolean(
     record?.permissionLeaseId &&
     record.hostPermissionsGranted !== true &&
-    (['arming', 'armed', 'prompt_tombstone'].includes(record.approvalHandoff?.status) ||
-      getPendingPromptContextId(record, dependencies) ||
-      (dependencies.retainPreparedPromptOwnership === true &&
-        !record.approvalHandoff &&
-        record.preparationContextId &&
-        dependencies.promptNotStartedProven !== true))
+    (handoff?.status === 'prompt_tombstone' ||
+      (['arming', 'armed'].includes(handoff?.status) && Boolean(handoff.promptInvocation)))
   );
+}
+
+export function getCleanupPermissionPromptConfirmationDeadline(record) {
+  const handoff = record?.approvalHandoff;
+  if (
+    !['armed', 'prompt_intent_tombstone'].includes(handoff?.status) ||
+    !handoff.promptIntent ||
+    handoff.promptInvocation
+  ) {
+    return null;
+  }
+  const deadlineMs = Number(handoff.promptIntent.confirmationDeadlineMs);
+  return Number.isSafeInteger(deadlineMs) ? deadlineMs : null;
+}
+
+function cleanupReviewPromptIntentMayStillConfirm(record, now = Date.now()) {
+  const deadlineMs = getCleanupPermissionPromptConfirmationDeadline(record);
+  const nowMs = Number(now);
+  return deadlineMs !== null && Number.isFinite(nowMs) && nowMs < deadlineMs;
+}
+
+function createPromptIntentTombstoneRecord(record, requestedNowMs, reason) {
+  const existing = record?.approvalHandoff;
+  if (!existing?.promptIntent || existing.promptInvocation) {
+    throw new Error('A target-access intent tombstone requires an unconfirmed authenticated prompt intent.');
+  }
+  const fallbackMs = Number.isFinite(requestedNowMs) ? requestedNowMs : Date.now();
+  const tombstonedAtMs = Math.max(fallbackMs, existing.promptIntent.recordedAtMs, record.createdAtMs);
+  return {
+    ...record,
+    approvalHandoff: {
+      ...existing,
+      status: 'prompt_intent_tombstone',
+      updatedAtMs: tombstonedAtMs,
+      tombstonedAtMs,
+      tombstoneReason: String(reason || 'cleanup_review_invalidated').slice(0, 128),
+      approval: null
+    }
+  };
 }
 
 function getPendingPromptContextId(record, dependencies = {}) {
@@ -1192,6 +1736,9 @@ function createPromptTombstoneRecord(record, requestedNowMs, reason, pendingProm
   const fallbackMs = Number.isFinite(requestedNowMs) ? requestedNowMs : Date.now();
   const tombstonedAtMs = Math.max(fallbackMs, record.createdAtMs);
   const existing = record.approvalHandoff;
+  if (!existing?.promptInvocation) {
+    throw new Error('A Chrome target-access settlement tombstone requires an authenticated prompt invocation.');
+  }
   return {
     ...record,
     approvalHandoff: {
@@ -1211,6 +1758,10 @@ function createPromptTombstoneRecord(record, requestedNowMs, reason, pendingProm
         existing?.promptContextId ||
         normalizePopupContextId(pendingPromptContextId) ||
         normalizePopupContextId(record.preparationContextId),
+      promptIntent: existing.promptIntent,
+      promptInvocation: existing.promptInvocation,
+      promptGrant: existing.promptGrant || null,
+      promptGrantOutcome: existing.promptGrantOutcome || null,
       approval: existing?.approval || null
     }
   };
@@ -1224,6 +1775,25 @@ function promptSettlementPendingResult(record) {
     recordRetained: true,
     leaseId: record.permissionLeaseId,
     reason: 'permission_prompt_settlement_pending'
+  };
+}
+
+function promptIntentConfirmationPendingResult(record, flags = {}) {
+  const confirmationDeadlineMs = getCleanupPermissionPromptConfirmationDeadline(record);
+  return {
+    ...flags,
+    authorityRevoked: true,
+    promptIntentConfirmationPending: true,
+    confirmationDeadlineAt: new Date(confirmationDeadlineMs).toISOString(),
+    hostPermissionCleanup: {
+      found: true,
+      released: false,
+      accessRemains: null,
+      recordRetained: true,
+      permissionsPreserved: true,
+      leaseId: record.permissionLeaseId,
+      reason: 'permission_prompt_confirmation_pending'
+    }
   };
 }
 
@@ -1346,7 +1916,8 @@ export function normalizeCleanupReviewRecord(value) {
       createdAtMs,
       approvalHandoffNonce,
       approvalMode: expectedReview.approvalMode,
-      requirements: expectedReview.requirements
+      requirements: expectedReview.requirements,
+      temporaryOrigins
     });
     if (value.approvalHandoff != null && !approvalHandoff) return null;
 
@@ -1384,8 +1955,12 @@ export function normalizeCleanupReviewRecord(value) {
 function normalizeCleanupApprovalHandoff(value, binding) {
   if (value == null) return null;
   if (!isPlainObject(value) || value.schemaVersion !== CLEANUP_APPROVAL_HANDOFF_SCHEMA_VERSION) return null;
-  if (!['arming', 'armed', 'admitting', 'prompt_tombstone'].includes(value.status)) return null;
+  if (!['arming', 'armed', 'admitting', 'prompt_intent_tombstone', 'prompt_tombstone'].includes(value.status)) {
+    return null;
+  }
   const promptTombstone = value.status === 'prompt_tombstone';
+  const promptIntentTombstone = value.status === 'prompt_intent_tombstone';
+  const revokedTombstone = promptIntentTombstone || promptTombstone;
   const nonce = String(value.nonce || '');
   if (!REVIEW_IDENTIFIER_PATTERN.test(nonce)) return null;
   if (nonce !== binding.approvalHandoffNonce) return null;
@@ -1407,27 +1982,121 @@ function normalizeCleanupApprovalHandoff(value, binding) {
     !Number.isSafeInteger(updatedAtMs) ||
     armedAtMs < binding.createdAtMs ||
     updatedAtMs < armedAtMs ||
-    (!promptTombstone && updatedAtMs > binding.expiresAtMs)
+    (!revokedTombstone && updatedAtMs > binding.expiresAtMs)
   ) {
     return null;
   }
   const approval =
-    value.approval == null && promptTombstone
+    value.approval == null && revokedTombstone
       ? null
       : normalizeApprovalForHandoff(value.approval, binding.approvalMode);
   const validation = approval
     ? validateCleanupReviewApproval(binding.requirements, approval, binding.approvalMode)
     : { ok: false };
-  if (!promptTombstone && !validation.ok) return null;
+  if (!revokedTombstone && !validation.ok) return null;
+  let promptIntent = null;
+  if (value.promptIntent != null) {
+    if (!isPlainObject(value.promptIntent)) return null;
+    const popupContextId = normalizePopupContextId(value.promptIntent.popupContextId);
+    const recordedAtMs = Number(value.promptIntent.recordedAtMs);
+    const confirmationDeadlineMs = Number(value.promptIntent.confirmationDeadlineMs);
+    if (
+      popupContextId !== promptContextId ||
+      !Number.isSafeInteger(recordedAtMs) ||
+      !Number.isSafeInteger(confirmationDeadlineMs) ||
+      confirmationDeadlineMs !== recordedAtMs + CLEANUP_PERMISSION_PROMPT_CONFIRM_GRACE_MS ||
+      recordedAtMs < armedAtMs ||
+      recordedAtMs > binding.expiresAtMs ||
+      recordedAtMs > updatedAtMs
+    ) {
+      return null;
+    }
+    promptIntent = { popupContextId, recordedAtMs, confirmationDeadlineMs };
+  }
+  let promptInvocation = null;
+  if (value.promptInvocation != null) {
+    if (!isPlainObject(value.promptInvocation)) return null;
+    const popupContextId = normalizePopupContextId(value.promptInvocation.popupContextId);
+    const recordedAtMs = Number(value.promptInvocation.recordedAtMs);
+    if (
+      popupContextId !== promptContextId ||
+      !Number.isSafeInteger(recordedAtMs) ||
+      !promptIntent ||
+      recordedAtMs < promptIntent.recordedAtMs ||
+      recordedAtMs > promptIntent.confirmationDeadlineMs ||
+      (!promptTombstone && recordedAtMs > binding.expiresAtMs) ||
+      recordedAtMs > updatedAtMs
+    ) {
+      return null;
+    }
+    promptInvocation = { popupContextId, recordedAtMs };
+  }
+  let promptGrant = null;
+  if (value.promptGrant != null) {
+    if (!isPlainObject(value.promptGrant) || !promptIntent) return null;
+    const observedOrigins = canonicalizeHostPermissionOrigins(value.promptGrant.observedOrigins);
+    const recordedAtMs = Number(value.promptGrant.recordedAtMs);
+    const complete =
+      binding.temporaryOrigins.length > 0 &&
+      binding.temporaryOrigins.every((origin) => observedOrigins.includes(origin));
+    if (
+      !jsonEquivalent(value.promptGrant.observedOrigins, observedOrigins) ||
+      observedOrigins.length === 0 ||
+      observedOrigins.some((origin) => !binding.temporaryOrigins.includes(origin)) ||
+      value.promptGrant.complete !== complete ||
+      !Number.isSafeInteger(recordedAtMs) ||
+      // An exact onAdded event may win the cross-process race with the popup's
+      // confirmation message. It is authenticated by the already-durable intent
+      // and remains non-runnable until promptInvocation exists, so its timestamp
+      // may legitimately precede that later marker.
+      recordedAtMs < promptIntent.recordedAtMs ||
+      (!revokedTombstone && recordedAtMs > updatedAtMs)
+    ) {
+      return null;
+    }
+    promptGrant = { observedOrigins, complete, recordedAtMs };
+  }
+  let promptGrantOutcome = null;
+  if (value.promptGrantOutcome != null) {
+    if (!isPlainObject(value.promptGrantOutcome) || !promptInvocation) return null;
+    const popupContextId = normalizePopupContextId(value.promptGrantOutcome.popupContextId);
+    const recordedAtMs = Number(value.promptGrantOutcome.recordedAtMs);
+    if (
+      popupContextId !== promptContextId ||
+      value.promptGrantOutcome.granted !== true ||
+      value.promptGrantOutcome.preRequestTemporaryOriginsAbsent !== true ||
+      !Number.isSafeInteger(recordedAtMs) ||
+      recordedAtMs < promptInvocation.recordedAtMs ||
+      (!revokedTombstone && recordedAtMs > updatedAtMs)
+    ) {
+      return null;
+    }
+    promptGrantOutcome = {
+      popupContextId,
+      granted: true,
+      preRequestTemporaryOriginsAbsent: true,
+      recordedAtMs
+    };
+  }
+  if (
+    (value.status === 'arming' && (promptIntent || promptInvocation || promptGrant || promptGrantOutcome)) ||
+    (value.status === 'admitting' &&
+      (!promptIntent || !promptInvocation || promptGrant?.complete !== true || promptGrantOutcome?.granted !== true)) ||
+    (promptIntentTombstone && (!promptIntent || promptInvocation || promptGrantOutcome)) ||
+    (promptTombstone && (!promptIntent || !promptInvocation))
+  ) {
+    return null;
+  }
   let tombstonedAtMs = null;
   let tombstoneReason = null;
-  if (promptTombstone) {
+  if (revokedTombstone) {
     tombstonedAtMs = Number(value.tombstonedAtMs);
     tombstoneReason = String(value.tombstoneReason || '');
     if (
       !Number.isSafeInteger(tombstonedAtMs) ||
       tombstonedAtMs !== updatedAtMs ||
       tombstonedAtMs < armedAtMs ||
+      (promptIntentTombstone && tombstonedAtMs > promptIntent.confirmationDeadlineMs) ||
       !tombstoneReason ||
       tombstoneReason.length > 128
     ) {
@@ -1446,13 +2115,16 @@ function normalizeCleanupApprovalHandoff(value, binding) {
     armedAtMs,
     updatedAtMs,
     promptContextId,
+    promptIntent,
+    promptInvocation,
+    promptGrant,
+    promptGrantOutcome,
     approval,
-    ...(promptTombstone ? { tombstonedAtMs, tombstoneReason } : {})
+    ...(revokedTombstone ? { tombstonedAtMs, tombstoneReason } : {})
   };
 }
 
 async function discardInvalidCleanupReview(storageSession, dependencies = {}) {
-  await storageSession.remove(CLEANUP_REVIEW_STORAGE_KEY);
   const storageLocal = dependencies.storageLocal || storageSession?.durable;
   if (!storageLocal) {
     return {
@@ -1463,14 +2135,42 @@ async function discardInvalidCleanupReview(storageSession, dependencies = {}) {
     };
   }
   try {
-    return await reconcilePermissionLease(storageLocal, {
-      containsHostPermissions: dependencies.containsHostPermissions || dependencies.hasHostPermissions,
-      getAllHostPermissions: dependencies.getAllHostPermissions,
-      releaseHostPermissions: dependencies.releaseHostPermissions,
-      preserveLivePrepared: dependencies.preserveLivePrepared,
-      forcePromptSettlement: dependencies.forcePromptSettlement,
-      now: dependencies.now
-    });
+    // Invalid session bytes cannot authenticate any prompt-owned lease. First
+    // neutralize the single durable non-admitted lease without touching browser
+    // access; keep a valid admitted-cleanup lease for ordinary recovery. The
+    // invalid session marker is removed only after that durable boundary is
+    // proved, so maintenance cannot later reinterpret ambiguous provenance.
+    const neutralized = await discardInvalidReviewPermissionLease(storageLocal);
+    if (neutralized.recordRetained === true && neutralized.admittedCleanupRetained !== true) {
+      return neutralized;
+    }
+
+    let removalError = null;
+    try {
+      await storageSession.remove(CLEANUP_REVIEW_STORAGE_KEY);
+    } catch (error) {
+      removalError = error;
+    }
+    let postRemoval;
+    try {
+      postRemoval = await storageSession.get([CLEANUP_REVIEW_STORAGE_KEY]);
+    } catch (error) {
+      return {
+        ...neutralized,
+        recordRetained: true,
+        reason: 'invalid_review_marker_removal_unproven',
+        error: error?.message || removalError?.message || String(error)
+      };
+    }
+    if (postRemoval?.[CLEANUP_REVIEW_STORAGE_KEY] != null) {
+      return {
+        ...neutralized,
+        recordRetained: true,
+        reason: 'invalid_review_marker_removal_unproven',
+        ...(removalError ? { error: removalError?.message || String(removalError) } : {})
+      };
+    }
+    return neutralized;
   } catch (error) {
     return {
       released: false,
@@ -1480,6 +2180,29 @@ async function discardInvalidCleanupReview(storageSession, dependencies = {}) {
       error: error?.message || String(error)
     };
   }
+}
+
+async function discardUninvokedCleanupReviewRecord(record, dependencies = {}) {
+  const storageSession = dependencies.storageSession;
+  const storageLocal = dependencies.storageLocal || storageSession?.durable;
+  if (!storageSession?.remove) {
+    throw new Error('Cleanup review session storage is unavailable.');
+  }
+  let hostPermissionCleanup = {
+    found: false,
+    released: false,
+    accessRemains: null,
+    recordRetained: false,
+    permissionsPreserved: true,
+    reason: 'no_lease'
+  };
+  if (record?.permissionLeaseId) {
+    if (!storageLocal) throw new Error('Cleanup permission lease storage is unavailable.');
+    hostPermissionCleanup = await discardUninvokedPermissionLease(storageLocal, record.permissionLeaseId);
+    if (hostPermissionCleanup.recordRetained === true) return hostPermissionCleanup;
+  }
+  await storageSession.remove(CLEANUP_REVIEW_STORAGE_KEY);
+  return hostPermissionCleanup;
 }
 
 function normalizeExactStringArray(value) {
@@ -1547,6 +2270,7 @@ function withoutSettingsMetadata(value = {}) {
     stabilityDefaultsAppliedAt: _stabilityDefaultsAppliedAt,
     performanceDefaultsAppliedAt: _performanceDefaultsAppliedAt,
     privacyDefaultsAppliedAt: _privacyDefaultsAppliedAt,
+    storagePartitionDisclosureAppliedAt: _storagePartitionDisclosureAppliedAt,
     ...authoritySettings
   } = value;
   return authoritySettings;
@@ -1655,6 +2379,14 @@ async function releaseTemporaryReviewAccess(record, dependencies = {}) {
         error: error?.message || String(error)
       };
     }
+    if (
+      (record.approvalHandoff?.status !== 'prompt_tombstone' && !record.approvalHandoff?.promptInvocation) ||
+      record.approvalHandoff?.promptGrant?.complete !== true ||
+      record.approvalHandoff?.promptGrantOutcome?.granted !== true ||
+      record.approvalHandoff.promptGrantOutcome.preRequestTemporaryOriginsAbsent !== true
+    ) {
+      return discardUninvokedPermissionLease(dependencies.storageLocal, record.permissionLeaseId);
+    }
     return reconcilePermissionLease(
       dependencies.storageLocal,
       {
@@ -1663,6 +2395,7 @@ async function releaseTemporaryReviewAccess(record, dependencies = {}) {
         releaseHostPermissions: dependencies.releaseHostPermissions,
         preserveLivePrepared: dependencies.preserveLivePrepared,
         forcePromptSettlement: dependencies.forcePromptSettlement,
+        beforeLeaseRemoval: dependencies.beforePermissionLeaseRemoval,
         now: dependencies.now
       },
       record.permissionLeaseId

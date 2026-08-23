@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "status": "failed",
+  "attemptedAt": "2026-08-23T01:09:36.000Z",
+  "artifact": {
+    "version": "1.11.57",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.57.zip",
+    "sha256": "F858032929693B1F579BCF372F70A0126260F9DEB2A1E82DE26670DAEE9AE911",
+    "fileCount": 55,
+    "identityStatus": "exact_artifact_installed",
+    "automatedEvidenceRecord": "automated-validation-2026-08-22-v1.11.57.json"
+  },
+  "priorExactArtifactEvidence": {
+    "version": "1.11.53",
+    "record": "browser-validation-2026-08-22-v1.11.53.json",
+    "status": "historical_failed_not_current"
+  },
+  "priorCandidateObservation": {
+    "version": "1.11.56",
+    "artifactSha256": "6043D36DC843B259196411F68D208F0D4E61D4C391E42902D90760A6E3B53893",
+    "status": "historical_prior_candidate_not_current",
+    "claimsReboundToCurrentArtifact": false,
+    "note": "Earlier bounded Chrome and Brave observations against different 1.11.56 candidate bytes are not current-artifact evidence and are not reused here."
+  },
+  "chrome": {
+    "status": "pending",
+    "version": null,
+    "operatingSystem": null,
+    "disposableProfile": null,
+    "assertions": []
+  },
+  "brave": {
+    "status": "failed",
+    "version": "151.1.95.33",
+    "operatingSystem": "Microsoft Windows 11 Pro, build 26100.7628, 64-bit",
+    "disposableProfile": true,
+    "assertions": [
+      {
+        "id": "brave-standard-first-grant-action-popup-teardown-2026-08-22",
+        "status": "failed",
+        "outcome": "safe_failure_after_exact_native_grant_without_popup_outcome_proof",
+        "claimScope": "One installed exact-artifact SiteWipe 1.11.57 detailed Standard attempt against disposable synthetic example.com fixtures in a fresh normal Brave profile with no pre-existing target access.",
+        "observedAt": "2026-08-23T01:09:36.000Z",
+        "artifactSha256": "F858032929693B1F579BCF372F70A0126260F9DEB2A1E82DE26670DAEE9AE911",
+        "environment": {
+          "browser": "Brave Nightly",
+          "version": "151.1.95.33",
+          "operatingSystem": "Microsoft Windows 11 Pro, build 26100.7628, 64-bit",
+          "disposableProfile": true,
+          "syncEnabled": false,
+          "incognito": false,
+          "incognitoAccessEnabled": false,
+          "privatePathValuesRetained": false
+        },
+        "fixturePrecondition": {
+          "fixtureVersion": "sitewipe-synthetic-v1",
+          "port": 43819,
+          "scale": "small",
+          "primaryFixtureUrl": "http://selected.example.com:43819/?scale=small&autoseed=1&embed=1",
+          "canonicalTarget": "example.com",
+          "cleanupMode": "standard",
+          "downloadedFileDeletionEnabled": false,
+          "matchingDownloadRecordCount": 0,
+          "downloadActionTaken": false,
+          "reviewedHostPatterns": [
+            "http://example.com/*",
+            "https://example.com/*",
+            "http://*.example.com/*",
+            "https://*.example.com/*"
+          ]
+        },
+        "attempt": {
+          "sourceHost": "selected.example.com",
+          "detectedCanonicalTarget": "example.com",
+          "cleanupMode": "standard",
+          "detailedReviewDisplayed": true,
+          "reviewedExactTargetPatternCount": 4,
+          "approvalSavedOnFirstActivation": true,
+          "freshSecondActivationUsed": true,
+          "nativePermissionPromptReached": true,
+          "nativePermissionGranted": true,
+          "exactFourPatternsPresentAfterGrant": true,
+          "actionPopupSurvivedNativePrompt": false,
+          "literalTrueOutcomeRecordedByWorker": false,
+          "workerAdmissionOutcome": "refused_without_complete_popup_outcome_proof"
+        },
+        "durableStateInspection": {
+          "reviewExpiresAt": "2026-08-23T01:10:11.000Z",
+          "permissionLeaseState": "prompt_pending",
+          "permissionLeaseExactPatternCount": 4,
+          "permissionLeaseOwnershipProof": null,
+          "permissionRecoveryPending": false,
+          "activeCleanupJobObserved": false,
+          "latestReportObserved": false
+        },
+        "postFailureInspection": {
+          "cleanupStarted": false,
+          "matchingFixtureTabClosed": false,
+          "fixtureMutationObserved": false,
+          "downloadedFileDeletionObserved": false,
+          "nativeGrantObserved": true,
+          "newCleanupRecoveryLocked": true,
+          "incognitoEnabled": false
+        },
+        "sourceDiagnosis": {
+          "classification": "installed_action_popup_destroyed_before_authenticated_grant_outcome",
+          "summary": "Brave destroyed the action-popup document when the native permission request settled. The popup therefore never sent the required literal-true result and pre-request-absence proof, even though the worker separately observed the exact host-only grant. The worker correctly kept the lease proofless, admitted no job, removed no access, and performed no cleanup.",
+          "evidenceBoundary": "This installed failure requires a forward-version persistent extension-page handoff. It does not turn the proposed correction or any mock result into installed-browser evidence."
+        },
+        "limitations": [
+          "This is a failed installed first-grant result, not a successful cleanup or Brave compatibility result.",
+          "The exact native grant did not create cleanup authority because the authenticated popup outcome proof was absent.",
+          "No cleanup job, report, fixture mutation, matching-tab closure, downloaded-file action, or downloaded-file deletion occurred.",
+          "This attempt does not establish Chrome, Expert mode, direct mode, incognito cleanup, accessibility, performance, compatibility, or store-media readiness.",
+          "No private extension identifier, disposable-profile location, downloaded-file location, or other local filesystem path is included in this public evidence record."
+        ]
+      }
+    ]
+  },
+  "syntheticInAppBrowser": {
+    "status": "pending",
+    "attemptedAt": null,
+    "environment": "ChatGPT in-app Browser",
+    "fixture": "HTTP-served SiteWipe UI with synthetic browser-API mocks",
+    "assertions": [],
+    "qualifiesAsInstalledExtensionEvidence": false,
+    "limitations": [
+      "Does not load the runtime ZIP or a chrome-extension:// origin.",
+      "Does not exercise native host-permission prompts, incognito spanning, MV3 worker lifecycle, or privileged browser-data mutation APIs.",
+      "Cannot satisfy Chrome, Brave, installed accessibility, exact-artifact performance, compatibility, or store-media approval fields."
+    ]
+  },
+  "automationAttempt": {
+    "status": "failed",
+    "attemptedAt": "2026-08-23T01:09:36.000Z",
+    "controller": "ChatGPT Computer Use",
+    "scope": "Installed exact-artifact Brave Standard first-grant attempt against disposable synthetic example.com fixtures, followed by non-mutating popup, Options maintenance, permission-lease, active-job, fixture, and report inspection.",
+    "result": "Brave granted the four exact reviewed patterns, but destroying the action popup prevented the required authenticated literal-true outcome from reaching the worker. SiteWipe failed closed: no cleanup was admitted and no fixture or downloaded file changed.",
+    "limitations": [
+      "This retained observation is an installed Brave failure, not a browser matrix pass.",
+      "No user authentication, daily browser profile, private extension identifier, or local path is included in the public evidence."
+    ]
+  },
+  "requiredMatrix": [
+    "fresh install and upgrade migration",
+    "default detailed Standard and Expert review displays mode, exact and broader site access, associated/local/private/protected/PWA/file/persistent-shield/permission-requesting/uncertain scope, impacts, effects, warnings, limitations, and acknowledgements",
+    "the default-off Skip detailed cleanup review completely setting requires explicit confirmation, persists in Standard and Expert, and uses only preflight-bound settings_direct authority",
+    "hidden read-only direct preparation and durable prompt_pending lease complete before Clean now is enabled; pregranted exact access runs from one SiteWipe activation, while missing normal-window access requires a durable approval activation followed by a fresh same-document permission/run activation whose permission request is preflight-bound",
+    "detailed review still requires explicit final approval, and no stale, raw, caller-controlled, or legacy quick/bypass cleanup route exists",
+    "SW-036 regression: a legitimate action-popup sender may omit documentId; preparation resolves exactly one exact-URL POPUP with an opaque contextId and Chrome action-popup tabId/windowId -1 sentinels, keeps the spanning popup profile separate from the positive source window/private state, reaches the non-destructive detailed review, and rejects zero/multiple/malformed contexts before authority or mutation",
+    "settings, target/associated scope, source/private context, browser private-access, and complete impact/review snapshot changes reject the token before mutation",
+    "normal-only authority never expands into private discovery, injection, overlays, tab changes/closure, or verification",
+    "exact required and relevant broader/all-site pre-existing host access is disclosed truthfully and preserved, unrelated host-permission canaries are omitted, and only preflight-classified temporary exact patterns enter release calls",
+    "PRIVATE-suffix sibling and lookalike isolation",
+    "normal and private-window access disabled/enabled; private-source settings_direct requires browser-controlled Allow in incognito and pre-existing exact target host access",
+    "partitioned cookies and every exposed storage fixture",
+    "downloaded-file exact live identity/state/target revalidation preserves file and record on uncertainty; detailed mode requires its typed phrase while settings_direct truthfully records that the phrase was skipped",
+    "worker termination, browser restart, popup closure, late DNR install after timeout, and orphan DNR repair",
+    "live cleanup rejects settings/reset/shield/maintenance/local-reset changes; Standard and first Expert entry keep embedded discovery off and remove webNavigation; settings backup import is bounded and confirmed",
+    "ten consecutive runs, timeouts, partial failures, and report expiry",
+    "protected data and unrelated controls remain unchanged",
+    "supplemental observed scope: disposable normal-profile Standard two-activation reviewed cleanup of synthetic example.com fixtures with downloaded-file deletion disabled",
+    "supplemental observed scope: read-only no-autoseed target-origin post-clean snapshot plus explicit-host-access release checks"
+  ],
+  "limitations": [
+    "This record documents one exact-artifact installed Brave first-grant failure; the overall browser result is failed.",
+    "The persistent-page source correction requires a new exact artifact and fresh installed validation before it can satisfy any browser gate.",
+    "Node tests and static checks do not establish installed Chrome behavior.",
+    "Chrome evidence cannot be reused as Brave evidence.",
+    "No browser version or extension artifact hash is approved until the matrix is actually run.",
+    "Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion.",
+    "ChatGPT in-app Browser synthetic UI results are not installed-extension evidence and remain isolated in their separate evidence object."
+  ],
+  "reviewerApproval": false
+}

@@ -117,6 +117,12 @@ test('scope review exposes the entered target, normalized scope, associated targ
   assert.equal(review.effects.localReport.retentionMinutes, 30);
   assert.equal(review.effects.localReport.redacted, true);
   assert.equal(review.effects.localReport.historyEnabled, false);
+  assert.equal(review.effects.browserLevelStorage.selectedSiteCleanupEnabled, true);
+  assert.equal(review.effects.browserLevelStorage.exactOriginOnlyCleanupSkipped, false);
+  assert.match(review.effects.browserLevelStorage.selectedSitePartitionSemantics, /embedded third parties/i);
+  assert.match(review.categoriesAttempted.join(' '), /embedded third-party partitions under that site/i);
+  assert.match(review.warnings.join(' '), /selected-top-level-site cleanup/i);
+  assert.match(review.warnings.join(' '), /partitions under other top-level sites are not included/i);
 });
 
 test('review binds and discloses cross-tab overlay scope plus every material Expert mutation/discovery option', () => {
@@ -298,6 +304,35 @@ test('localhost/IP exact-origin review requires its own acknowledgement', () => 
   assert.equal(review.includesSubdomains, false);
   assert.equal(review.requirements.localOrIpTarget, true);
   assert.equal(review.effects.closeTabs.matchingCount, null);
+  assert.equal(review.effects.browserLevelStorage.selectedSiteCleanupEnabled, false);
+  assert.equal(review.effects.browserLevelStorage.exactOriginOnlyCleanupSkipped, true);
+  assert.match(review.effects.browserLevelStorage.exactOriginLimitation, /do not preserve port boundaries/i);
+  assert.match(review.categoriesUnavailable.join(' '), /exact-origin-only scope/i);
+  assert.match(review.warnings.join(' '), /closed-page LocalStorage/i);
+  assert.doesNotMatch(review.categoriesAttempted.join(' '), /selected-site storage/i);
+});
+
+test('mixed registrable and exact-origin review discloses both selected-site deletion and exact-port limitation', () => {
+  const review = buildStandard({
+    target: {
+      domain: 'example.com',
+      displayName: 'example.com + 1 associated',
+      matchMode: 'registrable_domain',
+      associatedTargets: [
+        {
+          domain: 'localhost:3000',
+          displayName: 'localhost:3000',
+          exactHost: 'localhost',
+          exactOrigin: 'http://localhost:3000',
+          matchMode: 'exact_origin'
+        }
+      ]
+    }
+  });
+  assert.equal(review.effects.browserLevelStorage.selectedSiteCleanupEnabled, true);
+  assert.equal(review.effects.browserLevelStorage.exactOriginOnlyCleanupSkipped, true);
+  assert.match(review.warnings.join(' '), /selected-top-level-site cleanup/i);
+  assert.match(review.warnings.join(' '), /do not preserve port boundaries/i);
 });
 
 test('file-removal authorization is bound to reviewed, complete, existing download IDs', () => {

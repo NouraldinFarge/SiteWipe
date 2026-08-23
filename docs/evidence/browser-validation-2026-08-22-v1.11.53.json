@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 1,
+  "status": "failed",
+  "attemptedAt": "2026-08-22T15:43:40.236Z",
+  "artifact": {
+    "version": "1.11.53",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.53.zip",
+    "sha256": "B1C7195EF93A0CFACE50ED453FE6F9803ECF8CC6AB6C99ACC291D51458577F9E",
+    "fileCount": 55,
+    "identityStatus": "exact_artifact_installed",
+    "automatedEvidenceRecord": "automated-validation-2026-08-22-v1.11.53.json"
+  },
+  "priorExactArtifactEvidence": {
+    "version": "1.11.46",
+    "record": "browser-validation-2026-08-22-v1.11.46.json",
+    "status": "historical_not_current"
+  },
+  "chrome": {
+    "status": "failed",
+    "version": "151.0.7922.172",
+    "operatingSystem": "Microsoft Windows 11 Pro, build 26100, 64-bit",
+    "disposableProfile": true,
+    "assertions": [
+      {
+        "id": "chrome-standard-first-grant-popup-message-loss-2026-08-22",
+        "status": "failed",
+        "outcome": "safe_failure_after_native_grant_without_durable_worker_arm",
+        "claimScope": "One installed exact-artifact SiteWipe 1.11.53 detailed Standard attempt against disposable synthetic example.com fixtures in a fresh normal Chrome profile with no pre-existing target access.",
+        "observedAt": "2026-08-22T15:43:40.236Z",
+        "artifactSha256": "B1C7195EF93A0CFACE50ED453FE6F9803ECF8CC6AB6C99ACC291D51458577F9E",
+        "environment": {
+          "browser": "Chrome",
+          "version": "151.0.7922.172",
+          "operatingSystem": "Microsoft Windows 11 Pro, build 26100, 64-bit",
+          "disposableProfile": true,
+          "syncEnabled": false,
+          "incognito": false,
+          "incognitoAccessEnabled": false,
+          "privatePathValuesRetained": false
+        },
+        "fixturePrecondition": {
+          "fixtureVersion": "sitewipe-synthetic-v1",
+          "port": 43819,
+          "scale": "small",
+          "primaryFixtureUrl": "http://selected.example.com:43819/?scale=small&autoseed=1&embed=1",
+          "includedSubdomainUrl": "http://sub.selected.example.com:43819/?scale=small&autoseed=1",
+          "lookalikeControlUrl": "http://selected.example.com.evil.invalid:43819/?scale=small&autoseed=1",
+          "embeddedPartitionHost": "chips.localhost",
+          "canonicalTarget": "example.com",
+          "cleanupMode": "standard",
+          "downloadedFileDeletionEnabled": false,
+          "reviewedHostPatterns": [
+            "http://example.com/*",
+            "https://example.com/*",
+            "http://*.example.com/*",
+            "https://*.example.com/*"
+          ]
+        },
+        "attempt": {
+          "sourceHost": "selected.example.com",
+          "detectedCanonicalTarget": "example.com",
+          "cleanupMode": "standard",
+          "detailedReviewDisplayed": true,
+          "reviewedExactTargetPatternCount": 4,
+          "finalApprovalActivated": true,
+          "nativePermissionPromptReached": true,
+          "nativePermissionGranted": true,
+          "popupArmMessageDispatchedWithoutAwaitingDurableAcknowledgement": true,
+          "durableArmedRecordObserved": false,
+          "workerPermissionWakeHadArmedRecord": false,
+          "workerAdmissionOutcome": "refused_without_armed_record"
+        },
+        "durableStateInspection": {
+          "permissionLeaseCreatedAt": "2026-08-22T15:43:40.236Z",
+          "reviewExpiredAt": "2026-08-22T15:48:40.224Z",
+          "reviewStatesObserved": ["prepared", "prompt_pending", "removed_at_expiry"],
+          "armedStateObserved": false,
+          "activeCleanupJobObserved": false,
+          "latestReportObserved": false
+        },
+        "postFailureInspection": {
+          "cleanupStarted": false,
+          "activeCleanupJobObserved": false,
+          "interruptedCleanupJobObserved": false,
+          "latestReportObserved": false,
+          "fixtureMutationObserved": false,
+          "downloadedFileDeletionObserved": false,
+          "temporaryExactGrantObserved": true,
+          "temporaryLeaseReconciledByReviewExpiryMaintenance": true,
+          "incognitoEnabled": false
+        },
+        "protectedDownloads": {
+          "matchingFixtureDownloadCount": 1,
+          "sizeBytes": 63,
+          "sha256": "8312D39537A75D42D87048ABDC1AC605C9754DFAABB401FCFBAA2D211D63764A",
+          "verifiedAfterFailure": true,
+          "preserved": true,
+          "deleted": false,
+          "localPathsDisclosed": false
+        },
+        "sourceDiagnosis": {
+          "classification": "installed_popup_transport_loss_before_durable_arm",
+          "summary": "SiteWipe 1.11.53 invoked a non-awaited armCleanupApproval message immediately before permissions.request(). Chrome granted the four exact reviewed patterns, but the worker never durably observed an armed approval before the popup lifetime ended. The worker correctly treated the permission event as wake-only and refused cleanup authority.",
+          "evidenceBoundary": "This installed failure justifies the later two-activation source correction but does not convert that correction or a mock result into an installed-browser pass."
+        },
+        "limitations": [
+          "This is a failed installed first-grant result, not a successful cleanup or Chrome compatibility result.",
+          "The native browser permission grant did not create cleanup authority because no durable armed handoff existed.",
+          "No cleanup job, report, fixture mutation, or downloaded-file deletion occurred.",
+          "This attempt does not establish Brave, Expert mode, direct mode, incognito cleanup, accessibility, performance, compatibility, or store-media readiness.",
+          "No private extension identifier, disposable-profile location, downloaded-file location, or other local filesystem path is included in this public evidence record."
+        ]
+      },
+      {
+        "id": "chrome-standard-pregranted-repeat-cleanup-2026-08-22",
+        "status": "passed",
+        "outcome": "narrow_pregranted_standard_cleanup_pass",
+        "claimScope": "One repeat installed exact-artifact SiteWipe 1.11.53 detailed Standard cleanup after the first attempt had already granted the four exact example.com patterns. This assertion covers only the pregranted path and post-clean fixture state.",
+        "observedAt": "2026-08-22T15:55:47.160Z",
+        "artifactSha256": "B1C7195EF93A0CFACE50ED453FE6F9803ECF8CC6AB6C99ACC291D51458577F9E",
+        "environment": {
+          "browser": "Chrome",
+          "version": "151.0.7922.172",
+          "operatingSystem": "Microsoft Windows 11 Pro, build 26100, 64-bit",
+          "disposableProfile": true,
+          "syncEnabled": false,
+          "incognito": false,
+          "incognitoAccessEnabled": false
+        },
+        "attempt": {
+          "cleanupMode": "standard",
+          "detailedReviewDisplayed": true,
+          "reviewedExactTargetPatternCount": 4,
+          "hostAccessPregranted": true,
+          "nativePermissionPromptExpected": false,
+          "cleanupStartedAt": "2026-08-22T15:55:46.456Z",
+          "temporaryTargetAccessReconciledAt": "2026-08-22T15:55:47.150Z",
+          "cleanupCompletedAt": "2026-08-22T15:55:47.160Z",
+          "matchingFixtureTabClosed": true
+        },
+        "fixturePostcondition": {
+          "localStorageKeyCount": 0,
+          "sessionStorageKeyCount": 0,
+          "indexedDbDatabaseCount": 0,
+          "cacheCount": 0,
+          "matchingServiceWorkerCount": 0,
+          "targetCookieNames": [],
+          "outOfScopePartitionCookiePreserved": true,
+          "outOfScopePartitionCookieHost": "chips.localhost",
+          "outOfScopePartitionCookieName": "sitewipe_partitioned"
+        },
+        "protectedDownloads": {
+          "matchingFixtureDownloadCount": 1,
+          "sizeBytes": 63,
+          "sha256": "8312D39537A75D42D87048ABDC1AC605C9754DFAABB401FCFBAA2D211D63764A",
+          "verifiedAfterCleanup": true,
+          "preserved": true,
+          "deleted": false,
+          "localPathsDisclosed": false
+        },
+        "limitations": [
+          "This repeat run did not exercise a native first-time host-permission prompt because the exact patterns were already granted.",
+          "It cannot repair or outweigh the failed first-grant assertion, so the overall Chrome result remains failed.",
+          "The preserved chips.localhost partitioned cookie is an expected out-of-scope preservation canary, not target residue.",
+          "This narrow assertion does not establish the rest of the required installed-browser matrix."
+        ]
+      }
+    ]
+  },
+  "brave": {
+    "status": "pending",
+    "version": null,
+    "operatingSystem": null,
+    "disposableProfile": null,
+    "assertions": []
+  },
+  "syntheticInAppBrowser": {
+    "status": "pending",
+    "attemptedAt": null,
+    "environment": "ChatGPT in-app Browser",
+    "fixture": "HTTP-served SiteWipe UI with synthetic browser-API mocks",
+    "assertions": [],
+    "qualifiesAsInstalledExtensionEvidence": false,
+    "limitations": [
+      "Does not load the runtime ZIP or a chrome-extension:// origin.",
+      "Does not exercise native host-permission prompts, incognito spanning, MV3 worker lifecycle, or privileged browser-data mutation APIs.",
+      "Cannot satisfy Chrome, Brave, installed accessibility, exact-artifact performance, compatibility, or store-media approval fields."
+    ]
+  },
+  "automationAttempt": {
+    "status": "failed",
+    "attemptedAt": "2026-08-22T15:43:40.236Z",
+    "controller": "ChatGPT Computer Use",
+    "scope": "Installed exact-artifact Chrome Standard first-grant attempt and a later pregranted repeat against disposable synthetic example.com fixtures, followed by non-mutating worker, fixture, permission, report, and downloaded-file inspection.",
+    "result": "The genuine first-grant path safely failed because the worker never durably received an armed approval. A later already-granted Standard repeat completed and preserved the downloaded file, but it did not exercise or validate the failed native first-grant handoff.",
+    "limitations": [
+      "This retained mixed observation is an overall installed Chrome failure, not a browser matrix pass.",
+      "No user authentication, daily browser profile, private extension identifier, or local path is included in public evidence."
+    ]
+  },
+  "requiredMatrix": [
+    "fresh install and upgrade migration",
+    "default detailed Standard and Expert review displays mode, exact and broader site access, associated/local/private/protected/PWA/file/persistent-shield/permission-requesting/uncertain scope, impacts, effects, warnings, limitations, and acknowledgements",
+    "the default-off Skip detailed cleanup review completely setting requires explicit confirmation, persists in Standard and Expert, and uses only preflight-bound settings_direct authority",
+    "hidden read-only direct preparation and durable prompt_pending lease complete before Clean now is enabled; pregranted access remains one SiteWipe activation, while missing access requires a durable first approval activation followed by a fresh exact permission-request activation",
+    "detailed review still requires explicit acknowledgements and durable approval before any separate missing-access activation, and no stale, raw, caller-controlled, or legacy quick/bypass cleanup route exists",
+    "SW-036 regression: a legitimate action-popup sender may omit documentId; preparation resolves exactly one exact-URL POPUP with an opaque contextId and Chrome action-popup tabId/windowId -1 sentinels, keeps the spanning popup profile separate from the positive source window/private state, reaches the non-destructive detailed review, and rejects zero/multiple/malformed contexts before authority or mutation",
+    "settings, target/associated scope, source/private context, browser private-access, and complete impact/review snapshot changes reject the token before mutation",
+    "normal-only authority never expands into private discovery, injection, overlays, tab changes/closure, or verification",
+    "exact required and relevant broader/all-site pre-existing host access is disclosed truthfully and preserved, unrelated host-permission canaries are omitted, and only preflight-classified temporary exact patterns enter release calls",
+    "PRIVATE-suffix sibling and lookalike isolation",
+    "normal and private-window access disabled/enabled; private-source settings_direct requires browser-controlled Allow in incognito and pre-existing exact target host access",
+    "partitioned cookies and every exposed storage fixture",
+    "downloaded-file exact live identity/state/target revalidation preserves file and record on uncertainty; detailed mode requires its typed phrase while settings_direct truthfully records that the phrase was skipped",
+    "worker termination, browser restart, popup closure, late DNR install after timeout, and orphan DNR repair",
+    "live cleanup rejects settings/reset/shield/maintenance/local-reset changes; Standard and first Expert entry keep embedded discovery off and remove webNavigation; settings backup import is bounded and confirmed",
+    "ten consecutive runs, timeouts, partial failures, and report expiry",
+    "protected data and unrelated controls remain unchanged"
+  ],
+  "limitations": [
+    "This record documents one exact-artifact installed first-grant failure and one narrow pregranted repeat pass; the overall Chrome result is failed.",
+    "The two-activation source correction requires a new exact artifact and fresh installed validation before it can satisfy any browser gate.",
+    "Chrome evidence cannot be reused as Brave evidence.",
+    "ChatGPT in-app Browser synthetic UI results are not installed-extension evidence and remain isolated in their separate evidence object."
+  ],
+  "reviewerApproval": false
+}

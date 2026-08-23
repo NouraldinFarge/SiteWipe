@@ -49,7 +49,7 @@ test('messaging client preserves structured error classification', async () => {
   });
 });
 
-test('full cleanup routes share the long response timeout budget', async (t) => {
+test('full cleanup and persistent handoff routes share the long response timeout budget', async (t) => {
   const delays = [];
   t.mock.method(globalThis, 'setTimeout', (_callback, delay) => {
     delays.push(delay);
@@ -67,9 +67,10 @@ test('full cleanup routes share the long response timeout budget', async (t) => 
   };
 
   await sendMessage(MESSAGE_TYPES.runDeepClean);
-  await sendMessage(MESSAGE_TYPES.resumeArmedCleanup);
+  await sendMessage(MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant);
+  await sendMessage(MESSAGE_TYPES.resumeCleanupPermissionHandoff);
   await sendMessage(MESSAGE_TYPES.prepareCleanupReview);
   await sendMessage(MESSAGE_TYPES.getPopupState);
 
-  assert.deepEqual(delays, [270_000, 270_000, 60_000, 30_000]);
+  assert.deepEqual(delays, [270_000, 270_000, 270_000, 60_000, 30_000]);
 });

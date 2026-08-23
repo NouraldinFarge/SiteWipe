@@ -1,0 +1,277 @@
+{
+  "schemaVersion": 1,
+  "status": "local_automated_checks_passed",
+  "validatedAt": "2026-08-22T20:33:37.611Z",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, browser-matrix, media, and binary-release validation.",
+  "environment": {
+    "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
+    "osArchitecture": "64-bit",
+    "processArchitecture": "x64",
+    "node": "v24.18.0",
+    "npm": "11.16.0"
+  },
+  "baseline": {
+    "beforeState": "The 1.11.55 record remains unchanged in automated-validation-2026-08-22-v1.11.55.json.",
+    "baselineVersion": "1.11.55",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-22-v1.11.55.json"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "passed",
+    "format": "passed",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.11.56",
+      "runtimeFiles": 55,
+      "runtimeFingerprintSha256": "1DE7BC3FC731CBEB2F78BE681184A4444665118701D29E89F5250F37CBF0F25A",
+      "stableReleaseInputFingerprintSha256": "B4EC2EC01A499BA0B51677A2E12E2B08242E733AC67040044A9A9B291CD88E99"
+    },
+    "manifest": {
+      "status": "passed",
+      "version": "1.11.56",
+      "descriptionCharacters": 123,
+      "descriptionMaximum": 132,
+      "requiredNamedPermissions": 10,
+      "optionalNamedPermissions": 1,
+      "requiredHostPatterns": 0,
+      "optionalHostPatterns": 2
+    },
+    "syntaxModules": 139,
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "htmlValidation": "passed",
+    "cssValidation": "passed",
+    "remoteCodeAndRuntimeSecretScan": {
+      "status": "passed",
+      "runtimeFiles": 55
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 278
+    },
+    "dependencyLicenseInventory": {
+      "status": "passed",
+      "runtimeDependencies": 0,
+      "lockedDevelopmentGraph": 406,
+      "lockfileSha256": "CF6CDEFA5BF9F80B0A3DDF714ABE90971231A5EE7A335218F802839C29FA9F30",
+      "metadataExceptionsResolved": 1
+    },
+    "projectLicense": {
+      "status": "passed",
+      "spdxIdentifier": "MIT",
+      "licenseFileSha256": "86ECA68E8C1B0498315252BD01B6190F01500EE720C333D00793DD947F5B6511"
+    },
+    "thirdPartyNoticeAndPslHash": "passed",
+    "iconSourceAndPngProvenance": "passed",
+    "documentation": {
+      "status": "passed",
+      "markdownFiles": 47
+    },
+    "githubActionPins": {
+      "status": "passed",
+      "references": 10
+    },
+    "runtimeAllowlist": {
+      "status": "passed",
+      "runtimeFiles": 55,
+      "sourceOnlyFiles": 3
+    },
+    "legacyReleaseSelfTest": "passed",
+    "nodeTests": {
+      "tests": 589,
+      "suites": 0,
+      "passed": 589,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "seed": 20260817,
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "passed",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    },
+    "all": {
+      "statements": 88.38,
+      "branches": 74.96,
+      "functions": 92.11,
+      "lines": 88.38
+    },
+    "interpretation": "Coverage is a navigation aid, not a safety score. Local source coverage exceeds every enforced repository-wide floor; complete installed MV3 lifecycle, browser-privilege, and exact-artifact evidence remains separately required."
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts",
+    "status": "passed",
+    "installedPackages": 387,
+    "auditedPackagesIncludingRoot": 388,
+    "lifecycleScriptsDisabled": true,
+    "deprecationWarnings": [
+      "prebuild-install@7.1.3 is no longer maintained",
+      "glob@10.5.0 is an unsupported transitive development-tool version"
+    ],
+    "interpretation": "The warnings are confined to the development-tool graph. The exact current lockfile has no npm audit advisory, and installation lifecycle scripts remained disabled."
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=moderate --json",
+    "status": "passed",
+    "auditedAt": "2026-08-22T20:30:10.863Z",
+    "knownVulnerabilities": 0,
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "runtimeDependencies": 0,
+    "lockedDevelopmentGraph": 406,
+    "lockfileSha256": "CF6CDEFA5BF9F80B0A3DDF714ABE90971231A5EE7A335218F802839C29FA9F30"
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "passed",
+    "redactionCanaries": "passed",
+    "privateContextPersistenceRefusal": "passed",
+    "deterministicThirtyMinuteExpiry": "passed"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "passed",
+    "syntheticInAppBrowser": "not_run_for_installed_evidence",
+    "installedChromeRun": "exact_artifact_narrow_standard_pass_full_matrix_pending",
+    "installedBraveRun": "exact_artifact_narrow_standard_pass_full_matrix_and_partition_preservation_pending"
+  },
+  "gitInitialization": {
+    "status": "candidate_branch_authorized_pending_exact_commit_and_remote_checks",
+    "branch": "candidate/sitewipe-1.11.56",
+    "commitCount": 4,
+    "remoteCount": 1,
+    "tagCount": 0,
+    "parentContainerIsGitRepository": false,
+    "ignoredLocalDirectoriesVerified": [
+      "browser-profiles",
+      "coverage",
+      "dist",
+      "node_modules"
+    ],
+    "note": "The owner authorized the exact 1.11.56 source candidate on this branch and a pull request. This local validation record was finalized before the candidate commit, push, and exact-head remote checks."
+  },
+  "artifacts": {
+    "status": "local_reproducible_build_passed",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.56.zip",
+    "runtimeZipSha256": "82BD9287CF72DECD60E8E5BD7BA6E187DB7FCD4BB3CF211C0F0014C956F3F103",
+    "runtimeZipBytes": 304944,
+    "runtimeFiles": 55,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.56-source.zip",
+    "sourceZipSha256": "Recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
+    "sourceFiles": 278,
+    "sourcePackageEquivalence": "exact",
+    "checksumFilesVerified": 7,
+    "consecutiveBuildOutputsCompared": 8,
+    "byteIdenticalAcrossConsecutiveBuilds": true,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.56.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.56.unsigned-provenance-input.json",
+    "remoteAttestation": "pending",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "blocked",
+    "blockerCount": 22,
+    "originalBlockerCount": 37,
+    "closedOriginalBlockers": [
+      "The local technical provenance, dependency-license, notice, asset, or source-closure audit is incomplete.",
+      "Chrome evidence is missing its version, environment, disposable-profile proof, or assertions.",
+      "Brave evidence is missing its version, environment, disposable-profile proof, or assertions.",
+      "Browser evidence is not bound to the exact current runtime artifact bytes.",
+      "Chrome must retain at least one reviewed browser assertion.",
+      "Brave must retain at least one reviewed browser assertion.",
+      "Performance evidence is not bound to the exact current runtime artifact bytes.",
+      "Performance evidence must contain at least one measured fixture result.",
+      "Accessibility evidence is not bound to the exact current runtime artifact bytes.",
+      "Accessibility evidence has no current review date.",
+      "Accessibility source-contract results are incomplete or not current-review bound.",
+      "Accessibility source-contract results are not bound to the current stable release inputs.",
+      "Media evidence is not bound to the exact current runtime artifact bytes.",
+      "Store icon128 must be an integrity-bound asset object.",
+      "Dependency inventory and audit are not complete for the exact current candidate.",
+      "The exact current dependency audit does not record zero vulnerabilities at every severity.",
+      "The development SBOM is not regenerated and integrity-bound for the exact current candidate.",
+      "Current automated checks, coverage, dependency audit, reproducibility, or package-equivalence evidence is incomplete.",
+      "The owner has not approved the exact package version as the public SiteWipe version.",
+      "Brave assertion 2 is not passed.",
+      "The remote approval does not name the exact current package version.",
+      "The owner-approved direct-cleanup publication contract is incomplete because the recorded one-popup-action decision does not approve the implemented two-SiteWipe-activation missing-access path."
+    ],
+    "remainingBlockers": [
+      "The exact-artifact browser validation record is not reviewer-approved.",
+      "Disposable-profile Chrome integration evidence is incomplete.",
+      "A real Brave smoke-test record is incomplete; Brave compatibility cannot be claimed.",
+      "Chrome assertions do not cover every requiredMatrix entry (17 missing).",
+      "Brave assertions do not cover every requiredMatrix entry (17 missing).",
+      "Measured, exact-artifact performance evidence is incomplete or not reviewer-approved.",
+      "Performance evidence is not bound to the exact current runtime artifact bytes.",
+      "Performance fixture 1 is not bound to the current runtime artifact SHA-256.",
+      "Installed exact-artifact accessibility evidence is incomplete or not reviewer-approved.",
+      "Accessibility evidence is not bound to the exact current runtime artifact bytes.",
+      "Four to six authentic synthetic-data screenshots are not approved.",
+      "An authentic 60–90 second demo is not approved.",
+      "Synthetic showcase and store media are not reviewer-approved.",
+      "Media evidence is not bound to the exact current runtime artifact bytes.",
+      "Media screenshot count must be 4–6 and equal the number of screenshot objects.",
+      "Media demo must be an object with the same approved 60–90 second duration.",
+      "Store promotional tile must be an integrity-bound asset object.",
+      "Store marquee must be an integrity-bound asset object.",
+      "GitHub social preview must be an integrity-bound asset object.",
+      "The required remote CI and CodeQL checks are not verified.",
+      "The owner has not given final approval for merge, tag, GitHub Release, browser-store submission, or professional-profile promotion.",
+      "The hosted privacy policy is not byte-bound to the exact current local policy and version."
+    ],
+    "remainingClasses": [
+      "Complete installed Chrome and Brave browser matrix plus the inconclusive Brave partition-storage control",
+      "Reviewer-approved representative performance evidence",
+      "Installed exact-artifact accessibility checks",
+      "Authentic screenshots, demo, promotional tile, marquee, and social preview",
+      "Required remote CI and CodeQL verification",
+      "Exact-version hosted privacy-policy byte parity",
+      "Separate final owner authority for merge, tag, GitHub Release, browser-store submission, and promotion"
+    ]
+  },
+  "limitations": [
+    "Local automated and bounded exact-artifact browser smoke checks do not prove complete erasure, the full installed-browser matrix, incognito spanning, installed accessibility, representative exact-artifact performance, authentic media, remote checks, or final publication authority.",
+    "Chrome evidence cannot be reused as Brave evidence, and no downloaded file was deleted during the exact-artifact disposable-fixture validation.",
+    "Partition-storage preservation was not retested against the current artifact and remains inconclusive."
+  ],
+  "developmentSbom": {
+    "command": "npm run sbom",
+    "status": "passed",
+    "path": "dist/sitewipe-development-sbom.cdx.json",
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.6",
+    "componentVersion": "1.11.56",
+    "components": 329,
+    "dependencyNodes": 388,
+    "bytes": 807991,
+    "sha256": "E34393F27872C18B7A2654DA63E7845BA365A0F65DA732668A619ABF6325FF40",
+    "generatedAt": "2026-08-22T19:46:16.385Z"
+  }
+}

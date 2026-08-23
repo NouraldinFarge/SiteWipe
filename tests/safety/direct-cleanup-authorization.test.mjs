@@ -13,7 +13,7 @@ import {
   normalizeCleanupReviewRecord,
   prepareCleanupReviewRequest
 } from '../../src/background/cleanup-preflight.js';
-import { getPermissionLease, reconcilePermissionLease } from '../../src/background/permission-leases.js';
+import { getPermissionLease } from '../../src/background/permission-leases.js';
 
 const DIRECT_MODE = 'settings_direct';
 const DETAILED_MODE = 'detailed_review';
@@ -265,7 +265,7 @@ test('Expert direct cleanup keeps file deletion preflight-bound and reports that
   assert.doesNotMatch(authorizationSection.label, /reviewed and approved/i);
 });
 
-test('settings invalidation cannot orphan an exact host grant while a native permission prompt may settle late', async () => {
+test('settings invalidation preserves an external exact grant when SiteWipe never invoked a prompt', async () => {
   const harness = createHarness(
     { skipCleanupReview: true },
     { token: '0'.repeat(48), hostPermissionsGranted: false, now: 20_000 }
@@ -296,23 +296,11 @@ test('settings invalidation cannot orphan an exact host grant while a native per
     storageLocal: harness.storage
   });
   assert.equal(invalidated.cleared, true);
-  assert.equal(invalidated.hostPermissionCleanup.reason, 'permission_prompt_pending');
-  assert.equal(invalidated.hostPermissionCleanup.recordRetained, true);
-  assert.deepEqual(removed, [], 'invalidation must not race an unsettled browser permission prompt');
-  assert.equal((await getPermissionLease(harness.storage)).status, 'prompt_pending');
-
-  const settled = await reconcilePermissionLease(
-    harness.storage,
-    {
-      ...leaseAdapters,
-      forcePromptSettlement: true,
-      promptSettlementOnly: true
-    },
-    record.permissionLeaseId
-  );
-  assert.equal(settled.released, true);
-  assert.deepEqual(new Set(removed), new Set(record.target.hostPermissionOrigins));
-  assert.deepEqual(grantedOrigins, []);
+  assert.equal(invalidated.hostPermissionCleanup.reason, 'proofless_lease_discarded');
+  assert.equal(invalidated.hostPermissionCleanup.recordRetained, false);
+  assert.equal(invalidated.hostPermissionCleanup.permissionsPreserved, true);
+  assert.deepEqual(removed, [], 'uninvoked SiteWipe bookkeeping must never claim or remove an external grant');
+  assert.deepEqual(grantedOrigins, record.target.hostPermissionOrigins);
   assert.equal(await getPermissionLease(harness.storage), null);
 });
 
@@ -338,8 +326,11 @@ test('direct consume rejects a valid-looking lease that no longer matches the pr
   assert.equal(retained.status, 'prompt_pending', 'a mismatched lease must be retained for manual recovery');
 });
 
-test('popup one-click routing keeps hidden preflight, activation ordering, invalidation, and duplicate guards fail-closed', async () => {
-  const source = await readFile(new URL('../../src/popup/popup.js', import.meta.url), 'utf8');
+test('popup direct routing durably arms and opens the exact persistent permission activation fail-closed', async () => {
+  const [source, handoff] = await Promise.all([
+    readFile(new URL('../../src/popup/popup.js', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/handoff/handoff.js', import.meta.url), 'utf8')
+  ]);
   const prepareStart = source.indexOf('async function prepareDirectCleanup(input)');
   const prepareEnd = source.indexOf('function directPreparationIsCurrent', prepareStart);
   const preparation = source.slice(prepareStart, prepareEnd);
@@ -367,51 +358,59 @@ test('popup one-click routing keeps hidden preflight, activation ordering, inval
   }
   assert.match(directHandler, /fileConfirmationText: ''/);
 
-  const armDispatchAt = executableSharedHandler.indexOf(
-    'approvalHandoffPromise = sendMessage(MESSAGE_TYPES.armCleanupApproval'
+  const armAcknowledgementAt = executableSharedHandler.indexOf(
+    'armed = await sendMessage(MESSAGE_TYPES.armCleanupApproval'
   );
-  const permissionRequestAt = executableSharedHandler.indexOf(
-    'permissionRequest = chrome.permissions.request({ origins })'
-  );
-  const permissionRequestAwaitAt = executableSharedHandler.indexOf('await permissionRequest');
-  const firstAwaitAt = executableSharedHandler.indexOf('await ');
+  const armConfirmedAt = executableSharedHandler.indexOf("armed?.handoffStatus !== 'armed'");
+  const openHandoffAt = executableSharedHandler.indexOf('sendMessage(MESSAGE_TYPES.openCleanupPermissionHandoff');
   const runMessageAt = sharedHandler.indexOf('sendMessage(MESSAGE_TYPES.runDeepClean');
-  const resumeMessageAt = sharedHandler.indexOf('sendMessage(MESSAGE_TYPES.resumeArmedCleanup');
-  const identityCheckAt = sharedHandler.indexOf('(direct ? directCleanupReview : cleanupReview) !== review');
-  assert.ok(permissionRequestAt >= 0, 'missing access must use the native permission API');
-  assert.ok(armDispatchAt > permissionRequestAt && armDispatchAt < permissionRequestAwaitAt);
+  assert.ok(
+    armAcknowledgementAt >= 0 && armAcknowledgementAt < armConfirmedAt && armConfirmedAt < openHandoffAt,
+    'the popup must await and validate the durable arm before opening the persistent handoff'
+  );
+  assert.ok(sharedHandler.indexOf('busy = true') < openHandoffAt, 'duplicate clicks must lock synchronously');
+  assert.ok(runMessageAt > openHandoffAt, 'pregranted cleanup must remain behind the prepared run route');
+  assert.doesNotMatch(source, /chrome\.permissions\.(?:getAll|request)/);
   assert.doesNotMatch(
-    executableSharedHandler.slice(permissionRequestAt, armDispatchAt),
-    /\bawait\b/,
-    'the native request and non-awaited worker marker must remain in one activation task'
+    source,
+    /MESSAGE_TYPES\.(?:beginCleanupPermissionPrompt|confirmCleanupPermissionPromptInvocation|confirmCleanupPermissionGrantOutcome|resumeArmedCleanup|settleCleanupPermissionPrompt)/
   );
-  assert.equal(firstAwaitAt, permissionRequestAwaitAt, 'the native prompt must be the first awaited grant result');
-  assert.ok(identityCheckAt > permissionRequestAt);
-  assert.ok(resumeMessageAt > identityCheckAt && runMessageAt > identityCheckAt);
-  assert.ok(sharedHandler.indexOf('busy = true') < permissionRequestAt, 'duplicate clicks must lock synchronously');
-  assert.match(
-    sharedHandler,
-    /permissionPromptInFlight = true;[\s\S]*permissionRequest = chrome\.permissions\.request[\s\S]*armCleanupApproval[\s\S]*granted = await permissionRequest/
+
+  const activationStart = handoff.indexOf('async function runReviewedPermissionHandoff()');
+  const activationEnd = handoff.indexOf('async function settleHandoff', activationStart);
+  const activation = handoff.slice(activationStart, activationEnd);
+  const beginAt = activation.indexOf('sendMessage(MESSAGE_TYPES.beginCleanupPermissionHandoff');
+  const snapshotAt = activation.indexOf('snapshotPromise = chrome.permissions.getAll()');
+  const requestAt = activation.indexOf('permissionRequest = chrome.permissions.request({ origins: handoff.origins })');
+  const invocationAt = activation.indexOf('sendMessage(MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation');
+  const awaitAt = activation.indexOf('await Promise.all([');
+  assert.ok(
+    activationStart >= 0 && beginAt >= 0 && beginAt < snapshotAt && snapshotAt < requestAt && requestAt < invocationAt,
+    'the fresh handoff action must begin intent, inventory, request, and confirm invocation in order'
   );
+  assert.ok(awaitAt > invocationAt, 'the synchronous browser calls must be started before awaiting their results');
+  assert.match(activation, /request\.value !== true/);
+  assert.match(activation, /MESSAGE_TYPES\.confirmCleanupPermissionHandoffGrant/);
+  assert.match(activation, /preRequestTemporaryOriginsAbsent: true/);
 
   const inputHandler = source.slice(
     source.indexOf("qs('#targetInput').addEventListener('input'"),
     source.indexOf("qs('#targetInput').addEventListener('input', debounce", source.indexOf("qs('#targetInput')"))
   );
-  assert.match(inputHandler, /discardDirectCleanupPreparation\(\{ settleLease: !permissionPromptInFlight \}\)/);
+  assert.match(inputHandler, /discardDirectCleanupPreparation\(\)/);
 
   const settingsStart = source.indexOf('async function handleStoredSettingsChange(settings)');
   const settingsEnd = source.indexOf('function renderIncognito', settingsStart);
   const settingsHandler = source.slice(settingsStart, settingsEnd);
   assert.match(settingsHandler, /directInvalidatedBySettings = true/);
-  assert.match(settingsHandler, /discardDirectCleanupPreparation\(\{ settleLease: !permissionPromptInFlight \}\)/);
+  assert.match(settingsHandler, /discardDirectCleanupPreparation\(\)/);
 
   const primaryStart = source.indexOf('function updatePrimaryAction()');
   const primaryEnd = source.indexOf('function directCleanupEnabled', primaryStart);
   const primaryHandler = source.slice(primaryStart, primaryEnd);
   assert.match(
     primaryHandler,
-    /directPreparationPending \|\|[\s\S]*!directCleanupReview \|\|[\s\S]*Boolean\(directCleanupReview\.approvalHandoffStatus\) \|\|[\s\S]*!normalized\?\.ok/
+    /directPreparationPending \|\|[\s\S]*!directCleanupReview \|\|[\s\S]*!cleanupApprovalHandoffIsArmed\(directCleanupReview\)[\s\S]*!normalized\?\.ok/
   );
 
   const activeJobStart = source.indexOf('function renderActiveJob(job)');

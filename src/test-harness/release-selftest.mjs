@@ -188,7 +188,7 @@ assert.deepEqual(
 
 const manifest = JSON.parse(await readFile(new URL('../manifest.json', import.meta.url), 'utf8'));
 const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
-assert.equal(manifest.version, '1.11.46', 'manifest version must match this release');
+assert.equal(manifest.version, '1.11.63', 'manifest version must match this release');
 assert.equal(packageJson.version, manifest.version, 'package and manifest versions must match');
 assert.equal(APP.version, manifest.version, 'runtime and manifest versions must match');
 assert.equal(manifest.permissions.includes('bookmarks'), false, 'bookmark permission must never be requested');
@@ -275,6 +275,8 @@ const runtimeSources = await Promise.all(
     '../shared/constants.js',
     '../shared/safety.js',
     '../shared/storage.js',
+    '../handoff/handoff.js',
+    '../handoff/handoff.html',
     '../popup/popup.js',
     '../popup/popup.html',
     '../options/options.js',
@@ -317,6 +319,7 @@ for (const [path, source] of runtimeSources.filter(([path]) => path.endsWith('.h
 
 for (const [htmlPath, jsPath] of [
   ['../popup/popup.html', '../popup/popup.js'],
+  ['../handoff/handoff.html', '../handoff/handoff.js'],
   ['../options/options.html', '../options/options.js'],
   ['../sidepanel/sidepanel.html', '../sidepanel/sidepanel.js']
 ]) {

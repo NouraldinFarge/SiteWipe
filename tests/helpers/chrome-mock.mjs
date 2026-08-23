@@ -52,7 +52,8 @@ export async function createChromeMock(options = {}) {
     runtimeMessage: createEvent(),
     storageChanged: createEvent(),
     alarm: createEvent(),
-    permissionAdded: createEvent()
+    permissionAdded: createEvent(),
+    permissionRemoved: createEvent()
   };
 
   const chrome = {
@@ -105,6 +106,7 @@ export async function createChromeMock(options = {}) {
     },
     permissions: {
       onAdded: events.permissionAdded,
+      onRemoved: events.permissionRemoved,
       contains: async (request = {}) => {
         record(calls, 'permissions.contains', [request]);
         return (
@@ -115,15 +117,24 @@ export async function createChromeMock(options = {}) {
       request: async (request = {}) => {
         record(calls, 'permissions.request', [request]);
         if (options.permissionRequestResult === false) return false;
-        for (const permission of request.permissions || []) namedPermissions.add(permission);
-        for (const origin of request.origins || []) originPermissions.add(origin);
-        events.permissionAdded.emit(clone(request));
+        const addedPermissions = (request.permissions || []).filter((permission) => !namedPermissions.has(permission));
+        const addedOrigins = (request.origins || []).filter((origin) => !originPermissions.has(origin));
+        for (const permission of addedPermissions) namedPermissions.add(permission);
+        for (const origin of addedOrigins) originPermissions.add(origin);
+        if (addedPermissions.length || addedOrigins.length) {
+          events.permissionAdded.emit({ permissions: clone(addedPermissions), origins: clone(addedOrigins) });
+        }
         return true;
       },
       remove: async (request = {}) => {
         record(calls, 'permissions.remove', [request]);
-        for (const permission of request.permissions || []) namedPermissions.delete(permission);
-        for (const origin of request.origins || []) originPermissions.delete(origin);
+        const removedPermissions = (request.permissions || []).filter((permission) => namedPermissions.has(permission));
+        const removedOrigins = (request.origins || []).filter((origin) => originPermissions.has(origin));
+        for (const permission of removedPermissions) namedPermissions.delete(permission);
+        for (const origin of removedOrigins) originPermissions.delete(origin);
+        if (removedPermissions.length || removedOrigins.length) {
+          events.permissionRemoved.emit({ permissions: clone(removedPermissions), origins: clone(removedOrigins) });
+        }
         return true;
       },
       getAll: async () =>
@@ -314,7 +325,7 @@ export async function dispatchRuntimeMessage(chrome, message, sender = {}) {
     let settled = false;
     const timer = setTimeout(() => {
       if (!settled) reject(new Error('Mock runtime message timed out.'));
-    }, 1000);
+    }, 5000);
     const sendResponse = (response) => {
       if (settled) return;
       settled = true;

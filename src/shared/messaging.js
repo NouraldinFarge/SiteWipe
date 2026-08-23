@@ -3,7 +3,9 @@ import { MESSAGE_PROTOCOL_VERSION, MESSAGE_TYPES } from './constants.js';
 export async function sendMessage(type, payload = {}) {
   const requestId = createRequestId();
   const timeoutMs =
-    type === MESSAGE_TYPES.runDeepClean || type === MESSAGE_TYPES.resumeArmedCleanup
+    type === MESSAGE_TYPES.runDeepClean ||
+    type === MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant ||
+    type === MESSAGE_TYPES.resumeCleanupPermissionHandoff
       ? 270_000
       : type === MESSAGE_TYPES.prepareCleanupReview
         ? 60_000

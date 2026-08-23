@@ -271,11 +271,30 @@ export async function findMediaEvidenceFindings({ media, root, runtimeArtifactSh
 
 export function findRemotePublicationFindings({ remote, version, privacyBytes }) {
   const findings = [];
+  const expectedCandidateBranch = `candidate/sitewipe-${version}`;
   if (remote?.approvedPublicCandidateVersion !== version) {
     findings.push('The remote approval does not name the exact current package version.');
   }
   if (remote?.publicCandidateSourcePushAuthorized !== true) {
     findings.push('The exact public-candidate source push is not authorized.');
+  }
+  if (
+    remote?.approvedPublicCandidateBranch !== expectedCandidateBranch ||
+    remote?.publicCandidatePullRequestAuthorized !== true
+  ) {
+    findings.push('The exact source-candidate branch and pull request are not authorized.');
+  }
+  if (
+    remote?.finalPublicationApproval !== true &&
+    (remote?.mergeToDefaultBranchAuthorized !== false ||
+      remote?.tagCreationAuthorized !== false ||
+      remote?.githubReleaseAuthorized !== false ||
+      remote?.browserStoreSubmissionAuthorized !== false ||
+      remote?.promotionalPublicationAuthorized !== false)
+  ) {
+    findings.push(
+      'The source-candidate authorization does not preserve the recorded no-merge, no-tag, no-release, no-store, and no-promotion boundary.'
+    );
   }
   if (!isNonEmptyString(remote?.hostedPrivacyPolicyUrl) || !isNonEmptyString(remote?.hostedPrivacyPolicyRawUrl)) {
     findings.push('Stable hosted and immutable raw privacy-policy URLs are required.');

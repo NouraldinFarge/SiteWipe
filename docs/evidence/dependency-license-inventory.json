@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "status": "technical_inventory_complete_owner_acknowledged",
-  "inventoriedAt": "2026-08-21",
-  "lastAuditAt": "2026-08-21",
-  "lockfileSha256": "D349AF7FAF226FA2546F3B182AF99E2D96A4A16B8F67E235385158A23F793D15",
+  "inventoriedAt": "2026-08-23",
+  "lastAuditAt": "2026-08-23",
+  "lockfileSha256": "A6C71B16E8232EFC1E44C26039B22DD3905B3455C565565BD117F58D37F3C628",
   "runtimeDependencyCount": 0,
   "lockedDevelopmentGraphCount": 406,
   "licenseCounts": {
@@ -75,12 +75,12 @@
     "path": "dist/sitewipe-development-sbom.cdx.json",
     "bomFormat": "CycloneDX",
     "specVersion": "1.6",
-    "componentVersion": "1.11.46",
+    "componentVersion": "1.11.63",
     "components": 329,
     "dependencyNodes": 388,
     "bytes": 807991,
-    "sha256": "9F997198896B585FAED8BC0C521C769F1E8A8A27EF6811630FF10DF95FD31C34",
-    "generatedAt": "2026-08-22T04:53:48.02Z"
+    "sha256": "42C7CB453AFCB15B4DAFB450C266911F60C1781B24DFAE67EFC0EA1E64865E4B",
+    "generatedAt": "2026-08-23T16:19:07.438Z"
   },
   "directDevelopmentDependencies": [
     {
@@ -168,9 +168,9 @@
     "Every direct dependency is pinned to an exact version in package.json and package-lock.json.",
     "Installation and CI use npm ci --ignore-scripts.",
     "scripts/check-dependency-licenses.mjs binds this inventory to the lockfile hash, exact license counts, metadata exceptions, installed license text, and install-script package inventory.",
-    "npm audit reported zero known vulnerabilities for the exact current lockfile on 2026-08-21.",
-    "The 55-file runtime allowlist contains no npm runtime dependency files.",
-    "The recorded CycloneDX 1.6 development-graph SBOM was regenerated for 1.11.46 with npm run sbom."
+    "npm audit reported zero known vulnerabilities at every severity for the exact 1.11.63 lockfile on 2026-08-23.",
+    "The 59-file runtime allowlist contains no npm runtime dependency files.",
+    "The CycloneDX 1.6 development-graph SBOM was regenerated and integrity-bound for 1.11.63."
   ],
   "limitations": [
     "Registry/package metadata and license text are evidence inputs, not a legal license conclusion.",
@@ -179,5 +179,5 @@
   ],
   "ownerApproval": true,
   "ownerApprovedAt": "2026-08-17",
-  "candidateVersion": "1.11.46"
+  "candidateVersion": "1.11.63"
 }

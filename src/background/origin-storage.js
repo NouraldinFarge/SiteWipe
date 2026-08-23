@@ -1,4 +1,9 @@
 import { assertSafeOriginScopedRemoval } from '../shared/safety.js';
+import {
+  EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION,
+  SELECTED_SITE_PARTITION_STORAGE_DISCLOSURE,
+  selectBrowserLevelStorageOrigins
+} from '../shared/storage-partition-policy.js';
 import { addError, addSection, addUnavailable, createAdapterOutcome } from './report.js';
 import {
   chunk,
@@ -17,9 +22,11 @@ const COOKIE_SWEEP_BATCH_TIMEOUT_MS = 15_000;
 const REPORT_SAMPLE_LIMIT = 50;
 
 export async function removeOriginScopedStorage(target, report, context, options = {}) {
-  const origins = Array.isArray(context?.origins) && context.origins.length ? context.origins : target.baseOrigins;
+  const reviewedOrigins =
+    Array.isArray(context?.origins) && context.origins.length ? context.origins : target.baseOrigins;
+  const originScope = selectBrowserLevelStorageOrigins(target, reviewedOrigins);
+  const origins = originScope.browserOrigins;
   const includeProtectedWebOrigins = options.includeProtectedWebOrigins === true;
-  const originBatches = chunk(origins, BROWSING_DATA_BATCH_SIZE);
   const originTypePlans = [
     {
       key: 'unprotectedWeb',
@@ -46,6 +53,48 @@ export async function removeOriginScopedStorage(target, report, context, options
   };
   const cleanupTypeLabels = Object.keys(cleanupTypes);
   const results = [];
+
+  report.summary.originStorageReviewedOrigins = originScope.reviewedOrigins.length;
+  report.summary.originStorageBrowserOrigins = origins.length;
+  report.summary.originStorageExactOriginsSkipped = originScope.skippedExactOrigins.length;
+
+  if (!origins.length) {
+    report.summary.storageCleanupAttempted = false;
+    report.summary.cacheCleanupAttempted = false;
+    report.summary.protectedWebCleanupAttempted = false;
+    report.summary.serviceWorkersCleared = false;
+    report.summary.originStorageTypesSucceeded = 0;
+    report.summary.originStorageTypesFailed = 0;
+    addSection(
+      report,
+      'originStorage',
+      'Browser-level storage and cache skipped to preserve exact-origin scope',
+      'partial',
+      {
+        reviewedOriginCount: originScope.reviewedOrigins.length,
+        browserOriginCount: 0,
+        skippedExactOriginCount: originScope.skippedExactOrigins.length,
+        skippedExactOrigins: sampleArray(originScope.skippedExactOrigins),
+        cleanupTypes: cleanupTypeLabels,
+        protectedWebIncluded: false,
+        results: [],
+        note: EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION
+      }
+    );
+    addUnavailable(
+      report,
+      'Closed-page storage and cache for exact-origin targets',
+      EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION
+    );
+    addUnavailable(
+      report,
+      'AppCache',
+      'Chrome does not expose reliable origin-scoped AppCache cleanup in all versions; broad time-based deletion was skipped for safety.'
+    );
+    return;
+  }
+
+  const originBatches = chunk(origins, BROWSING_DATA_BATCH_SIZE);
 
   report.summary.storageCleanupAttempted = true;
   report.summary.cacheCleanupAttempted = true;
@@ -150,21 +199,35 @@ export async function removeOriginScopedStorage(target, report, context, options
   addSection(
     report,
     'originStorage',
-    'Origin-scoped storage and cache removed',
-    failed.length ? 'partial' : 'success',
+    'Selected-site storage and cache removed',
+    failed.length || originScope.skippedExactOrigins.length ? 'partial' : 'success',
     {
       originCount: origins.length,
       origins: sampleArray(origins),
       originsTruncated: origins.length > REPORT_SAMPLE_LIMIT,
+      reviewedOriginCount: originScope.reviewedOrigins.length,
+      browserOriginCount: origins.length,
+      skippedExactOriginCount: originScope.skippedExactOrigins.length,
+      skippedExactOrigins: sampleArray(originScope.skippedExactOrigins),
       batches: originBatches.length,
       batchSize: BROWSING_DATA_BATCH_SIZE,
       cleanupTypes: cleanupTypeLabels,
       originTypePlans: originTypePlans.map((item) => item.key),
       protectedWebIncluded: includeProtectedWebOrigins,
       results,
+      partitionSemantics: SELECTED_SITE_PARTITION_STORAGE_DISCLOSURE,
+      exactOriginLimitation: originScope.skippedExactOrigins.length ? EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION : null,
       note: 'The engine prefers one combined browsingData.remove() call per origin batch. If a combined batch fails without timing out, it retries each allowed storage bucket independently so one unsupported bucket does not hide the others.'
     }
   );
+
+  if (originScope.skippedExactOrigins.length) {
+    addUnavailable(
+      report,
+      'Closed-page storage and cache for exact-origin targets',
+      EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION
+    );
+  }
 
   addUnavailable(
     report,

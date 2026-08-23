@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "recordType": "installed-candidate-failure",
+  "candidateVersion": "1.11.62",
+  "status": "failed",
+  "browser": {
+    "name": "Google Chrome",
+    "version": "151.0.7922.172",
+    "profileClass": "fresh-disposable-normal",
+    "incognito": false,
+    "windowBoundsPreserved": true
+  },
+  "platform": {
+    "name": "Windows 11 Pro",
+    "release": "24H2",
+    "build": "26100",
+    "architecture": "x64"
+  },
+  "runtimeArtifact": {
+    "fileName": "sitewipe-unreleased-candidate-1.11.62.zip",
+    "sha256": "32EE12A0EBD3D04D68D68D6B7902C0B0F095AED6E2721D6596E15D4829CDB24B",
+    "bytes": 325252,
+    "fileCount": 58
+  },
+  "sourceArtifact": {
+    "fileName": "sitewipe-unreleased-candidate-1.11.62-source.zip",
+    "sha256": "657688670308EC65657DD74066948064756E1C4AE0D3E4AC417A098A095B9240",
+    "bytes": 4777412,
+    "fileCount": 292
+  },
+  "scenario": {
+    "id": "chrome-normal-standard-selected-site-partition-semantics",
+    "target": "example.com",
+    "cleanupMode": "standard",
+    "deleteDownloadedFiles": false,
+    "reviewedPatterns": [
+      "http://example.com/*",
+      "https://example.com/*",
+      "http://*.example.com/*",
+      "https://*.example.com/*"
+    ],
+    "fixture": {
+      "version": "sitewipe-synthetic-v1",
+      "selectedTopLevelOrigin": "http://selected.example.com:43862",
+      "embeddedDataOrigin": "http://chips.localhost:43862",
+      "scale": "small",
+      "seededBeforeReview": true,
+      "postCleanupProbeWasReadOnly": true
+    },
+    "authorization": {
+      "approvalMode": "detailed_review",
+      "preflightBound": true,
+      "singleUse": true,
+      "hostPermissionsGranted": true,
+      "hostPermissionsReleased": true,
+      "temporaryPatternsRemaining": 0,
+      "priorExactFourPatternNativeApprovalInSameDisposableProfile": true,
+      "nativePromptVisibleDuringRecordedReproduction": false
+    }
+  },
+  "timeline": {
+    "cleanupStartedAt": "2026-08-23T14:58:21.185Z",
+    "cleanupFinishedAt": "2026-08-23T14:58:21.811Z",
+    "failureScreenshotCapturedAt": "2026-08-23T15:05:52.7157044Z"
+  },
+  "beforeCleanup": {
+    "selectedTopLevelOrigin": {
+      "localStorageKeys": 8,
+      "sessionStorageKeys": 8,
+      "indexedDbDatabases": 1,
+      "cookieNames": [
+        "sitewipe_fixture"
+      ]
+    },
+    "embeddedDataOrigin": {
+      "localStorageKeys": 8,
+      "sessionStorageKeys": 8,
+      "indexedDbDatabases": 1,
+      "cookieNames": [
+        "sitewipe_partitioned"
+      ]
+    }
+  },
+  "afterCleanupReadOnlyProbe": {
+    "selectedTopLevelOrigin": {
+      "localStorageKeys": 0,
+      "sessionStorageKeys": 0,
+      "indexedDbDatabases": 0,
+      "matchingCaches": 0,
+      "matchingServiceWorkers": 0,
+      "cookieNames": []
+    },
+    "embeddedDataOrigin": {
+      "localStorageKeys": 0,
+      "sessionStorageKeys": 0,
+      "indexedDbDatabases": 0,
+      "matchingCaches": 0,
+      "matchingServiceWorkers": 0,
+      "cookieNames": [
+        "sitewipe_partitioned"
+      ]
+    }
+  },
+  "noCleanupControl": {
+    "procedure": "Reseed the same embedded partition and navigate to the read-only probe without running SiteWipe.",
+    "embeddedPersistentStateAfterNavigation": {
+      "localStorageKeys": 8,
+      "indexedDbDatabases": 1
+    },
+    "embeddedSessionStateAfterNavigation": {
+      "sessionStorageKeys": 8
+    },
+    "conclusion": "The cleanup, not the read-only probe or navigation, caused the recorded zero state."
+  },
+  "cleanupReport": {
+    "status": "completed",
+    "totalDurationMs": 626,
+    "browserOperationQueries": 62,
+    "browserRecordsObserved": 18,
+    "targetTabsClosed": 1,
+    "pageScriptFramesMatched": 1,
+    "pageScriptLocalStorageKeysCleared": 9,
+    "pageScriptSessionStorageKeysCleared": 9,
+    "pageScriptIndexedDbDatabasesDeleted": 1,
+    "browserOriginStorageBatchesSucceeded": 1,
+    "cookiesRemoved": 1,
+    "downloadedFilesRemoved": 0,
+    "downloadedFileDeletionEnabled": false,
+    "temporaryDnrRulesRemaining": 0,
+    "errors": 0
+  },
+  "diagnosis": {
+    "classification": "release-blocking-scope-and-consent-mismatch",
+    "severity": "critical-for-exact-origin-targets",
+    "summary": "Chrome treats an extension origin-list browsing-data request as selected-top-level-site cleanup for partitioned storage. The current review does not disclose that third-party LocalStorage, IndexedDB, Cache Storage, file-system data, service workers, and related data partitioned beneath the selected site can be removed. Chrome's schemeful-site partition key also ignores ports, so this browser-level operation cannot preserve SiteWipe's reviewed exact-origin port boundary for localhost and IP targets.",
+    "whyTheCookieRemained": "Chrome handles cookies through a separate host-based path. The out-of-domain chips.localhost partitioned cookie remained outside the reviewed example.com cookie scope.",
+    "whySessionStorageIsSupportingOnly": "Closing the matching top-level tab also destroys its browsing context. The persistent LocalStorage and IndexedDB results are the decisive browser-semantic evidence.",
+    "productionLocation": "src/background/origin-storage.js#removeOriginScopedStorage",
+    "releaseBlocker": true
+  },
+  "authoritativeSources": [
+    "https://chromium.googlesource.com/chromium/src/+/refs/tags/151.0.7922.172/chrome/browser/extensions/api/browsing_data/browsing_data_api.cc",
+    "https://chromium.googlesource.com/chromium/src/+/refs/tags/151.0.7922.172/content/public/browser/browsing_data_filter_builder.h",
+    "https://chromium.googlesource.com/chromium/src/+/refs/tags/151.0.7922.172/content/browser/browsing_data/browsing_data_filter_builder_impl.cc",
+    "https://chromium.googlesource.com/chromium/src/+/refs/tags/151.0.7922.172/third_party/blink/public/common/storage_key/storage_key.h",
+    "https://chromium.googlesource.com/chromium/src/+/refs/tags/151.0.7922.172/third_party/blink/common/storage_key/storage_key.cc",
+    "https://chromium.googlesource.com/chromium/src/+/refs/tags/151.0.7922.172/content/browser/storage_partition_impl.cc",
+    "https://chromium.googlesource.com/chromium/src/+/refs/tags/151.0.7922.172/net/base/schemeful_site.h",
+    "https://developer.chrome.com/docs/extensions/develop/concepts/storage-and-cookies#partitioning"
+  ],
+  "requiredCorrection": {
+    "registrableDomainTargets": "Disclose the browser's selected-top-level-site partition semantics before approval and in the cleanup report.",
+    "exactOriginTargets": "Do not invoke browser-level origin storage or cache deletion when doing so cannot preserve the reviewed scheme, host, and port boundary. Retain exact live-page cleanup and report closed-page browser storage as unavailable or partial.",
+    "evidence": "Build a forward version and repeat the exact installed Chrome and Brave matrices; do not relabel this artifact as passing."
+  },
+  "retainedEvidence": [
+    {
+      "path": "docs/evidence/browser/sitewipe-1.11.62-chrome-target-partition-scope-failure.png",
+      "mediaType": "image/png",
+      "bytes": 82629,
+      "sha256": "676E018F5D6B923CFEC0AA459167BC49D30693DA6A7977DC3716A1B93CE9439A",
+      "containsExtensionId": false,
+      "containsLocalProfilePath": false
+    }
+  ],
+  "privacy": {
+    "personalBraveWindowTouched": false,
+    "personalBrowserPageContentRead": false,
+    "personalBrowserContentModified": false,
+    "downloadedFileDeletionEnabled": false,
+    "downloadedFileDeletionApiAttemptObserved": false,
+    "rawTokensOrCapabilitiesRetained": false,
+    "extensionIdRetained": false,
+    "localProfilePathRetained": false
+  }
+}

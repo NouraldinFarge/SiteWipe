@@ -41,7 +41,7 @@ if (partitionMode && location.hostname !== 'chips.localhost') {
   section.hidden = false;
   document.querySelector('#partitionInstructions').textContent =
     partitionMode === 'probe'
-      ? 'Read-only preservation probe: the embedded frame snapshots existing state without seeding it.'
+      ? 'Read-only partition observation probe: the embedded frame snapshots existing state without seeding it.'
       : 'Seed setup: the embedded frame automatically creates disposable partitioned fixture state.';
   document.querySelector('#partitionFrame').src = partitionFrameUrl({
     mode: partitionMode,

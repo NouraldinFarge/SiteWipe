@@ -2,6 +2,10 @@ import { APP, MESSAGE_TYPES, STORAGE_KEYS } from '../shared/constants.js';
 import { sendMessage, formatError, onceDomReady, onStorageChange } from '../shared/messaging.js';
 import { isExpertCleanupMode } from '../shared/cleanup-mode.js';
 import {
+  EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION,
+  SELECTED_SITE_PARTITION_STORAGE_DISCLOSURE
+} from '../shared/storage-partition-policy.js';
+import {
   assertSettingsBackupFileSize,
   buildSettingsImportCandidate,
   buildSettingsImportConfirmation,
@@ -1019,7 +1023,7 @@ function confirmSensitiveReportStorage() {
 
 function confirmSkipCleanupReview() {
   return globalThis.confirm(
-    'Skip the detailed cleanup review completely for future cleanups? This applies in Standard and Expert mode. One popup cleanup action can immediately begin all currently enabled cleanup effects. Expert options can delete matched downloaded files or affect broader site data, and private-window data can be included when incognito access is enabled. Chrome or Brave may still require its own permission prompt. Choose Cancel to keep detailed review enabled.'
+    `Skip the detailed cleanup review completely for future cleanups? This applies in Standard and Expert mode. One popup cleanup action can immediately begin all currently enabled cleanup effects. ${SELECTED_SITE_PARTITION_STORAGE_DISCLOSURE} ${EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION} Expert options can delete matched downloaded files or affect broader site data, and private-window data can be included when incognito access is enabled. Chrome or Brave may still require its own permission prompt. Choose Cancel to keep detailed review enabled.`
   );
 }
 

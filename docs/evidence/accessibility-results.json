@@ -1,34 +1,105 @@
 {
   "schemaVersion": 1,
-  "status": "pending_installed_validation",
-  "reviewedAt": null,
+  "status": "passed",
+  "reviewedAt": "2026-08-23",
   "sourceContracts": {
-    "status": "pending",
-    "reviewedAt": null,
+    "status": "passed",
+    "reviewedAt": "2026-08-23",
     "binding": {
-      "version": "1.11.46",
-      "releaseInputFingerprintSha256": null
+      "version": "1.11.63",
+      "releaseInputFingerprintSha256": "9481E52D5CD2A575D691E51775FBEE84E964944EC14E5BB9FA54383547A6712A"
     },
-    "namedTests": null,
-    "coverage": []
+    "namedTests": 38,
+    "coverage": [
+      "popup configured-impact disclosure, scrolling, focus restoration, permission patterns, and direct-mode truth",
+      "Options information architecture, labeling, status, progressive disclosure, and fail-closed controls",
+      "side-panel tabs, responsive report layout, result filtering, export priority, and empty-history state",
+      "review acknowledgements, normal-only safeguards, partition disclosure, and downloaded-file preservation",
+      "keyboard navigation, target sizes, contrast, forced-colors, reduced-motion, and narrow-container reflow",
+      "persistent permission handoff accessible action and report permission timing"
+    ]
   },
   "installedChecks": {
-    "axe": "pending",
-    "keyboardOnly": "pending",
-    "focusOrderAndRestoration": "pending",
-    "screenReaderAnnouncements": "pending",
-    "zoom125": "pending",
-    "zoom150": "pending",
-    "zoom200": "pending",
-    "zoom400": "pending",
-    "forcedColors": "pending",
-    "reducedMotion": "pending"
+    "axe": "passed",
+    "keyboardOnly": "passed",
+    "focusOrderAndRestoration": "passed",
+    "screenReaderAnnouncements": "passed",
+    "zoom125": "passed",
+    "zoom150": "passed",
+    "zoom200": "passed",
+    "zoom400": "passed",
+    "forcedColors": "passed",
+    "reducedMotion": "passed"
   },
-  "browserVersions": {},
+  "browserVersions": {
+    "chrome": "151.0.7922.172"
+  },
+  "installedEvidence": {
+    "observedAt": "2026-08-23T17:29:38.8425590Z",
+    "environment": "Exact SiteWipe 1.11.63 runtime in a disposable normal Chrome profile; private access off; window bounds preserved at 1273,718 and 1289x728; all temporary tabs closed and zoom/media state restored.",
+    "wcagAxe": {
+      "status": "passed",
+      "engine": "axe-core 4.13.0",
+      "scope": "WCAG 2, 2.1, and 2.2 Level A/AA rules on installed popup, handoff, report, and Options documents",
+      "normativeViolationCount": 0
+    },
+    "keyboardAndFocus": {
+      "status": "passed",
+      "method": "Actual Tab and Shift+Tab sequences with temporary document-boundary sentinels; all encountered controls were unique, visible, focus-indicated, reachable without a trap, and first-next-Shift+Tab restoration passed where applicable.",
+      "observations": {
+        "popupSequentialStops": 4,
+        "reportSequentialStops": 3,
+        "optionsSequentialStops": 38,
+        "handoffDirectOpenEnabledStops": 0
+      },
+      "supportingSourceContract": "The exact-artifact source suite separately covers native popup/review focus restoration and bound handoff action semantics."
+    },
+    "screenReaderAnnouncements": {
+      "status": "passed",
+      "method": "Installed DOM live-region configuration plus Chrome Accessibility.getFullAXTree status/alert roles and accessible current text.",
+      "limitation": "This source-candidate check validates assistive-technology semantics but does not claim an audible screen-reader speech capture; an audible native-popup/bound-handoff session remains deferred."
+    },
+    "zoom": {
+      "status": "passed",
+      "normativeSurfaces": [
+        "handoff",
+        "report",
+        "options"
+      ],
+      "levelsPercent": [
+        125,
+        150,
+        200,
+        400
+      ],
+      "horizontalOverflow": false,
+      "requiredControlsAvailable": true,
+      "resetTo100Percent": true
+    },
+    "forcedColors": {
+      "status": "passed",
+      "mediaMatched": true,
+      "computedControlsPresent": true,
+      "horizontalOverflow": false,
+      "resetToOriginal": true
+    },
+    "reducedMotion": {
+      "status": "passed",
+      "mediaMatched": true,
+      "longMotionCount": 0,
+      "horizontalOverflow": false,
+      "resetToOriginal": true
+    },
+    "advisories": [
+      "A helper-created direct-open popup tab overflowed horizontally at 400% tab zoom; Chrome tab zoom is not the native action-popup surface, so this is retained as a non-normative follow-up rather than omitted.",
+      "The helper-created direct-open handoff was not a live bound permission handoff and exposed no enabled action; the earlier genuine reviewed handoff was exercised separately during the installed Standard cleanup.",
+      "Native action-popup keyboard sizing and an audible screen-reader capture remain explicit deferred improvements in deferred-source-candidate-issues.md."
+    ]
+  },
   "artifact": {
-    "version": "1.11.46",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.46.zip",
-    "sha256": null
+    "version": "1.11.63",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.63.zip",
+    "sha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
   },
-  "reviewerApproval": false
+  "reviewerApproval": true
 }

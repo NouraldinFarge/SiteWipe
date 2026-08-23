@@ -133,11 +133,12 @@
             <strong id="normalizedDomain" class="mono"></strong>
           </div>
           <div id="directCleanupNotice" class="direct-cleanup-notice" role="status" hidden>
-            <span class="direct-cleanup-icon" aria-hidden="true">1</span>
+            <span class="direct-cleanup-icon" aria-hidden="true">D</span>
             <span>
-              <strong>One-click cleanup is on.</strong>
+              <strong>Direct cleanup is on.</strong>
               <span id="directCleanupMode"
-                >Clean now uses your current settings. A browser site-access prompt may still appear.</span
+                >Clean now uses your current settings. Missing browser access requires a separate grant
+                activation.</span
               >
             </span>
           </div>
@@ -253,7 +254,7 @@
           <ul id="reviewWarnings" class="review-list"></ul>
         </div>
 
-        <fieldset class="review-acknowledgements">
+        <fieldset id="reviewAcknowledgements" class="review-acknowledgements">
           <legend>Required acknowledgements</legend>
           <label class="check-row"
             ><input id="reviewScopeAcknowledge" type="checkbox" required aria-required="true" /><span
@@ -283,12 +284,23 @@
           </div>
         </fieldset>
 
-        <div id="reviewHostPermission" class="review-host-permission" hidden>
-          <strong>Target-specific site access will be requested on final approval</strong>
+        <div id="reviewApprovalCommitted" class="review-host-permission" role="status" hidden>
+          <strong>Reviewed cleanup approval saved</strong>
           <p>
-            Chrome will request only the reviewed target patterns when you activate the final approval button. Access
-            newly granted for this review is durably tracked until Chrome/Brave proves it has been released. Access that
-            existed before the review is preserved.
+            No cleanup has started. Keep this popup open and activate Grant reviewed access and run before this review
+            expires; Chrome will then request only the target patterns shown above.
+          </p>
+        </div>
+
+        <div id="reviewHostPermission" class="review-host-permission" hidden>
+          <strong id="reviewHostPermissionTitle"
+            >Approval is saved before target-specific site access is requested</strong
+          >
+          <p id="reviewHostPermissionDetail">
+            First activate Approve reviewed cleanup so the worker can durably bind this exact approval. SiteWipe will
+            then expose a separate Grant reviewed access and run action. Chrome will request only the reviewed target
+            patterns, and access newly granted for this review is tracked until Chrome/Brave proves it has been
+            released. Access that existed before the review is preserved.
           </p>
         </div>
 
@@ -297,7 +309,7 @@
         <div class="review-actions">
           <button id="cancelCleanupReview" class="btn secondary" type="button">Cancel — keep data</button>
           <button id="approveCleanup" class="btn primary" type="button" aria-describedby="reviewApprovalError" disabled>
-            Approve, grant access, and run
+            Approve reviewed cleanup
           </button>
         </div>
       </section>

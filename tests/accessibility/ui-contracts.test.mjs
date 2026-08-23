@@ -210,12 +210,33 @@ test('popup invalidates detailed and direct preparation when stored settings cha
   assert.match(handler, /reviewInvalidatedBySettings = true/);
   assert.match(handler, /discardCleanupReview\(\{ announce: false, focus: false \}\)/);
   assert.match(handler, /announceSettingsChangedReview\(\)/);
-  assert.match(handler, /discardDirectCleanupPreparation\(\{ settleLease: !permissionPromptInFlight \}\)/);
+  assert.match(handler, /await discardDirectCleanupPreparation\(\)/);
   assert.match(handler, /prepareDirectCleanup\(qs\('#targetInput'\)\.value\.trim\(\)\)/);
   assert.match(script, /\(direct \? directCleanupReview : cleanupReview\) !== review/);
   assert.match(script, /Settings changed\. No cleanup started\. Review the current scope again before approving\./);
-  assert.match(script, /handedOffPromptIsWorkerOwned/);
+  assert.match(script, /MESSAGE_TYPES\.openCleanupPermissionHandoff/);
   assert.match(script, /announceSettingsChangedReview\(\)/);
+});
+
+test('persistent permission handoff exposes an accessible exact-review action without resizing the browser', async () => {
+  const [html, script, css] = await Promise.all([
+    source('handoff/handoff.html'),
+    source('handoff/handoff.js'),
+    source('handoff/handoff.css')
+  ]);
+  assert.match(html, /<html lang="en">/);
+  assert.match(html, /<title>SiteWipe reviewed access<\/title>/);
+  assert.match(html, /<main[^>]+aria-labelledby="handoffTitle"/);
+  assert.match(html, /<h1 id="handoffTitle">/);
+  assert.equal((html.match(/<section[^>]+aria-labelledby=/g) || []).length, 2);
+  assert.match(html, /id="status"[^>]+role="status"[^>]+aria-live="polite"/);
+  assert.match(html, /id="error"[^>]+role="alert"/);
+  assert.match(html, /<button id="grantAccess"[^>]*>Grant reviewed access and run<\/button>/);
+  assert.match(script, /#grantAccess'\)\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(css, /button \{[\s\S]*?min-height: 3\.25rem;/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(css, /@media \(forced-colors: active\)/);
+  assert.doesNotMatch(`${script}\n${css}`, /(?:window|chrome\.windows)\.(?:resize|maximize|update)/i);
 });
 
 test('motion, forced-colors, target size, and primary CTA contrast contracts pass', async () => {
@@ -267,8 +288,14 @@ test('cleanup review defaults on and the explicit direct-cleanup option is discl
   assert.match(optionsHtml, /id="skipCleanupReview"[^>]+type="checkbox"/);
   assert.match(optionsHtml, /Skip detailed cleanup review completely/);
   assert.match(optionsHtml, /Standard[\s\S]*Expert mode/);
-  assert.match(optionsHtml, /permission prompts may still appear/i);
-  assert.match(optionsHtml, /incognito data can be affected/i);
+  assert.match(optionsHtml, /one activation durably[\s\S]*second fresh activation/i);
+  assert.match(optionsHtml, /browser permission prompt/i);
+  assert.match(optionsHtml, /incognito data[\s\S]*can be affected/i);
+  assert.match(optionsHtml, /selected-top-level-site cleanup/i);
+  assert.match(optionsHtml, /embedded third-party[\s\S]*IndexedDB/i);
+  assert.match(optionsHtml, /exact-origin-only targets/i);
+  assert.match(optionsScript, /SELECTED_SITE_PARTITION_STORAGE_DISCLOSURE/);
+  assert.match(optionsScript, /EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION/);
   assert.match(optionsScript, /setChecked\('skipCleanupReview', settings\.skipCleanupReview\)/);
   assert.match(optionsScript, /skipCleanupReview: isChecked\('skipCleanupReview'\)/);
   assert.match(optionsScript, /function confirmSkipCleanupReview\(\)/);
@@ -284,8 +311,13 @@ test('cleanup review defaults on and the explicit direct-cleanup option is discl
   assert.match(popupHtml, /Protected categories/);
   assert.match(popupHtml, /Chrome\/Brave cannot safely remove/);
   assert.match(popupHtml, /Required acknowledgements/);
-  assert.match(popupHtml, /Approve, grant access, and run/);
+  assert.match(popupHtml, /Approve reviewed cleanup/);
+  assert.match(popupHtml, /Grant reviewed access and run/);
+  assert.match(popupHtml, /Keep this popup open/);
+  assert.match(popupScript, /Grant access and clean/);
   assert.match(popupScript, /approvalMode: 'detailed_review'/);
+  assert.match(popupScript, /Browser-level storage\/cache/);
+  assert.match(popupScript, /embedded third-party partitions under the selected site may also be deleted/i);
 });
 
 test('popup and side-panel report surfaces label settings-direct authorization truthfully', async () => {

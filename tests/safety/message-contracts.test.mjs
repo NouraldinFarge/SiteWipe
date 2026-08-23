@@ -127,6 +127,10 @@ test('every popup authority continuation requires an opaque context id and a 256
       payload: { handoffNonce: 'b'.repeat(48), ...binding }
     },
     {
+      type: MESSAGE_TYPES.beginCleanupPermissionPrompt,
+      payload: { handoffNonce: 'b'.repeat(48), ...binding }
+    },
+    {
       type: MESSAGE_TYPES.runDeepClean,
       payload: {
         approvalToken: 'a'.repeat(48),

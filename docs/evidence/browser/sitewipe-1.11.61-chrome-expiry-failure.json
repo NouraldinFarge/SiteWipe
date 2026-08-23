@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "recordType": "installed-candidate-failure",
+  "candidateVersion": "1.11.61",
+  "status": "failed",
+  "browser": {
+    "name": "Google Chrome",
+    "version": "151.0.7922.172",
+    "profileClass": "disposable-normal",
+    "incognito": false
+  },
+  "platform": {
+    "name": "Windows 11 Pro",
+    "release": "24H2",
+    "build": "26100.7628",
+    "architecture": "x64"
+  },
+  "runtimeArtifact": {
+    "fileName": "sitewipe-unreleased-candidate-1.11.61.zip",
+    "sha256": "4B00E796CE83C115AC027B00B206090719223C83AC67D058B9D84FE520B615E4",
+    "bytes": 323717,
+    "fileCount": 58
+  },
+  "sourceArtifact": {
+    "fileName": "sitewipe-unreleased-candidate-1.11.61-source.zip",
+    "sha256": "5B120FC9F1B86B820DE54FA23414BEFCFE025BE81A7F0C67CBBF2DB4D6F9DB05",
+    "bytes": 4564896
+  },
+  "scenario": {
+    "id": "chrome-normal-standard-missing-access-review-expiry",
+    "target": "example.com",
+    "cleanupMode": "standard",
+    "deleteDownloadedFiles": false,
+    "reviewedPatterns": [
+      "http://example.com/*",
+      "https://example.com/*",
+      "http://*.example.com/*",
+      "https://*.example.com/*"
+    ],
+    "fixture": {
+      "version": "sitewipe-synthetic-v1",
+      "origin": "http://selected.example.com:43861",
+      "scale": "small",
+      "seededBeforeReview": true,
+      "postFailureSnapshot": {
+        "localStorageKeys": 8,
+        "sessionStorageKeys": 8,
+        "indexedDbDatabases": 1,
+        "matchingCaches": 0,
+        "matchingServiceWorkers": 0,
+        "cookieNames": [
+          "sitewipe_fixture"
+        ]
+      }
+    }
+  },
+  "timeline": {
+    "handoffCapabilityUsedAt": "2026-08-23T12:47:28.458Z",
+    "reviewExpiredAt": "2026-08-23T12:51:41.634Z",
+    "expiryMaintenanceCompletedAt": "2026-08-23T12:51:41.770Z",
+    "failureScreenshotCapturedAt": "2026-08-23T13:07:11.7388294Z"
+  },
+  "expected": {
+    "whileNativePromptRemainsOpenPastReviewExpiry": "Revoke cleanup authority but retain a non-runnable prompt-settlement tombstone until the exact native outcome is known or the browser session ends.",
+    "afterLateGrant": "Do not run expired cleanup authority; reconcile only the four newly granted temporary patterns and report a conclusive canceled outcome.",
+    "downloadedFiles": "Download deletion remains disabled; this failed run admitted no cleanup job and made no observed downloaded-file deletion API attempt."
+  },
+  "observed": {
+    "cleanupReportCreated": false,
+    "activeJobCreated": false,
+    "fixtureCleaned": false,
+    "permissionHandoffStatus": "used",
+    "cleanupReviewPresent": false,
+    "permissionLeasePresent": false,
+    "temporaryPatternsStillGranted": true,
+    "dnrSessionRuleCount": 0,
+    "downloadedFileDeletionApiAttemptObserved": false,
+    "downloadedFileFilesystemIntegrityMeasured": false,
+    "handoffStatusText": "SiteWipe could not confirm the cleanup outcome. Do not repeat the cleanup; reopen this tab or SiteWipe to inspect the active job.",
+    "handoffErrorText": "The target-access handoff changed before this document could continue. The worker may still be completing or reconciling this exact cleanup."
+  },
+  "diagnosis": {
+    "classification": "release-blocking-installed-race",
+    "summary": "Ordinary in-session expiry maintenance converted the invoked prompt to a tombstone and then discarded that tombstone in the same maintenance pass while Chrome's native permission prompt was still open. A later Allow therefore granted exact access after SiteWipe had erased the review and lease needed for reconciliation.",
+    "productionLocations": [
+      "src/background/cleanup-preflight.js#clearExpiredCleanupReview",
+      "src/background/service-worker.js#runMaintenanceCycle",
+      "src/background/service-worker.js#settleOwnedCleanupPromptTombstone",
+      "src/background/service-worker.js#reconcileLateCleanupPermissionGrant"
+    ]
+  },
+  "retainedEvidence": [
+    {
+      "path": "docs/evidence/browser/sitewipe-1.11.61-chrome-expiry-failure.png",
+      "mediaType": "image/png",
+      "bytes": 95554,
+      "sha256": "0A6261CFE333C69890CA329016CD3C6E40961688AB96B1D8592473CE0498C15C",
+      "containsExtensionId": false,
+      "containsLocalProfilePath": false
+    }
+  ],
+  "privacy": {
+    "personalBrowserWindowMetadataEnumerated": true,
+    "personalBrowserPageContentRead": false,
+    "personalBrowserContentModified": false,
+    "downloadedFileDeletionApiAttemptObserved": false,
+    "downloadedFileFilesystemIntegrityMeasured": false,
+    "rawTokensOrCapabilitiesRetained": false,
+    "extensionIdRetained": false,
+    "localProfilePathRetained": false
+  }
+}

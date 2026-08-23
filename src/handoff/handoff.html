@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SiteWipe reviewed access</title>
+    <link rel="stylesheet" href="handoff.css" />
+  </head>
+  <body>
+    <main class="handoff-shell" aria-labelledby="handoffTitle">
+      <header>
+        <span class="eyebrow">SiteWipe · reviewed cleanup</span>
+        <h1 id="handoffTitle">Grant the reviewed site access</h1>
+        <p id="handoffIntro">
+          This persistent SiteWipe tab keeps the exact reviewed handoff alive while Chrome or Brave shows its native
+          permission prompt.
+        </p>
+      </header>
+
+      <section class="handoff-card" aria-labelledby="targetTitle">
+        <h2 id="targetTitle">Cleanup target</h2>
+        <strong id="targetName">Loading…</strong>
+        <p>Only these preflight-bound patterns will be requested:</p>
+        <ul id="originList" class="origin-list"></ul>
+      </section>
+
+      <section class="handoff-card safety" aria-labelledby="safetyTitle">
+        <h2 id="safetyTitle">Before you continue</h2>
+        <p>
+          No cleanup has started. Newly granted access is temporary and will be released after this one cleanup. Access
+          that existed before the review is preserved. Downloaded files follow the reviewed cleanup settings.
+        </p>
+      </section>
+
+      <div id="status" class="status" role="status" aria-live="polite">Binding this exact handoff document…</div>
+      <p id="error" class="error" role="alert" hidden></p>
+      <button id="grantAccess" type="button" disabled>Grant reviewed access and run</button>
+    </main>
+    <script type="module" src="handoff.js"></script>
+  </body>
+</html>

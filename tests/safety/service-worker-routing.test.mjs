@@ -2,7 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { createChromeActionPopupContext, createChromeMock, dispatchRuntimeMessage } from '../helpers/chrome-mock.mjs';
+import {
+  createChromeActionPopupContext,
+  createChromeMock,
+  createEvent,
+  dispatchRuntimeMessage
+} from '../helpers/chrome-mock.mjs';
 import { DEFAULT_SETTINGS, MESSAGE_TYPES, STORAGE_KEYS } from '../../src/shared/constants.js';
 import {
   CLEANUP_REVIEW_STORAGE_KEY,
@@ -14,11 +19,153 @@ const PLACEHOLDER_POPUP_BINDING = Object.freeze({
   popupContextId: 'placeholder-popup-context',
   popupPreparationCapability: 'f'.repeat(64)
 });
+const PERMISSION_HANDOFF_STORAGE_KEY = 'sitewipe.cleanupPermissionHandoff.v1';
+let nextPermissionHandoffTabId = 40_000;
+let nextPermissionHandoffContextId = 1;
 
 function popupPreparationBinding(prepared) {
   return {
     popupContextId: prepared.popupContextId,
     popupPreparationCapability: prepared.popupPreparationCapability
+  };
+}
+
+function installPersistentPermissionHandoffTabSupport(chrome) {
+  chrome.tabs.onRemoved ||= createEvent();
+  chrome.tabs.create ||= async (properties) => {
+    while (chrome.__state.tabs.has(nextPermissionHandoffTabId)) nextPermissionHandoffTabId += 1;
+    const tab = {
+      id: nextPermissionHandoffTabId,
+      windowId: properties.windowId,
+      active: properties.active === true,
+      incognito: false,
+      url: properties.url
+    };
+    nextPermissionHandoffTabId += 1;
+    chrome.__calls.push({ api: 'tabs.create', args: [structuredClone(properties)] });
+    chrome.__state.tabs.set(tab.id, structuredClone(tab));
+    return structuredClone(tab);
+  };
+}
+
+async function openAndClaimPersistentPermissionHandoff(chrome, prepared, popupSender, options = {}) {
+  installPersistentPermissionHandoffTabSupport(chrome);
+  const opened = await dispatchRuntimeMessage(
+    chrome,
+    {
+      type: MESSAGE_TYPES.openCleanupPermissionHandoff,
+      payload: {
+        approvalToken: prepared.review.approvalToken,
+        handoffNonce: prepared.review.approvalHandoffNonce,
+        ...popupPreparationBinding(prepared)
+      }
+    },
+    popupSender
+  );
+  assert.equal(opened.ok, true, opened.error);
+  assert.equal(opened.handoffOpened, true);
+
+  const tab = chrome.__state.tabs.get(opened.tabId);
+  assert.ok(tab, 'the worker-created permission handoff tab must exist');
+  const handoffUrl = chrome.runtime.getURL('handoff/handoff.html');
+  const contextId = options.contextId || `routing-permission-handoff-context-${nextPermissionHandoffContextId++}`;
+  const documentId = options.omitDocumentId ? null : options.documentId || `${contextId}-document`;
+  chrome.__state.runtimeContexts.push({
+    contextId,
+    contextType: 'TAB',
+    ...(documentId ? { documentId } : {}),
+    ...(options.omitDocumentOrigin ? {} : { documentOrigin: chrome.runtime.getURL('').replace(/\/$/, '') }),
+    documentUrl: handoffUrl,
+    frameId: 0,
+    tabId: tab.id,
+    windowId: tab.windowId,
+    incognito: false
+  });
+  const handoffSender = {
+    id: chrome.runtime.id,
+    url: handoffUrl,
+    documentUrl: handoffUrl,
+    origin: chrome.runtime.getURL('').replace(/\/$/, ''),
+    ...(documentId ? { documentId } : {}),
+    frameId: 0,
+    tab: {
+      id: tab.id,
+      windowId: tab.windowId,
+      incognito: false,
+      url: handoffUrl
+    }
+  };
+  const claimed = await dispatchRuntimeMessage(
+    chrome,
+    { type: MESSAGE_TYPES.claimCleanupPermissionHandoff, payload: {} },
+    handoffSender
+  );
+  assert.equal(claimed.ok, true, claimed.error);
+  assert.equal(claimed.handoffClaimed, true);
+  return {
+    opened,
+    claimed,
+    sender: handoffSender,
+    authority: {
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      handoffCapability: claimed.handoffCapability
+    }
+  };
+}
+
+async function installRetainedPersistentPermissionHandoff(chrome, handoffNonce, options = {}) {
+  installPersistentPermissionHandoffTabSupport(chrome);
+  while (chrome.__state.tabs.has(nextPermissionHandoffTabId)) nextPermissionHandoffTabId += 1;
+  const tabId = nextPermissionHandoffTabId++;
+  const windowId = options.windowId || 1;
+  const contextId = options.contextId || `retained-permission-handoff-context-${nextPermissionHandoffContextId++}`;
+  const documentId = options.documentId || `${contextId}-document`;
+  const handoffCapability = options.handoffCapability || 'e'.repeat(64);
+  const handoffUrl = chrome.runtime.getURL('handoff/handoff.html');
+  chrome.__state.tabs.set(tabId, {
+    id: tabId,
+    windowId,
+    active: true,
+    incognito: false,
+    url: handoffUrl
+  });
+  chrome.__state.runtimeContexts.push({
+    contextId,
+    contextType: 'TAB',
+    documentId,
+    documentOrigin: chrome.runtime.getURL('').replace(/\/$/, ''),
+    documentUrl: handoffUrl,
+    frameId: 0,
+    tabId,
+    windowId,
+    incognito: false
+  });
+  chrome.__state.session[PERMISSION_HANDOFF_STORAGE_KEY] = {
+    schemaVersion: 1,
+    status: 'used',
+    handoffNonce,
+    approvalToken: options.approvalToken || 'a'.repeat(48),
+    permissionLeaseId: options.permissionLeaseId || 'retained-permission-handoff-lease',
+    tabId,
+    windowId,
+    documentId,
+    contextId,
+    capabilityDigest: await digestCleanupPopupPreparationCapability(handoffCapability),
+    capabilityUsedAtMs: Date.now(),
+    openedAtMs: Date.now(),
+    expiresAtMs: Date.now() + 5 * 60_000
+  };
+  return {
+    authority: { handoffNonce, handoffCapability },
+    sender: {
+      id: chrome.runtime.id,
+      url: handoffUrl,
+      documentUrl: handoffUrl,
+      documentId,
+      origin: chrome.runtime.getURL('').replace(/\/$/, ''),
+      frameId: 0,
+      tab: { id: tabId, windowId, incognito: false, url: handoffUrl }
+    }
   };
 }
 
@@ -419,7 +566,8 @@ test('service-worker-load recovery reserves cleanup startup and cannot overwrite
         updatedAt: now,
         stabilityDefaultsAppliedAt: now,
         performanceDefaultsAppliedAt: now,
-        privacyDefaultsAppliedAt: now
+        privacyDefaultsAppliedAt: now,
+        storagePartitionDisclosureAppliedAt: now
       },
       [STORAGE_KEYS.activeJob]: staleJob
     }
@@ -483,7 +631,8 @@ test('an unresolved durable DNR install remains blocked until a browser-session 
         updatedAt: now,
         stabilityDefaultsAppliedAt: now,
         performanceDefaultsAppliedAt: now,
-        privacyDefaultsAppliedAt: now
+        privacyDefaultsAppliedAt: now,
+        storagePartitionDisclosureAppliedAt: now
       },
       [STORAGE_KEYS.activeShield]: {
         domain: 'pending.example',
@@ -760,7 +909,12 @@ test('settings, shield, maintenance, and local reset routes reject a live cleanu
     for (const message of guardedMessages) {
       const response = await dispatchRuntimeMessage(chrome, message, sender);
       assert.equal(response.ok, false, `${message.type} unexpectedly succeeded`);
-      assert.match(response.error, /cleanup is still running/i);
+      assert.match(
+        response.error,
+        message.type === MESSAGE_TYPES.settleCleanupPermissionPrompt
+          ? /popup target-access continuation is retired/i
+          : /cleanup is still running/i
+      );
     }
   } finally {
     delete globalThis.chrome;
@@ -860,6 +1014,7 @@ test('an admitted administrative mutation reserves the lifecycle before cleanup 
       sender
     );
     assert.equal(readResponse.ok, true, readResponse.error);
+    assert.equal(readResponse.temporaryHostAccess.state, 'none');
 
     releaseGuardRead.resolve();
     const saved = await savePromise;
@@ -984,7 +1139,12 @@ test('a cleanup reservation rejects every administrative route and defers alarm 
     for (const message of guardedMessages) {
       const response = await dispatchRuntimeMessage(chrome, message, sender);
       assert.equal(response.ok, false, `${message.type} unexpectedly succeeded`);
-      assert.match(response.error, /cleanup is still running/i);
+      assert.match(
+        response.error,
+        message.type === MESSAGE_TYPES.settleCleanupPermissionPrompt
+          ? /popup target-access continuation is retired/i
+          : /cleanup is still running/i
+      );
     }
 
     const secondReview = await dispatchRuntimeMessage(
@@ -1108,7 +1268,7 @@ test('service worker inventories and preserves user-controlled all-site access t
   delete globalThis.chrome;
 });
 
-test('an exact native grant continues an armed Standard cleanup after the popup is destroyed', async () => {
+test('an exact native grant continues after the persistent handoff durably reports the resolved-true outcome', async () => {
   const now = new Date().toISOString();
   const chrome = await createChromeMock({
     incognitoAllowed: false,
@@ -1153,14 +1313,22 @@ test('an exact native grant continues an armed Standard cleanup after the popup 
     assert.equal(prepared.review.hostPermissionsGranted, false);
     assert.equal(prepared.review.temporaryHostPermissionOrigins.length, 4);
     assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease].status, 'prompt_pending');
+    const pendingPopupState = await dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.getPopupState, payload: {} },
+      sender
+    );
+    assert.equal(pendingPopupState.ok, true, pendingPopupState.error);
+    assert.equal(pendingPopupState.temporaryHostAccess.state, 'prompt_pending');
+    assert.equal(pendingPopupState.temporaryHostAccess.temporaryOriginCount, 4);
+    assert.equal(pendingPopupState.temporaryHostAccess.recoveryPending, false);
+    assert.equal(
+      Object.hasOwn(pendingPopupState.temporaryHostAccess, 'leaseId'),
+      false,
+      'popup state must not expose the durable recovery lease identifier'
+    );
 
-    // Mirror the popup's single activation task: invoke the native request
-    // first, then dispatch the non-awaited arm marker before awaiting either.
-    // The mock emits onAdded synchronously, proving event-before-arm converges.
-    const permissionRequest = chrome.permissions.request({
-      origins: prepared.review.temporaryHostPermissionOrigins
-    });
-    const armedPromise = dispatchRuntimeMessage(
+    const armed = await dispatchRuntimeMessage(
       chrome,
       {
         type: MESSAGE_TYPES.armCleanupApproval,
@@ -1175,14 +1343,72 @@ test('an exact native grant continues an armed Standard cleanup after the popup 
       },
       sender
     );
-    const [granted, armed] = await Promise.all([permissionRequest, armedPromise]);
     assert.equal(armed.ok, true, armed.error);
     assert.equal(armed.handoffNonce, prepared.review.approvalHandoffNonce);
+    const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, sender, {
+      omitDocumentId: true,
+      omitDocumentOrigin: true
+    });
 
-    // Do not send resumeArmedCleanup: the onAdded wake must finish the one-click
-    // transaction after popup loss, even though it arrived before arm settled.
+    const intent = await dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.beginCleanupPermissionHandoff,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    assert.equal(intent.ok, true, intent.error);
+    // The browser event may persist before the immediate invocation marker.
+    // Cleanup still remains non-runnable until the native request resolves true
+    // and this same popup durably reports that distinct outcome.
+    const permissionRequest = chrome.permissions.request({
+      origins: prepared.review.temporaryHostPermissionOrigins
+    });
+    const promptInvocation = dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    const [invoked, granted] = await Promise.all([promptInvocation, permissionRequest]);
+    assert.equal(invoked.ok, true, invoked.error);
+    assert.equal(invoked.promptInvocationRecorded, true);
     assert.equal(granted, true);
+    // Let the exact event-first proof outlive the worker's immediate retry
+    // budget. It must remain non-runnable and non-removable until this same
+    // popup reports the separate literal-true result.
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.notEqual(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY], undefined);
+    assert.notEqual(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'permissions.remove'),
+      false
+    );
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'browsingData.remove'),
+      false
+    );
+    const grantOutcome = dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant,
+        payload: {
+          ...handoff.authority,
+          preRequestTemporaryOriginsAbsent: true
+        }
+      },
+      handoff.sender
+    );
+    // Do not send resumeArmedCleanup. The resolved-true message itself is the
+    // authenticated worker takeover point and survives popup destruction.
     await waitFor(() => chrome.__state.local[STORAGE_KEYS.activeJob]?.status === 'completed', 3_000);
+    const grantOutcomeResponse = await grantOutcome;
+    assert.equal(grantOutcomeResponse.ok, true, grantOutcomeResponse.error);
+    assert.equal(grantOutcomeResponse.promptGrantOutcomeRecorded, true);
 
     const job = chrome.__state.local[STORAGE_KEYS.activeJob];
     assert.equal(job.approvalHandoffNonce, prepared.review.approvalHandoffNonce);
@@ -1200,21 +1426,469 @@ test('an exact native grant continues an armed Standard cleanup after the popup 
     await waitFor(() => chrome.__state.local[STORAGE_KEYS.activeReport]?.id === job.id, 3_000);
     await new Promise((resolve) => setTimeout(resolve, 20));
 
-    const latePopupContinuation = await dispatchTerminalResume(
+    const retiredPopupContinuation = await dispatchTerminalResume(
       chrome,
       prepared.review.approvalHandoffNonce,
       sender,
       popupPreparationBinding(prepared)
     );
-    assert.equal(latePopupContinuation.ok, true, latePopupContinuation.error);
-    assert.equal(latePopupContinuation.resumedCompletedResult, true);
-    assert.equal(latePopupContinuation.report.id, job.id);
+    assert.equal(retiredPopupContinuation.ok, false);
+    assert.match(retiredPopupContinuation.error, /popup target-access continuation is retired/i);
   } finally {
     delete globalThis.chrome;
   }
 });
 
-test('a native grant arriving after armed review expiry is revoked and never creates a cleanup job', async () => {
+for (const removalFailureMode of [
+  null,
+  'session-read',
+  'session-remove',
+  'local-revoke-write',
+  'persistent-local-authority'
+]) {
+  test(`an intersecting onRemoved event permanently invalidates reviewed ownership before a manual regrant${
+    removalFailureMode ? ` after a transient ${removalFailureMode} failure` : ''
+  }`, async () => {
+    const now = new Date().toISOString();
+    const chrome = await createChromeMock({
+      incognitoAllowed: false,
+      localState: {
+        [STORAGE_KEYS.settings]: {
+          ...DEFAULT_SETTINGS,
+          cleanupMode: 'standard',
+          progressOverlay: false,
+          pageScriptScrub: false,
+          temporaryDnrShield: false,
+          verificationPass: false,
+          aggressiveCookieSweep: false,
+          deleteDownloadedFiles: false,
+          redactReports: false,
+          keepHistory: false,
+          createdAt: now,
+          updatedAt: now,
+          stabilityDefaultsAppliedAt: now,
+          performanceDefaultsAppliedAt: now,
+          privacyDefaultsAppliedAt: now
+        }
+      }
+    });
+    const originalGetAll = chrome.permissions.getAll;
+    const releaseBlockedInventory = deferred();
+    let blockNextInventory = false;
+    let blockedInventoryStarted = false;
+    let persistentRevocationWriteFailures = 0;
+    let persistentLeaseDiscardFailures = 0;
+    chrome.permissions.getAll = async (...args) => {
+      if (blockNextInventory) {
+        blockNextInventory = false;
+        blockedInventoryStarted = true;
+        await releaseBlockedInventory.promise;
+      }
+      return originalGetAll(...args);
+    };
+
+    globalThis.chrome = chrome;
+    try {
+      await import(`../../src/background/service-worker.js?permission-revoke-regrant=${Date.now()}`);
+      await waitFor(() => chrome.__state.alarms.has('sitewipe.maintenance'));
+      const sender = {
+        id: chrome.runtime.id,
+        documentUrl: chrome.runtime.getURL('popup/popup.html'),
+        documentId: 'popup-document-permission-revoke-regrant'
+      };
+      const prepared = await dispatchRuntimeMessage(
+        chrome,
+        {
+          type: MESSAGE_TYPES.prepareCleanupReview,
+          payload: { input: 'example.com', sourceWindowId: 1, sourceIncognito: false }
+        },
+        sender
+      );
+      assert.equal(prepared.ok, true, prepared.error);
+      const temporaryOrigins = prepared.review.temporaryHostPermissionOrigins;
+      const armed = await dispatchRuntimeMessage(
+        chrome,
+        {
+          type: MESSAGE_TYPES.armCleanupApproval,
+          payload: {
+            approvalToken: prepared.review.approvalToken,
+            handoffNonce: prepared.review.approvalHandoffNonce,
+            approval: completeApproval(),
+            ...popupPreparationBinding(prepared),
+            sourceWindowId: 1,
+            sourceIncognito: false
+          }
+        },
+        sender
+      );
+      assert.equal(armed.ok, true, armed.error);
+      const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, sender, {
+        omitDocumentId: true
+      });
+      const intent = await dispatchRuntimeMessage(
+        chrome,
+        {
+          type: MESSAGE_TYPES.beginCleanupPermissionHandoff,
+          payload: handoff.authority
+        },
+        handoff.sender
+      );
+      assert.equal(intent.ok, true, intent.error);
+
+      const permissionRequest = chrome.permissions.request({ origins: temporaryOrigins });
+      const invocation = dispatchRuntimeMessage(
+        chrome,
+        {
+          type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation,
+          payload: handoff.authority
+        },
+        handoff.sender
+      );
+      const [granted, invoked] = await Promise.all([permissionRequest, invocation]);
+      assert.equal(granted, true);
+      assert.equal(invoked.ok, true, invoked.error);
+      await waitFor(
+        () => chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY]?.approvalHandoff?.promptGrant?.complete === true,
+        3_000
+      );
+
+      blockNextInventory = true;
+      const outcome = dispatchRuntimeMessage(
+        chrome,
+        {
+          type: MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant,
+          payload: {
+            ...handoff.authority,
+            preRequestTemporaryOriginsAbsent: true
+          }
+        },
+        handoff.sender
+      );
+      await waitFor(() => blockedInventoryStarted, 3_000);
+      assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease]?.ownershipProof, 'reviewed_prompt_grant');
+
+      const removedOrigin = temporaryOrigins[0];
+      if (removalFailureMode === 'session-read') {
+        const originalSessionGet = chrome.storage.session.get.bind(chrome.storage.session);
+        let rejected = false;
+        chrome.storage.session.get = async (keys) => {
+          if (!rejected && Array.isArray(keys) && keys.length === 1 && keys[0] === CLEANUP_REVIEW_STORAGE_KEY) {
+            rejected = true;
+            throw new Error('Injected session review read failure');
+          }
+          return originalSessionGet(keys);
+        };
+      }
+      if (removalFailureMode === 'session-remove') {
+        const originalSessionRemove = chrome.storage.session.remove.bind(chrome.storage.session);
+        let rejected = false;
+        chrome.storage.session.remove = async (keys) => {
+          if (
+            !rejected &&
+            (keys === CLEANUP_REVIEW_STORAGE_KEY || (Array.isArray(keys) && keys.includes(CLEANUP_REVIEW_STORAGE_KEY)))
+          ) {
+            rejected = true;
+            throw new Error('Injected session review removal failure');
+          }
+          return originalSessionRemove(keys);
+        };
+      }
+      if (removalFailureMode === 'local-revoke-write') {
+        const originalLocalSet = chrome.storage.local.set.bind(chrome.storage.local);
+        let rejected = false;
+        chrome.storage.local.set = async (values) => {
+          if (!rejected && values?.[STORAGE_KEYS.permissionLease]?.ownershipProof === 'revoked') {
+            rejected = true;
+            throw new Error('Injected local lease revocation write failure');
+          }
+          return originalLocalSet(values);
+        };
+      }
+      if (removalFailureMode === 'persistent-local-authority') {
+        const originalLocalSet = chrome.storage.local.set.bind(chrome.storage.local);
+        const originalLocalRemove = chrome.storage.local.remove.bind(chrome.storage.local);
+        chrome.storage.local.set = async (values) => {
+          if (values?.[STORAGE_KEYS.permissionLease]?.ownershipProof === 'revoked') {
+            persistentRevocationWriteFailures += 1;
+            throw new Error('Injected persistent local lease revocation write failure');
+          }
+          return originalLocalSet(values);
+        };
+        chrome.storage.local.remove = async (keys) => {
+          if (
+            keys === STORAGE_KEYS.permissionLease ||
+            (Array.isArray(keys) && keys.includes(STORAGE_KEYS.permissionLease))
+          ) {
+            persistentLeaseDiscardFailures += 1;
+            throw new Error('Injected persistent local lease discard failure');
+          }
+          return originalLocalRemove(keys);
+        };
+      }
+      chrome.__state.originPermissions.delete(removedOrigin);
+      chrome.__events.permissionRemoved.emit({
+        origins: ['<all_urls>', removedOrigin, removedOrigin, 'malformed pattern'],
+        permissions: ['tabs']
+      });
+      await waitFor(
+        () =>
+          chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY] === undefined &&
+          (removalFailureMode === 'persistent-local-authority' ||
+            chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined),
+        3_000
+      );
+
+      // This is a fresh external/manual grant. It must not be combinable with
+      // any stale event/result proof from the now-revoked SiteWipe handoff.
+      for (const origin of temporaryOrigins) chrome.__state.originPermissions.add(origin);
+      chrome.__events.permissionAdded.emit({ origins: temporaryOrigins });
+      if (removalFailureMode === 'persistent-local-authority') {
+        // Both the original onRemoved invalidation and the onAdded retry make
+        // two bounded attempts at each durable authority operation. Wait for
+        // those exact fail-closed attempts before releasing the held inventory;
+        // a fixed delay can let a heavily loaded run observe only half of the
+        // intended invalidation race.
+        await waitFor(() => persistentRevocationWriteFailures >= 4 && persistentLeaseDiscardFailures >= 4, 3_000);
+      }
+      releaseBlockedInventory.resolve();
+      const outcomeResponse = await outcome;
+      assert.equal(outcomeResponse.ok, true, outcomeResponse.error);
+      assert.equal(outcomeResponse.promptGrantOutcomeRecorded, true);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      assert.deepEqual(
+        chrome.__state.originPermissions,
+        new Set(temporaryOrigins),
+        JSON.stringify({
+          removalFailureMode,
+          persistentRevocationWriteFailures,
+          persistentLeaseDiscardFailures,
+          permissionRemovals: chrome.__calls.filter((call) => call.api === 'permissions.remove'),
+          debugLog: chrome.__state.local[STORAGE_KEYS.debugLog],
+          activeJob: chrome.__state.local[STORAGE_KEYS.activeJob],
+          permissionLease: chrome.__state.local[STORAGE_KEYS.permissionLease],
+          review: chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY],
+          outcomeResponse
+        })
+      );
+      assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY], undefined);
+      if (removalFailureMode === 'persistent-local-authority') {
+        assert.equal(
+          chrome.__state.local[STORAGE_KEYS.permissionLease]?.ownershipProof,
+          'reviewed_prompt_grant',
+          'the injected persistent storage failure should leave only poisoned bookkeeping'
+        );
+      } else {
+        assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
+      }
+      assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+      assert.equal(
+        chrome.__calls.some((call) => call.api === 'permissions.remove'),
+        false,
+        'revoked ownership must preserve a later manual grant'
+      );
+      assert.equal(
+        chrome.__calls.some((call) => call.api === 'browsingData.remove'),
+        false
+      );
+      assert.equal(
+        chrome.__calls.some((call) => call.api === 'downloads.removeFile'),
+        false
+      );
+    } finally {
+      releaseBlockedInventory.resolve();
+      delete globalThis.chrome;
+    }
+  });
+}
+
+test('a durable Standard approval preserves a preexisting manual grant instead of claiming cleanup authority', async () => {
+  const now = new Date().toISOString();
+  const chrome = await createChromeMock({
+    incognitoAllowed: false,
+    localState: {
+      [STORAGE_KEYS.settings]: {
+        ...DEFAULT_SETTINGS,
+        cleanupMode: 'standard',
+        progressOverlay: false,
+        pageScriptScrub: false,
+        temporaryDnrShield: false,
+        verificationPass: false,
+        aggressiveCookieSweep: false,
+        deleteDownloadedFiles: false,
+        redactReports: false,
+        keepHistory: false,
+        createdAt: now,
+        updatedAt: now,
+        stabilityDefaultsAppliedAt: now,
+        performanceDefaultsAppliedAt: now,
+        privacyDefaultsAppliedAt: now
+      }
+    }
+  });
+  globalThis.chrome = chrome;
+  try {
+    await import(`../../src/background/service-worker.js?two-activation-handoff=${Date.now()}`);
+    await waitFor(() => chrome.__state.alarms.has('sitewipe.maintenance'));
+    const sender = {
+      id: chrome.runtime.id,
+      documentUrl: chrome.runtime.getURL('popup/popup.html'),
+      documentId: 'popup-document-two-activation'
+    };
+    const prepared = await dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.prepareCleanupReview,
+        payload: { input: 'example.com', sourceWindowId: 1, sourceIncognito: false }
+      },
+      sender
+    );
+    assert.equal(prepared.ok, true, prepared.error);
+    assert.equal(prepared.review.hostPermissionsGranted, false);
+
+    const beforeApproval = await dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.getPopupState, payload: {} },
+      sender
+    );
+    assert.equal(beforeApproval.ok, true, beforeApproval.error);
+    assert.equal(beforeApproval.temporaryHostAccess.state, 'prompt_pending');
+    assert.equal(Object.hasOwn(beforeApproval.temporaryHostAccess, 'leaseId'), false);
+
+    const armed = await dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.armCleanupApproval,
+        payload: {
+          approvalToken: prepared.review.approvalToken,
+          handoffNonce: prepared.review.approvalHandoffNonce,
+          approval: completeApproval(),
+          ...popupPreparationBinding(prepared),
+          sourceWindowId: 1,
+          sourceIncognito: false
+        }
+      },
+      sender
+    );
+    assert.equal(armed.ok, true, armed.error);
+    assert.equal(armed.approvalArmed, true);
+    assert.equal(armed.handoffStatus, 'armed');
+    assert.equal(armed.handoffNonce, prepared.review.approvalHandoffNonce);
+    assert.deepEqual(chrome.__state.originPermissions, new Set());
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'permissions.request'),
+      false,
+      'durable SiteWipe approval must not itself open or grant Chrome access'
+    );
+
+    const waitingForGrant = await dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.getPopupState, payload: {} },
+      sender
+    );
+    assert.equal(waitingForGrant.ok, true, waitingForGrant.error);
+    assert.equal(waitingForGrant.temporaryHostAccess.state, 'prompt_pending');
+    assert.equal(Object.hasOwn(waitingForGrant.temporaryHostAccess, 'leaseId'), false);
+    const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, sender, {
+      omitDocumentId: true
+    });
+
+    // An external/manual exact grant after activation one must be neither
+    // claimed nor runnable as a SiteWipe prompt.
+    for (const origin of prepared.review.temporaryHostPermissionOrigins) {
+      chrome.__state.originPermissions.add(origin);
+    }
+    chrome.__events.permissionAdded.emit({ origins: prepared.review.temporaryHostPermissionOrigins });
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'browsingData.remove'),
+      false
+    );
+    assert.deepEqual(chrome.__state.originPermissions, new Set(prepared.review.temporaryHostPermissionOrigins));
+    assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY].approvalHandoff.promptInvocation, null);
+
+    const rawResume = await dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.resumeCleanupPermissionHandoff, payload: handoff.authority },
+      handoff.sender
+    );
+    assert.equal(rawResume.ok, false);
+    assert.match(rawResume.error, /has not initiated Chrome access/i);
+    const retiredPopupResume = await dispatchTerminalResume(
+      chrome,
+      prepared.review.approvalHandoffNonce,
+      sender,
+      popupPreparationBinding(prepared)
+    );
+    assert.equal(retiredPopupResume.ok, false);
+    assert.match(retiredPopupResume.error, /popup target-access continuation is retired/i);
+    assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.deepEqual(chrome.__state.originPermissions, new Set(prepared.review.temporaryHostPermissionOrigins));
+
+    const intent = await dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.beginCleanupPermissionHandoff,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    assert.equal(intent.ok, true, intent.error);
+    // This models the fresh second SiteWipe activation after a manual pregrant.
+    // permissions.request() resolves true but emits no onAdded transition. The
+    // popup's pre-request getAll snapshot detects that access was already
+    // present, so it must settle abandoned without attesting a grant outcome.
+    const permissionRequest = chrome.permissions.request({ origins: prepared.review.temporaryHostPermissionOrigins });
+    const promptInvocation = dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    const [invoked, granted] = await Promise.all([promptInvocation, permissionRequest]);
+    assert.equal(invoked.ok, true, invoked.error);
+    assert.equal(invoked.promptInvocationRecorded, true);
+    assert.equal(granted, true);
+    const pregrantSettlement = await dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.settleCleanupPermissionHandoff,
+        payload: {
+          ...handoff.authority,
+          outcome: 'abandoned'
+        }
+      },
+      handoff.sender
+    );
+    assert.equal(pregrantSettlement.ok, true, pregrantSettlement.error);
+    assert.equal(pregrantSettlement.settlement.permissionsPreserved, true);
+    assert.equal(pregrantSettlement.settlement.recordRetained, false);
+    assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY], undefined);
+    assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
+    assert.deepEqual(chrome.__state.originPermissions, new Set(prepared.review.temporaryHostPermissionOrigins));
+    assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'permissions.remove'),
+      false
+    );
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'browsingData.remove'),
+      false
+    );
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'downloads.removeFile'),
+      false,
+      'Standard cleanup must preserve downloaded files'
+    );
+  } finally {
+    delete globalThis.chrome;
+  }
+});
+
+test('an external grant arriving after uninvoked armed-review expiry is preserved and never creates a cleanup job', async () => {
   const now = new Date().toISOString();
   const chrome = await createChromeMock({
     incognitoAllowed: false,
@@ -1273,33 +1947,23 @@ test('a native grant arriving after armed review expiry is revoked and never cre
 
     const expiredNow = Date.parse(prepared.review.expiresAt) + 1;
     Date.now = () => expiredNow;
-    // Model Chrome's exact grant becoming observable after expiry without a
-    // usable permission-event wake. The authenticated popup replay must return
-    // proof of cancellation/release rather than an error string that guesses
-    // whether cleanup started.
+    // Model an exact external/manual grant becoming observable after expiry.
+    // Activation one never recorded an accepted prompt invocation, so the event may retire
+    // SiteWipe's bookkeeping but must neither run cleanup nor remove the grant.
     for (const origin of prepared.review.temporaryHostPermissionOrigins) {
       chrome.__state.originPermissions.add(origin);
     }
-    const expiredResume = await dispatchTerminalResume(
-      chrome,
-      prepared.review.approvalHandoffNonce,
-      sender,
-      popupPreparationBinding(prepared)
+    chrome.__events.permissionAdded.emit({ origins: prepared.review.temporaryHostPermissionOrigins });
+    await waitFor(
+      () =>
+        chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY] === undefined &&
+        chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined,
+      3_000
     );
-    assert.equal(expiredResume.ok, true, expiredResume.error);
-    // The arm-scheduled queue may finish the exact release before this explicit
-    // continuation drains. Once that transient proof is consumed, the later
-    // response must stay conservative instead of inferring release from absent
-    // state alone.
-    assert.equal(expiredResume.approvalHandoffUncertain, true, JSON.stringify(expiredResume));
-    assert.equal(expiredResume.approvalHandoffNonce, prepared.review.approvalHandoffNonce);
-    assert.equal(expiredResume.cleanupStarted, null);
-    assert.equal(expiredResume.temporaryAccessReleased, null);
-    assert.doesNotMatch(expiredResume.warning, /No cleanup started/i);
 
     assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY], undefined);
     assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
-    assert.deepEqual(chrome.__state.originPermissions, new Set());
+    assert.deepEqual(chrome.__state.originPermissions, new Set(prepared.review.temporaryHostPermissionOrigins));
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeReport], undefined);
     assert.equal(cleanupMutationCallCount(chrome), 0, 'no cleanup mutation may run in this path');
@@ -1313,7 +1977,7 @@ test('a native grant arriving after armed review expiry is revoked and never cre
   }
 });
 
-test('same-nonce popup continuations share one in-flight conclusive expiry settlement', async () => {
+test('same-nonce handoff confirmations stay non-runnable while one expiry settlement releases access', async () => {
   const now = new Date().toISOString();
   const chrome = await createChromeMock({
     incognitoAllowed: false,
@@ -1334,6 +1998,14 @@ test('same-nonce popup continuations share one in-flight conclusive expiry settl
       }
     }
   });
+  const removalStarted = deferred();
+  const releaseRemoval = deferred();
+  const originalPermissionRemove = chrome.permissions.remove;
+  chrome.permissions.remove = async (...args) => {
+    removalStarted.resolve();
+    await releaseRemoval.promise;
+    return originalPermissionRemove(...args);
+  };
   const originalDateNow = Date.now;
   globalThis.chrome = chrome;
   try {
@@ -1380,52 +2052,93 @@ test('same-nonce popup continuations share one in-flight conclusive expiry settl
     }
     assert.equal(approvalTimer.suppressed(), true, 'the synthetic arm wake must be held for deterministic ordering');
     assert.equal(armed.ok, true, armed.error);
+    const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, sender, {
+      omitDocumentId: true
+    });
+    const intent = await dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.beginCleanupPermissionHandoff,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    assert.equal(intent.ok, true, intent.error);
+    const invoked = await dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    assert.equal(invoked.ok, true, invoked.error);
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
 
-    const containsBefore = chrome.__calls.filter((call) => call.api === 'permissions.contains').length;
-    const firstResume = dispatchTerminalResume(
-      chrome,
-      prepared.review.approvalHandoffNonce,
-      sender,
-      popupPreparationBinding(prepared)
-    );
-    await waitFor(
-      () => chrome.__calls.filter((call) => call.api === 'permissions.contains').length > containsBefore,
-      3_000
-    );
-    const secondResume = dispatchTerminalResume(
-      chrome,
-      prepared.review.approvalHandoffNonce,
-      sender,
-      popupPreparationBinding(prepared)
-    );
-    await new Promise((resolve) => setTimeout(resolve, 20));
     Date.now = () => Date.parse(prepared.review.expiresAt) + 1;
     for (const origin of prepared.review.temporaryHostPermissionOrigins) {
       chrome.__state.originPermissions.add(origin);
     }
+    chrome.__events.permissionAdded.emit({
+      permissions: [],
+      origins: prepared.review.temporaryHostPermissionOrigins
+    });
+    await waitFor(
+      () => chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY]?.approvalHandoff?.promptGrant?.complete === true,
+      3_000
+    );
+    const firstConfirmation = dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant,
+        payload: { ...handoff.authority, preRequestTemporaryOriginsAbsent: true }
+      },
+      handoff.sender
+    );
+    const secondConfirmation = dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant,
+        payload: { ...handoff.authority, preRequestTemporaryOriginsAbsent: true }
+      },
+      handoff.sender
+    );
+    await removalStarted.promise;
 
-    const responses = await Promise.all([firstResume, secondResume]);
+    releaseRemoval.resolve();
+    const responses = await Promise.all([firstConfirmation, secondConfirmation]);
     for (const response of responses) {
       assert.equal(response.ok, true, response.error);
-      assert.equal(response.approvalHandoffCanceled, true, JSON.stringify(responses));
+      assert.equal(response.promptGrantOutcomeRecorded, true, JSON.stringify(responses));
       assert.equal(response.approvalHandoffNonce, prepared.review.approvalHandoffNonce);
-      assert.equal(response.cleanupStarted, false);
-      assert.equal(response.temporaryAccessReleased, true);
-      assert.equal(response.settlement.released, true);
-      assert.equal(response.settlement.accessRemains, false);
-      assert.equal(response.settlement.recordRetained, false);
+      if (response.approvalHandoffUncertain === true) {
+        assert.equal(response.cleanupStarted, null);
+        assert.equal(response.temporaryAccessReleased, null);
+      } else {
+        assert.equal(response.approvalHandoffCanceled, true, JSON.stringify(responses));
+        assert.equal(response.cleanupStarted, false);
+        assert.equal(response.temporaryAccessReleased, true);
+        assert.equal(response.settlement?.released, true);
+      }
     }
+    await waitFor(
+      () =>
+        chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY] === undefined &&
+        chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined,
+      3_000
+    );
     assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY], undefined);
     assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
     assert.deepEqual(chrome.__state.originPermissions, new Set());
     assert.equal(cleanupMutationCallCount(chrome), 0);
   } finally {
+    releaseRemoval.resolve();
     Date.now = originalDateNow;
     delete globalThis.chrome;
   }
 });
 
-test('same-nonce uncertainty does not consume a later actionable grant retry', async () => {
+test('a resolved-true marker may precede the exact onAdded event without being consumed', async () => {
   const now = new Date().toISOString();
   const chrome = await createChromeMock({
     incognitoAllowed: false,
@@ -1489,43 +2202,70 @@ test('same-nonce uncertainty does not consume a later actionable grant retry', a
     }
     assert.equal(approvalTimer.suppressed(), true, 'the synthetic arm wake must be held for deterministic ordering');
     assert.equal(armed.ok, true, armed.error);
-
-    const containsBefore = chrome.__calls.filter((call) => call.api === 'permissions.contains').length;
-    const firstResume = dispatchTerminalResume(
+    const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, sender, {
+      omitDocumentId: true
+    });
+    const intent = await dispatchRuntimeMessage(
       chrome,
-      prepared.review.approvalHandoffNonce,
-      sender,
-      popupPreparationBinding(prepared)
+      {
+        type: MESSAGE_TYPES.beginCleanupPermissionHandoff,
+        payload: handoff.authority
+      },
+      handoff.sender
     );
-    await waitFor(
-      () => chrome.__calls.filter((call) => call.api === 'permissions.contains').length > containsBefore,
-      3_000
-    );
-    const secondResume = dispatchTerminalResume(
+    assert.equal(intent.ok, true, intent.error);
+    const invoked = await dispatchRuntimeMessage(
       chrome,
-      prepared.review.approvalHandoffNonce,
-      sender,
-      popupPreparationBinding(prepared)
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation,
+        payload: handoff.authority
+      },
+      handoff.sender
     );
+    assert.equal(invoked.ok, true, invoked.error);
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
 
-    const firstResponse = await firstResume;
+    // The browser has already granted access and resolved the initiating
+    // request, but delivery of its exact onAdded callback is delayed beyond the
+    // worker's finite immediate retry budget.
+    for (const origin of prepared.review.temporaryHostPermissionOrigins) {
+      chrome.__state.originPermissions.add(origin);
+    }
+    const firstOutcome = dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant,
+        payload: {
+          ...handoff.authority,
+          preRequestTemporaryOriginsAbsent: true
+        }
+      },
+      handoff.sender
+    );
+    const firstResponse = await firstOutcome;
     assert.equal(firstResponse.ok, true, firstResponse.error);
+    assert.equal(firstResponse.promptGrantOutcomeRecorded, true);
     assert.equal(firstResponse.approvalHandoffUncertain, true, JSON.stringify(firstResponse));
     assert.equal(firstResponse.cleanupStarted, null);
     assert.equal(firstResponse.temporaryAccessReleased, null);
     assert.doesNotMatch(firstResponse.warning, /No cleanup started/i);
-
-    for (const origin of prepared.review.temporaryHostPermissionOrigins) {
-      chrome.__state.originPermissions.add(origin);
-    }
-    const secondResponse = await secondResume;
-    assert.equal(secondResponse.ok, true, secondResponse.error);
-    assert.equal(secondResponse.approvalHandoffNonce, prepared.review.approvalHandoffNonce);
-    assert.ok(
-      secondResponse.report,
-      `the later same-nonce signal must run a fresh actionable pass: ${JSON.stringify({ firstResponse, secondResponse })}`
+    assert.notEqual(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY], undefined);
+    assert.notEqual(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
+    assert.deepEqual(chrome.__state.originPermissions, new Set(prepared.review.temporaryHostPermissionOrigins));
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'permissions.remove'),
+      false
     );
-    assert.equal(secondResponse.report.status, 'completed');
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'browsingData.remove'),
+      false
+    );
+
+    chrome.__events.permissionAdded.emit({
+      permissions: [],
+      origins: prepared.review.temporaryHostPermissionOrigins
+    });
+    await waitFor(() => chrome.__state.local[STORAGE_KEYS.activeJob]?.status === 'completed', 3_000);
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob].status, 'completed');
     assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY], undefined);
     assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
@@ -1540,7 +2280,7 @@ test('same-nonce uncertainty does not consume a later actionable grant retry', a
   }
 });
 
-test('a grant emitted before an expired first arm is tombstoned is immediately revoked without cleanup', async () => {
+test('a grant emitted before an expired first arm is preserved without cleanup', async () => {
   const now = new Date().toISOString();
   const chrome = await createChromeMock({
     incognitoAllowed: false,
@@ -1607,10 +2347,10 @@ test('a grant emitted before an expired first arm is tombstoned is immediately r
     await waitFor(
       () =>
         chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY] === undefined &&
-        chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined &&
-        chrome.__state.originPermissions.size === 0,
+        chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined,
       3_000
     );
+    assert.deepEqual(chrome.__state.originPermissions, new Set(prepared.review.temporaryHostPermissionOrigins));
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeReport], undefined);
     assert.equal(
@@ -1623,7 +2363,7 @@ test('a grant emitted before an expired first arm is tombstoned is immediately r
   }
 });
 
-test('replacement preparation cannot overwrite an expired prompt-pending review before its late grant settles', async () => {
+test('replacement preparation retires an expired uninvoked review without claiming a later external grant', async () => {
   const originalDateNow = Date.now;
   const initialNowMs = Date.parse('2026-08-21T18:00:00.000Z');
   Date.now = () => initialNowMs;
@@ -1676,17 +2416,16 @@ test('replacement preparation cannot overwrite an expired prompt-pending review 
       chrome,
       {
         type: MESSAGE_TYPES.prepareCleanupReview,
-        payload: { input: 'replacement.example', sourceWindowId: 1, sourceIncognito: false }
+        payload: { input: 'example.org', sourceWindowId: 1, sourceIncognito: false }
       },
       replacementSender
     );
-    assert.equal(replacement.ok, false);
-    assert.match(replacement.error, /prompt is still being reconciled/i);
+    assert.equal(replacement.ok, true, replacement.error);
     const retained = normalizeCleanupReviewRecord(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY]);
-    assert.equal(retained?.token, prepared.review.approvalToken);
-    assert.equal(retained?.approvalHandoff?.status, 'prompt_tombstone');
-    assert.equal(retained?.approvalHandoff?.promptContextId, prepared.popupContextId);
-    assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease]?.id, originalLeaseId);
+    assert.equal(retained?.token, replacement.review.approvalToken);
+    assert.notEqual(retained?.token, prepared.review.approvalToken);
+    assert.equal(retained?.approvalHandoff, null);
+    assert.notEqual(chrome.__state.local[STORAGE_KEYS.permissionLease]?.id, originalLeaseId);
 
     const lateArm = await dispatchRuntimeMessage(
       chrome,
@@ -1705,13 +2444,13 @@ test('replacement preparation cannot overwrite an expired prompt-pending review 
     );
     assert.equal(lateArm.ok, false);
     assert.equal(await chrome.permissions.request({ origins: prepared.review.temporaryHostPermissionOrigins }), true);
-    await waitFor(
-      () =>
-        chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY] === undefined &&
-        chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined &&
-        chrome.__state.originPermissions.size === 0,
-      3_000
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    assert.equal(
+      normalizeCleanupReviewRecord(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY])?.token,
+      replacement.review.approvalToken
     );
+    assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease]?.id, replacement.review.permissionLeaseId);
+    assert.deepEqual(chrome.__state.originPermissions, new Set(prepared.review.temporaryHostPermissionOrigins));
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
     assert.equal(
       chrome.__calls.some((call) => call.api === 'browsingData.remove' || call.api === 'downloads.removeFile'),
@@ -1742,7 +2481,8 @@ test('same-context retry rotates popup authority and a missing-access review nev
         updatedAt: now,
         stabilityDefaultsAppliedAt: now,
         performanceDefaultsAppliedAt: now,
-        privacyDefaultsAppliedAt: now
+        privacyDefaultsAppliedAt: now,
+        storagePartitionDisclosureAppliedAt: now
       }
     }
   });
@@ -1839,21 +2579,18 @@ test('same-context retry rotates popup authority and a missing-access review nev
     );
     const crossContextRetry = await prepare();
     assert.equal(crossContextRetry.ok, false);
-    assert.match(crossContextRetry.error, /closed before settlement|restart the browser/i);
-    const retainedTombstone = normalizeCleanupReviewRecord(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY]);
-    assert.equal(retainedTombstone?.preparationContextId, third.popupContextId);
-    assert.equal(retainedTombstone?.approvalHandoff?.status, 'prompt_tombstone');
-    assert.equal(retainedTombstone?.approvalHandoff?.promptContextId, third.popupContextId);
+    assert.match(crossContextRetry.error, /closed before the reviewed prompt activation|start the cleanup again/i);
+    assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY], undefined);
+    assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
     assert.deepEqual(chrome.__calls.findLast((call) => call.api === 'runtime.getContexts')?.args[0], {
       contextIds: [third.popupContextId]
     });
     assert.equal(await chrome.permissions.request({ origins: third.review.temporaryHostPermissionOrigins }), true);
-    await waitFor(
-      () =>
-        chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY] === undefined &&
-        chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined &&
-        chrome.__state.originPermissions.size === 0,
-      3_000
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    assert.deepEqual(
+      chrome.__state.originPermissions,
+      new Set(third.review.temporaryHostPermissionOrigins),
+      'a grant appearing after the uninvoked review was discarded remains externally controlled'
     );
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
     assert.equal(
@@ -1887,7 +2624,8 @@ test('a rebound pre-granted review rejects stale and non-popup cleanup messages 
         updatedAt: now,
         stabilityDefaultsAppliedAt: now,
         performanceDefaultsAppliedAt: now,
-        privacyDefaultsAppliedAt: now
+        privacyDefaultsAppliedAt: now,
+        storagePartitionDisclosureAppliedAt: now
       }
     }
   });
@@ -2156,10 +2894,10 @@ test('a staged arm cannot resurrect authority across a concurrent cancellation',
     await waitFor(
       () =>
         chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY] === undefined &&
-        chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined &&
-        chrome.__state.originPermissions.size === 0,
+        chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined,
       3_000
     );
+    assert.deepEqual(chrome.__state.originPermissions, new Set(prepared.review.temporaryHostPermissionOrigins));
 
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
     assert.equal(
@@ -2203,25 +2941,9 @@ for (const invalidationBoundary of [
         return original(keys);
       };
     }
-  },
-  {
-    name: 'permission reconciliation',
-    promptNotStarted: true,
-    install(chrome, started, release) {
-      const original = chrome.permissions.getAll;
-      let held = false;
-      chrome.permissions.getAll = async () => {
-        if (!held) {
-          held = true;
-          started.resolve();
-          await release.promise;
-        }
-        return original();
-      };
-    }
   }
 ]) {
-  test(`an invalidator that reaches ${invalidationBoundary.name} first retains a later final-click prompt`, async () => {
+  test(`an invalidator that reaches ${invalidationBoundary.name} first does not claim a later external grant`, async () => {
     const now = new Date().toISOString();
     const chrome = await createChromeMock({
       incognitoAllowed: false,
@@ -2282,8 +3004,8 @@ for (const invalidationBoundary of [
       );
       await invalidationStarted.promise;
 
-      // The native request has been invoked but remains unresolved. Its arm
-      // event reaches the worker while the earlier invalidator is suspended.
+      // Activation-one approval reaches the worker while the earlier
+      // invalidator is suspended. No authenticated prompt invocation exists.
       const armPromise = dispatchRuntimeMessage(
         chrome,
         {
@@ -2305,23 +3027,17 @@ for (const invalidationBoundary of [
       const [canceled, armed] = await Promise.all([cancelPromise, armPromise]);
       assert.equal(canceled.ok, true, canceled.error);
       assert.equal(canceled.canceled, true);
-      assert.equal(canceled.promptTombstoneRetained, true);
+      assert.notEqual(canceled.promptTombstoneRetained, true);
+      assert.equal(canceled.hostPermissionCleanup?.permissionsPreserved, true);
       assert.equal(armed.ok, false);
-      const tombstone = normalizeCleanupReviewRecord(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY]);
-      assert.equal(tombstone?.approvalHandoff?.status, 'prompt_tombstone');
-      assert.equal(tombstone?.approvalHandoff?.promptContextId, prepared.popupContextId);
-      assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease]?.status, 'prompt_pending');
+      assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY], undefined);
+      assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
 
-      // Chrome may resolve the original native prompt only after both worker
-      // requests have ended. The restored exact lease must own and revoke it.
+      // A later exact grant is external to SiteWipe because the authenticated
+      // second-activation marker was never recorded. It must remain untouched.
       assert.equal(await chrome.permissions.request({ origins: prepared.review.temporaryHostPermissionOrigins }), true);
-      await waitFor(
-        () =>
-          chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY] === undefined &&
-          chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined &&
-          chrome.__state.originPermissions.size === 0,
-        3_000
-      );
+      await new Promise((resolve) => setTimeout(resolve, 1_100));
+      assert.deepEqual(chrome.__state.originPermissions, new Set(prepared.review.temporaryHostPermissionOrigins));
       assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
       assert.equal(chrome.__state.local[STORAGE_KEYS.activeReport], undefined);
       assert.equal(
@@ -2335,7 +3051,7 @@ for (const invalidationBoundary of [
   });
 }
 
-test('only the initiating popup document can settle an armed native prompt and immediately revoke a late grant', async () => {
+test('only the exact persistent handoff document can settle an invoked prompt without revoking a proofless late grant', async () => {
   const now = new Date().toISOString();
   const chrome = await createChromeMock({
     incognitoAllowed: false,
@@ -2360,14 +3076,14 @@ test('only the initiating popup document can settle an armed native prompt and i
   try {
     await import(`../../src/background/service-worker.js?prompt-document-binding=${Date.now()}`);
     await waitFor(() => chrome.__state.alarms.has('sitewipe.maintenance'));
+    // Let the load-readiness wake-only retry drain before creating the review.
+    // Otherwise its 0/40/120/240/480 ms probes can observe the synthetic late
+    // grant and reconcile it before this test's explicit popup settlement.
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
     const initiatingSender = {
       id: chrome.runtime.id,
       documentUrl: chrome.runtime.getURL('popup/popup.html'),
       documentId: 'popup-document-native-prompt-a'
-    };
-    const reopenedSender = {
-      ...initiatingSender,
-      documentId: 'popup-document-reopened-b'
     };
     const optionsSender = {
       id: chrome.runtime.id,
@@ -2383,88 +3099,113 @@ test('only the initiating popup document can settle an armed native prompt and i
       initiatingSender
     );
     assert.equal(prepared.ok, true, prepared.error);
-    const armed = await dispatchRuntimeMessage(
-      chrome,
-      {
-        type: MESSAGE_TYPES.armCleanupApproval,
-        payload: {
-          approvalToken: prepared.review.approvalToken,
-          handoffNonce: prepared.review.approvalHandoffNonce,
-          approval: completeApproval(),
-          ...popupPreparationBinding(prepared),
-          sourceWindowId: 1,
-          sourceIncognito: false
-        }
-      },
-      initiatingSender
-    );
+    const approvalTimer = suppressNextUndelayedTimeout();
+    let armed;
+    try {
+      armed = await dispatchRuntimeMessage(
+        chrome,
+        {
+          type: MESSAGE_TYPES.armCleanupApproval,
+          payload: {
+            approvalToken: prepared.review.approvalToken,
+            handoffNonce: prepared.review.approvalHandoffNonce,
+            approval: completeApproval(),
+            ...popupPreparationBinding(prepared),
+            sourceWindowId: 1,
+            sourceIncognito: false
+          }
+        },
+        initiatingSender
+      );
+    } finally {
+      approvalTimer.restore();
+    }
+    assert.equal(approvalTimer.suppressed(), true, 'the missed automatic admission wake must be deterministic');
     assert.equal(armed.ok, true, armed.error);
-
-    const canceledFromReopenedPopup = await dispatchRuntimeMessage(
+    const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, initiatingSender, {
+      documentId: 'handoff-document-native-prompt-a'
+    });
+    const reopenedSender = {
+      ...handoff.sender,
+      documentId: 'handoff-document-reopened-b'
+    };
+    const promptIntent = await dispatchRuntimeMessage(
       chrome,
       {
-        type: MESSAGE_TYPES.cancelCleanupReview,
-        payload: {
-          approvalToken: prepared.review.approvalToken,
-          popupContextId: prepared.popupContextId,
-          popupPreparationCapability: '0'.repeat(64)
-        }
+        type: MESSAGE_TYPES.beginCleanupPermissionHandoff,
+        payload: handoff.authority
       },
-      reopenedSender
+      handoff.sender
     );
-    assert.equal(canceledFromReopenedPopup.ok, false);
-    assert.match(canceledFromReopenedPopup.error, /no longer owns/i);
-
-    const canceledByOwner = await dispatchRuntimeMessage(
+    assert.equal(promptIntent.ok, true, promptIntent.error);
+    const promptInvocation = await dispatchRuntimeMessage(
       chrome,
       {
-        type: MESSAGE_TYPES.cancelCleanupReview,
-        payload: {
-          approvalToken: prepared.review.approvalToken,
-          ...popupPreparationBinding(prepared)
-        }
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation,
+        payload: handoff.authority
       },
-      initiatingSender
+      handoff.sender
     );
-    assert.equal(canceledByOwner.ok, true, canceledByOwner.error);
-    assert.equal(canceledByOwner.promptTombstoneRetained, true);
+    assert.equal(promptInvocation.ok, true, promptInvocation.error);
 
     const settlementPayload = {
-      approvalToken: prepared.review.approvalToken,
-      handoffNonce: prepared.review.approvalHandoffNonce,
-      permissionLeaseId: prepared.review.permissionLeaseId,
-      ...popupPreparationBinding(prepared),
+      ...handoff.authority,
       outcome: 'abandoned'
     };
-    const reopenedSettlement = await dispatchRuntimeMessage(
+    const wrongCapabilitySettlement = await dispatchRuntimeMessage(
       chrome,
       {
-        type: MESSAGE_TYPES.settleCleanupPermissionPrompt,
-        payload: { ...settlementPayload, popupPreparationCapability: '0'.repeat(64) }
+        type: MESSAGE_TYPES.settleCleanupPermissionHandoff,
+        payload: { ...settlementPayload, handoffCapability: '0'.repeat(64) }
       },
+      handoff.sender
+    );
+    assert.equal(wrongCapabilitySettlement.ok, false);
+    assert.match(wrongCapabilitySettlement.error, /capability is invalid/i);
+
+    const reopenedSettlement = await dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.settleCleanupPermissionHandoff, payload: settlementPayload },
       reopenedSender
     );
     assert.equal(reopenedSettlement.ok, false);
-    assert.match(reopenedSettlement.error, /no longer owns/i);
+    assert.match(reopenedSettlement.error, /exact SiteWipe handoff document/i);
 
     const optionsSettlement = await dispatchRuntimeMessage(
       chrome,
-      { type: MESSAGE_TYPES.settleCleanupPermissionPrompt, payload: settlementPayload },
+      { type: MESSAGE_TYPES.settleCleanupPermissionHandoff, payload: settlementPayload },
       optionsSender
     );
     assert.equal(optionsSettlement.ok, false);
-    assert.match(optionsSettlement.error, /only the exact SiteWipe popup/i);
+    assert.match(optionsSettlement.error, /exact SiteWipe handoff document/i);
+
+    const retiredPopupSettlement = await dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.settleCleanupPermissionPrompt,
+        payload: {
+          approvalToken: prepared.review.approvalToken,
+          handoffNonce: prepared.review.approvalHandoffNonce,
+          permissionLeaseId: prepared.review.permissionLeaseId,
+          ...popupPreparationBinding(prepared),
+          outcome: 'abandoned'
+        }
+      },
+      initiatingSender
+    );
+    assert.equal(retiredPopupSettlement.ok, false);
+    assert.match(retiredPopupSettlement.error, /popup target-access continuation is retired/i);
 
     assert.equal(
       normalizeCleanupReviewRecord(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY]).approvalHandoff.status,
-      'prompt_tombstone'
+      'armed'
     );
     assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease].status, 'prompt_pending');
 
-    // Model Chrome returning true after the sole permission event was missed by
-    // the admission wake. The initiating popup's terminal settlement must be a
-    // sufficient second signal: it releases the exact late grant and clears the
-    // prompt-pending lease without waiting for maintenance.
+    // Model a late exact grant with neither a qualifying onAdded event nor the
+    // popup's authenticated literal-true result. Even the initiating popup's
+    // terminal settlement may discard only bookkeeping; it cannot revoke the
+    // externally controlled access.
     for (const origin of prepared.review.temporaryHostPermissionOrigins) {
       chrome.__state.originPermissions.add(origin);
     }
@@ -2472,17 +3213,22 @@ test('only the initiating popup document can settle an armed native prompt and i
 
     const ownerSettlement = await dispatchRuntimeMessage(
       chrome,
-      { type: MESSAGE_TYPES.settleCleanupPermissionPrompt, payload: settlementPayload },
-      initiatingSender
+      { type: MESSAGE_TYPES.settleCleanupPermissionHandoff, payload: settlementPayload },
+      handoff.sender
     );
     assert.equal(ownerSettlement.ok, true, ownerSettlement.error);
-    assert.equal(ownerSettlement.settlement.released, true);
+    assert.equal(ownerSettlement.settlement.released, false);
+    assert.equal(ownerSettlement.settlement.permissionsPreserved, true);
     assert.equal(ownerSettlement.settlement.recordRetained, false);
     assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY], undefined);
     assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
 
-    assert.deepEqual(chrome.__state.originPermissions, new Set());
+    assert.deepEqual(chrome.__state.originPermissions, new Set(prepared.review.temporaryHostPermissionOrigins));
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'permissions.remove'),
+      false
+    );
     assert.equal(
       chrome.__calls.some((call) => call.api === 'browsingData.remove'),
       false
@@ -2496,7 +3242,7 @@ test('only the initiating popup document can settle an armed native prompt and i
   }
 });
 
-test('serialized armed-cleanup signals never cross-resolve distinct popup nonces', async () => {
+test('serialized armed-cleanup signals never cross-resolve distinct handoff nonces', async () => {
   const now = new Date().toISOString();
   const chrome = await createChromeMock({
     incognitoAllowed: false,
@@ -2559,21 +3305,66 @@ test('serialized armed-cleanup signals never cross-resolve distinct popup nonces
       sender
     );
     assert.equal(armed.ok, true, armed.error);
+    const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, sender, {
+      omitDocumentId: true
+    });
 
-    assert.equal(await chrome.permissions.request({ origins: prepared.review.temporaryHostPermissionOrigins }), true);
-    await cleanupStarted.promise;
-    const wrongNonce = 'stale-popup-handoff-nonce';
-    chrome.__events.permissionAdded.emit({ origins: prepared.review.temporaryHostPermissionOrigins });
-    const wrongResumePromise = dispatchTerminalResume(chrome, wrongNonce, sender, popupPreparationBinding(prepared));
-    const exactResumePromise = dispatchTerminalResume(
+    const promptIntent = await dispatchRuntimeMessage(
       chrome,
-      prepared.review.approvalHandoffNonce,
-      sender,
-      popupPreparationBinding(prepared)
+      {
+        type: MESSAGE_TYPES.beginCleanupPermissionHandoff,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    assert.equal(promptIntent.ok, true, promptIntent.error);
+    const permissionRequest = chrome.permissions.request({ origins: prepared.review.temporaryHostPermissionOrigins });
+    const promptInvocation = dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    const [invoked, granted] = await Promise.all([promptInvocation, permissionRequest]);
+    assert.equal(invoked.ok, true, invoked.error);
+    assert.equal(granted, true);
+    const grantOutcomePromise = dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant,
+        payload: {
+          ...handoff.authority,
+          preRequestTemporaryOriginsAbsent: true
+        }
+      },
+      handoff.sender
+    );
+    await cleanupStarted.promise;
+    const wrongNonce = 'stale-persistent-handoff-nonce';
+    const wrongResumePromise = dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.resumeCleanupPermissionHandoff,
+        payload: { ...handoff.authority, handoffNonce: wrongNonce }
+      },
+      handoff.sender
+    );
+    const exactResumePromise = dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.resumeCleanupPermissionHandoff, payload: handoff.authority },
+      handoff.sender
     );
 
     releaseCleanup.resolve();
-    const [wrongResume, exactResume] = await Promise.all([wrongResumePromise, exactResumePromise]);
+    const [grantOutcome, wrongResume, exactResume] = await Promise.all([
+      grantOutcomePromise,
+      wrongResumePromise,
+      exactResumePromise
+    ]);
+    assert.equal(grantOutcome.ok, true, grantOutcome.error);
+    assert.equal(grantOutcome.report.id, chrome.__state.local[STORAGE_KEYS.activeJob].id);
     assert.equal(wrongResume.ok, false);
     assert.equal(Object.hasOwn(wrongResume, 'report'), false);
     assert.equal(exactResume.ok, true, exactResume.error);
@@ -2647,21 +3438,57 @@ test('a stale explicit nonce queued before the sole grant wake cannot consume th
     );
     assert.equal(armed.ok, true, armed.error);
     await new Promise((resolve) => setTimeout(resolve, 2_100));
+    const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, sender, {
+      omitDocumentId: true
+    });
 
-    const staleResumePromise = dispatchTerminalResume(
+    const promptIntent = await dispatchRuntimeMessage(
       chrome,
-      'different-popup-handoff-nonce',
-      sender,
-      popupPreparationBinding(prepared)
+      {
+        type: MESSAGE_TYPES.beginCleanupPermissionHandoff,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    assert.equal(promptIntent.ok, true, promptIntent.error);
+    const promptInvocation = await dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    assert.equal(promptInvocation.ok, true, promptInvocation.error);
+
+    const staleResumePromise = dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.resumeCleanupPermissionHandoff,
+        payload: { ...handoff.authority, handoffNonce: 'different-persistent-handoff-nonce' }
+      },
+      handoff.sender
     );
     for (const origin of prepared.review.temporaryHostPermissionOrigins) {
       chrome.__state.originPermissions.add(origin);
     }
     chrome.__events.permissionAdded.emit({ origins: prepared.review.temporaryHostPermissionOrigins });
+    const grantOutcomePromise = dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant,
+        payload: {
+          ...handoff.authority,
+          preRequestTemporaryOriginsAbsent: true
+        }
+      },
+      handoff.sender
+    );
 
-    const staleResume = await staleResumePromise;
+    const [staleResume, grantOutcome] = await Promise.all([staleResumePromise, grantOutcomePromise]);
     assert.equal(staleResume.ok, false);
     assert.equal(Object.hasOwn(staleResume, 'report'), false);
+    assert.equal(grantOutcome.ok, true, grantOutcome.error);
     await waitFor(() => chrome.__state.local[STORAGE_KEYS.activeJob]?.status === 'completed', 3_000);
     assert.equal(
       chrome.__state.local[STORAGE_KEYS.activeJob].approvalHandoffNonce,
@@ -2744,6 +3571,27 @@ for (const scenario of [
         sender
       );
       assert.equal(armed.ok, true, armed.error);
+      const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, sender, {
+        omitDocumentId: true
+      });
+      const intent = await dispatchRuntimeMessage(
+        chrome,
+        {
+          type: MESSAGE_TYPES.beginCleanupPermissionHandoff,
+          payload: handoff.authority
+        },
+        handoff.sender
+      );
+      assert.equal(intent.ok, true, intent.error);
+      const invoked = await dispatchRuntimeMessage(
+        chrome,
+        {
+          type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation,
+          payload: handoff.authority
+        },
+        handoff.sender
+      );
+      assert.equal(invoked.ok, true, invoked.error);
 
       // Let the arm-only wake exhaust its no-grant retries, then seed the exact
       // grant without emitting onAdded so this explicit resume owns one
@@ -2752,6 +3600,11 @@ for (const scenario of [
       for (const origin of prepared.review.temporaryHostPermissionOrigins) {
         chrome.__state.originPermissions.add(origin);
       }
+      chrome.__events.permissionAdded.emit({
+        permissions: [],
+        origins: prepared.review.temporaryHostPermissionOrigins
+      });
+      await new Promise((resolve) => setTimeout(resolve, 1_100));
       const originalPermissionsGetAll = chrome.permissions.getAll;
       let readyInventoryProved = false;
       chrome.permissions.getAll = async (...args) => {
@@ -2779,11 +3632,16 @@ for (const scenario of [
         return result;
       };
 
-      const resumed = await dispatchTerminalResume(
+      const resumed = await dispatchRuntimeMessage(
         chrome,
-        prepared.review.approvalHandoffNonce,
-        sender,
-        popupPreparationBinding(prepared)
+        {
+          type: MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant,
+          payload: {
+            ...handoff.authority,
+            preRequestTemporaryOriginsAbsent: true
+          }
+        },
+        handoff.sender
       );
       assert.equal(resumed.ok, false);
       assert.match(resumed.error, /exact preflight-bound|target access changed/i);
@@ -2940,7 +3798,7 @@ test('installed-shaped Expert review survives the service-worker storage boundar
   }
 });
 
-test('a broad grant added after review is preserved and does not strand the exact temporary lease', async () => {
+test('a broad grant added after review invalidates cleanup while preserving external access', async () => {
   const chrome = await createChromeMock({
     localState: {
       [STORAGE_KEYS.settings]: {
@@ -3001,15 +3859,19 @@ test('a broad grant added after review is preserved and does not strand the exac
       sender
     );
 
-    assert.equal(completed.ok, true);
+    assert.equal(completed.ok, false);
+    assert.match(completed.error, /target access changed|permission|preflight/i);
     assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
     assert.deepEqual(chrome.__state.originPermissions, new Set(['<all_urls>']));
-    assert.equal(completed.report.summary.hostPermissionsReleased, true);
-    assert.equal(completed.report.summary.allSitesAccessGranted, true);
-    assert.deepEqual(
-      completed.report.sections.find((section) => section.key === 'hostPermissions').details
-        .temporaryOriginsGrantedAfterRelease,
-      []
+    assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'browsingData.remove'),
+      false
+    );
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'permissions.remove'),
+      false,
+      'a grant added outside the reviewed prompt must remain browser-owned'
     );
   } finally {
     delete globalThis.chrome;
@@ -3096,6 +3958,7 @@ test('a post-run permission inventory failure remains unknown instead of reusing
 
 test('completed browser cleanup is not relabeled failed when report persistence fails', async () => {
   const chrome = await createChromeMock({
+    originPermissions: ['<all_urls>'],
     localState: {
       [STORAGE_KEYS.settings]: {
         cleanupMode: 'standard',
@@ -3130,7 +3993,6 @@ test('completed browser cleanup is not relabeled failed when report persistence 
   );
   assert.equal(prepared.ok, true);
   assert.equal(Object.hasOwn(prepared.review, 'quickCleanupAllowed'), false);
-  for (const origin of prepared.review.requiredHostPermissionOrigins) chrome.__state.originPermissions.add(origin);
 
   const originalSet = chrome.storage.local.set;
   chrome.storage.local.set = async (values) => {
@@ -3231,7 +4093,7 @@ async function waitFor(predicate, timeoutMs = 750) {
   }
 }
 
-test('explicit nonce replay distinguishes an admitted running cleanup from an unresolved admission gap', async () => {
+test('persistent handoff replay distinguishes an admitted running cleanup from an unresolved admission gap', async () => {
   for (const [index, admissionPhase] of ['admitted', 'handoff_admitting'].entries()) {
     const now = new Date(Date.now() + index * 1_000).toISOString();
     const nonce = `running-handoff-${index}-nonce`;
@@ -3277,13 +4139,15 @@ test('explicit nonce replay distinguishes an admitted running cleanup from an un
       // in-worker handoff interleaving rather than a stale job from a prior
       // service-worker lifetime (which startup correctly marks interrupted).
       chrome.__state.local[STORAGE_KEYS.activeJob] = activeJob;
-      const sender = {
-        id: chrome.runtime.id,
-        documentUrl: chrome.runtime.getURL('popup/popup.html'),
-        documentId: `popup-running-replay-${index}`
-      };
+      const handoff = await installRetainedPersistentPermissionHandoff(chrome, nonce, {
+        contextId: `running-handoff-context-${index}`
+      });
 
-      const replay = await dispatchTerminalResume(chrome, nonce, sender, popupBinding);
+      const replay = await dispatchRuntimeMessage(
+        chrome,
+        { type: MESSAGE_TYPES.resumeCleanupPermissionHandoff, payload: handoff.authority },
+        handoff.sender
+      );
       assert.equal(replay.ok, true, replay.error);
       assert.equal(replay.approvalHandoffNonce, nonce);
       if (admissionPhase === 'admitted') {
@@ -3307,7 +4171,7 @@ test('explicit nonce replay distinguishes an admitted running cleanup from an un
   }
 });
 
-test('late popup continuation replays every nonce-bound terminal handoff outcome without another cleanup', async () => {
+test('retained persistent handoff continuation replays every nonce-bound terminal outcome without another cleanup', async () => {
   const scenarios = [
     {
       name: 'completed',
@@ -3442,21 +4306,34 @@ test('late popup continuation replays every nonce-bound terminal handoff outcome
         documentUrl: chrome.runtime.getURL('popup/popup.html'),
         documentId: `popup-terminal-${index}`
       };
+      const handoff = await installRetainedPersistentPermissionHandoff(chrome, nonce, {
+        contextId: `terminal-handoff-context-${index}`
+      });
       const browsingDataCallsBefore = chrome.__calls.filter((call) => call.api === 'browsingData.remove').length;
 
       if (index === 0) {
-        const wrongNonce = await dispatchTerminalResume(
+        const wrongNonce = await dispatchRuntimeMessage(
           chrome,
-          'different-terminal-handoff-nonce',
-          sender,
-          terminalPopupBinding
+          {
+            type: MESSAGE_TYPES.resumeCleanupPermissionHandoff,
+            payload: { ...handoff.authority, handoffNonce: 'different-terminal-handoff-nonce' }
+          },
+          handoff.sender
         );
         assert.equal(wrongNonce.ok, false);
-        assert.match(wrongNonce.error, /missing or no longer matches/i);
+        assert.match(wrongNonce.error, /handoff no longer matches/i);
         assert.equal(Object.hasOwn(wrongNonce, 'report'), false);
+
+        const retiredPopupResume = await dispatchTerminalResume(chrome, nonce, sender, terminalPopupBinding);
+        assert.equal(retiredPopupResume.ok, false);
+        assert.match(retiredPopupResume.error, /popup target-access continuation is retired/i);
       }
 
-      const recovered = await dispatchTerminalResume(chrome, nonce, sender, terminalPopupBinding);
+      const recovered = await dispatchRuntimeMessage(
+        chrome,
+        { type: MESSAGE_TYPES.resumeCleanupPermissionHandoff, payload: handoff.authority },
+        handoff.sender
+      );
       assert.equal(recovered.ok, true, `${scenario.name}: ${recovered.error || 'terminal replay failed'}`);
       assert.equal(recovered.approvalHandoffNonce, nonce);
       assert.equal(recovered.resumedCompletedResult, scenario.jobStatus === 'completed');

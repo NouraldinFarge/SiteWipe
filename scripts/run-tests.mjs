@@ -8,7 +8,11 @@ const files = await discover(resolve(root, 'tests'));
 if (!files.length) throw new Error('No test files were discovered.');
 
 const result = await new Promise((resolveResult, reject) => {
-  const child = spawn(process.execPath, ['--test', ...files], {
+  // These files model independent extension service-worker lifecycles with
+  // bounded browser-operation timers. Run the files serially so coverage
+  // instrumentation or host contention cannot starve one model behind an
+  // unrelated file and turn a deterministic safety assertion into a timeout.
+  const child = spawn(process.execPath, ['--test', '--test-concurrency=1', ...files], {
     cwd: root,
     stdio: 'inherit',
     windowsHide: true

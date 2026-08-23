@@ -1,5 +1,10 @@
 import { buildHostPermissionInventory } from './host-permissions.js';
 import { PROGRESS_OVERLAY_MAX_TABS } from './constants.js';
+import {
+  EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION,
+  SELECTED_SITE_PARTITION_STORAGE_DISCLOSURE,
+  classifyBrowserStorageScope
+} from './storage-partition-policy.js';
 
 const PROTECTED_CATEGORIES = Object.freeze([
   'Saved passwords, passkeys, and other credentials',
@@ -87,6 +92,7 @@ export function buildCleanupReview({
       : null;
   const progressOverlay = describeProgressOverlayEffect(settings, sourceWindowId);
   const configuredCleanup = describeConfiguredCleanupEffects(settings);
+  const browserStorageScope = classifyBrowserStorageScope(target);
 
   const categoriesAttempted = [
     requestShieldEnabled ? 'Temporary target request shield' : null,
@@ -96,7 +102,9 @@ export function buildCleanupReview({
     settings.resetMutedTabs ? 'Target-tab mute state' : null,
     settings.unpinTargetTabs ? 'Target-tab pinned state' : null,
     'Unpartitioned and exposed partitioned cookies',
-    'Origin-scoped storage, caches, file-system data, and service workers',
+    browserStorageScope.selectedSitePartitionDisclosureRequired
+      ? 'Selected-site storage, caches, file-system data, and service workers, including embedded third-party partitions under that site'
+      : null,
     'Matching browsing-history entries',
     'Matching download-history records',
     willRemoveFiles ? 'Preflight-bound completed downloaded files on disk' : null,
@@ -126,8 +134,10 @@ export function buildCleanupReview({
       ? `${impact.matchingTabs} currently matching tab(s) will be closed; additional matching tabs present when cleanup starts may also close.`
       : 'Any matching tabs present when cleanup starts will be closed.',
     associatedTargets.length ? 'Associated targets expand the cleanup beyond the primary normalized target.' : null,
+    browserStorageScope.selectedSitePartitionDisclosureRequired ? SELECTED_SITE_PARTITION_STORAGE_DISCLOSURE : null,
+    browserStorageScope.exactOriginLimitationRequired ? EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION : null,
     requirements.localOrIpTarget
-      ? 'Localhost and IP cleanup uses exact origin scope; cookies remain host-scoped because browser cookies are not port-scoped.'
+      ? 'Localhost and IP cleanup uses exact origin scope for tabs, live-page storage, history, and download URLs; cookies remain host-scoped because browser cookies are not port-scoped.'
       : null,
     requirements.protectedWebOrigins ? 'Installed/protected web-app origin data is enabled for this cleanup.' : null,
     willRemoveFiles
@@ -186,8 +196,23 @@ export function buildCleanupReview({
     },
     categoriesAttempted,
     categoriesProtected: [...PROTECTED_CATEGORIES],
-    categoriesUnavailable: [...UNAVAILABLE_CATEGORIES],
+    categoriesUnavailable: [
+      ...UNAVAILABLE_CATEGORIES,
+      browserStorageScope.exactOriginLimitationRequired
+        ? 'Browser-level closed-page storage and cache cleanup for exact-origin-only scope (skipped to preserve the reviewed port boundary)'
+        : null
+    ].filter(Boolean),
     effects: {
+      browserLevelStorage: {
+        selectedSiteCleanupEnabled: browserStorageScope.selectedSitePartitionDisclosureRequired,
+        selectedSitePartitionSemantics: browserStorageScope.selectedSitePartitionDisclosureRequired
+          ? SELECTED_SITE_PARTITION_STORAGE_DISCLOSURE
+          : null,
+        exactOriginOnlyCleanupSkipped: browserStorageScope.exactOriginLimitationRequired,
+        exactOriginLimitation: browserStorageScope.exactOriginLimitationRequired
+          ? EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION
+          : null
+      },
       closeTabs: {
         enabled: true,
         matchingCount: finiteCount(impact.matchingTabs)

@@ -122,7 +122,12 @@ export function sanitizeSettingsPatch(patch) {
   if (Object.prototype.hasOwnProperty.call(input, 'postWipeShieldExpiresMinutes')) {
     output.postWipeShieldExpiresMinutes = sanitizePostWipeShieldExpiresMinutes(input.postWipeShieldExpiresMinutes);
   }
-  for (const key of ['stabilityDefaultsAppliedAt', 'performanceDefaultsAppliedAt', 'privacyDefaultsAppliedAt']) {
+  for (const key of [
+    'stabilityDefaultsAppliedAt',
+    'performanceDefaultsAppliedAt',
+    'privacyDefaultsAppliedAt',
+    'storagePartitionDisclosureAppliedAt'
+  ]) {
     const timestamp = sanitizeTimestamp(input[key], true);
     if (timestamp !== undefined) output[key] = timestamp;
   }

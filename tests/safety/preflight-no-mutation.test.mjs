@@ -13,9 +13,14 @@ import {
   clearCleanupReviewState,
   clearExpiredCleanupReview,
   consumeCleanupReviewRequest as consumeCleanupReviewRequestImpl,
+  discardCleanupPermissionPromptWithoutInvocation,
   finalizeArmedCleanupReviewAdmission,
   getReadyArmedCleanupReview,
   normalizeCleanupReviewRecord,
+  recordCleanupPermissionGrantObservation,
+  recordCleanupPermissionGrantOutcome,
+  recordCleanupPermissionPromptIntent,
+  recordCleanupPermissionPromptInvocation,
   stageCleanupReviewApprovalRequest,
   prepareCleanupReviewRequest as prepareCleanupReviewRequestImpl
 } from '../../src/background/cleanup-preflight.js';
@@ -534,10 +539,35 @@ test('an armed final approval remains worker-owned after popup loss and is consu
   const lease = structuredClone(session.values['sitewipe.permissionLease.v1']);
   assert.equal(lease.status, 'prompt_pending');
   assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY].approvalHandoff.status, 'armed');
+  await recordCleanupPermissionPromptIntent(
+    {
+      handoffNonce: first.review.approvalHandoffNonce,
+      popupContextId: 'popup-context-unit-test'
+    },
+    dependencies
+  );
+  await recordCleanupPermissionPromptInvocation(
+    {
+      handoffNonce: first.review.approvalHandoffNonce,
+      popupContextId: 'popup-context-unit-test'
+    },
+    dependencies
+  );
+  await recordCleanupPermissionGrantObservation({ origins: first.review.temporaryHostPermissionOrigins }, dependencies);
+  await recordCleanupPermissionGrantOutcome(
+    {
+      handoffNonce: first.review.approvalHandoffNonce,
+      preRequestTemporaryOriginsAbsent: true,
+      popupContextId: 'popup-context-unit-test'
+    },
+    dependencies
+  );
   for (const origin of lease.temporaryOrigins) exactGrantedOrigins.add(origin);
 
   await assert.rejects(prepareCleanupReviewRequest(payload, dependencies), /another cleanup review is active/i);
-  assert.deepEqual(session.values['sitewipe.permissionLease.v1'], lease);
+  assert.equal(session.values['sitewipe.permissionLease.v1'].ownershipProof, 'reviewed_prompt_grant');
+  assert.equal(session.values['sitewipe.permissionLease.v1'].id, lease.id);
+  assert.deepEqual(session.values['sitewipe.permissionLease.v1'].temporaryOrigins, lease.temporaryOrigins);
   assert.equal(impactInspections, 1);
 
   const ready = await getReadyArmedCleanupReview(dependencies);
@@ -570,7 +600,7 @@ test('an armed final approval remains worker-owned after popup loss and is consu
   );
 });
 
-test('a final-click marker first observed after expiry retains exact native-prompt settlement ownership', async () => {
+test('an activation-one arm first observed after expiry discards uninvoked bookkeeping without claiming access', async () => {
   const session = createSessionStorage();
   let nowMs = 1_000;
   const payload = { input: 'example.com', sourceWindowId: 5, sourceIncognito: false };
@@ -586,7 +616,6 @@ test('a final-click marker first observed after expiry retains exact native-prom
     createHandoffNonce: async () => 'expired-first-arm-handoff-nonce'
   };
   const prepared = await prepareCleanupReviewRequest(payload, dependencies);
-  const lease = structuredClone(session.values['sitewipe.permissionLease.v1']);
   nowMs += CLEANUP_REVIEW_TTL_MS + 1;
 
   await assert.rejects(
@@ -603,12 +632,271 @@ test('a final-click marker first observed after expiry retains exact native-prom
     /expired/i
   );
 
+  assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY], undefined);
+  assert.equal(session.values['sitewipe.permissionLease.v1'], undefined);
+});
+
+test('an activation-two begin first handled after expiry records a settleable non-runnable intent tombstone', async () => {
+  const session = createSessionStorage();
+  let nowMs = 1_000;
+  const payload = { input: 'example.com', sourceWindowId: 5, sourceIncognito: false };
+  const dependencies = {
+    getSettings: async () => ({ cleanupMode: 'standard', skipCleanupReview: false, redactReports: true }),
+    isIncognitoAllowed: async () => false,
+    hasHostPermissions: async () => false,
+    getAllHostPermissions: async () => ({ origins: [] }),
+    inspectImpact: async () => ({ matchingTabs: 1, matchedCompletedFileIds: [] }),
+    storageSession: session,
+    storageLocal: session,
+    now: () => nowMs,
+    createToken: async () => 'late-begin-review-token',
+    createHandoffNonce: async () => 'late-begin-handoff-nonce'
+  };
+  const prepared = await prepareCleanupReviewRequest(payload, dependencies);
+  await armCleanupReviewApprovalRequest(
+    {
+      approvalToken: prepared.review.approvalToken,
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      sourceWindowId: 5,
+      sourceIncognito: false,
+      approval: detailedApproval()
+    },
+    withVerifiedSourceWindow(payload, dependencies)
+  );
+  nowMs += CLEANUP_REVIEW_TTL_MS + 1;
+
+  const intent = await recordCleanupPermissionPromptIntent(
+    {
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      popupContextId: 'popup-context-unit-test'
+    },
+    dependencies
+  );
+  assert.equal(intent.promptIntentRecorded, true);
+  assert.equal(intent.authorityRevoked, true);
+  assert.equal(intent.handoffStatus, 'prompt_intent_tombstone');
+  assert.ok(Date.parse(intent.confirmationDeadlineAt) > nowMs);
+  const tombstone = normalizeCleanupReviewRecord(session.values[CLEANUP_REVIEW_STORAGE_KEY]);
+  assert.equal(tombstone.approvalHandoff.status, 'prompt_intent_tombstone');
+  assert.equal(tombstone.approvalHandoff.promptInvocation, null);
+
+  const settlement = await discardCleanupPermissionPromptWithoutInvocation(
+    {
+      approvalToken: prepared.review.approvalToken,
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      permissionLeaseId: prepared.review.permissionLeaseId,
+      popupContextId: 'popup-context-unit-test'
+    },
+    dependencies
+  );
+  assert.equal(settlement.promptNotInvoked, true);
+  assert.equal(settlement.permissionsPreserved, true);
+  assert.equal(settlement.recordRetained, false);
+  assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY], undefined);
+  assert.equal(session.values['sitewipe.permissionLease.v1'], undefined);
+});
+
+test('an authenticated activation-two marker observed after expiry retains exact non-runnable prompt ownership', async () => {
+  const session = createSessionStorage();
+  let nowMs = 1_000;
+  const payload = { input: 'example.com', sourceWindowId: 5, sourceIncognito: false };
+  const dependencies = {
+    getSettings: async () => ({ cleanupMode: 'standard', skipCleanupReview: false, redactReports: true }),
+    isIncognitoAllowed: async () => false,
+    hasHostPermissions: async () => false,
+    getAllHostPermissions: async () => ({ origins: [] }),
+    inspectImpact: async () => ({ matchingTabs: 1, matchedCompletedFileIds: [] }),
+    storageSession: session,
+    now: () => nowMs,
+    createToken: async () => 'expired-second-activation-review-token',
+    createHandoffNonce: async () => 'expired-second-activation-handoff-nonce'
+  };
+  const prepared = await prepareCleanupReviewRequest(payload, dependencies);
+  await armCleanupReviewApprovalRequest(
+    {
+      approvalToken: prepared.review.approvalToken,
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      sourceWindowId: 5,
+      sourceIncognito: false,
+      approval: detailedApproval()
+    },
+    withVerifiedSourceWindow(payload, dependencies)
+  );
+  const lease = structuredClone(session.values['sitewipe.permissionLease.v1']);
+  nowMs += CLEANUP_REVIEW_TTL_MS - 1;
+  await recordCleanupPermissionPromptIntent(
+    {
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      popupContextId: 'popup-context-unit-test'
+    },
+    dependencies
+  );
+  nowMs += 2;
+
+  const invocation = await recordCleanupPermissionPromptInvocation(
+    {
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      popupContextId: 'popup-context-unit-test'
+    },
+    dependencies
+  );
+  assert.equal(invocation.authorityRevoked, true);
+  await recordCleanupPermissionGrantObservation(
+    { origins: prepared.review.temporaryHostPermissionOrigins },
+    dependencies
+  );
+  await recordCleanupPermissionGrantOutcome(
+    {
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      preRequestTemporaryOriginsAbsent: true,
+      popupContextId: 'popup-context-unit-test'
+    },
+    dependencies
+  );
+
   const retained = normalizeCleanupReviewRecord(session.values[CLEANUP_REVIEW_STORAGE_KEY]);
   assert.equal(retained.approvalHandoff.status, 'prompt_tombstone');
   assert.equal(retained.approvalHandoff.nonce, prepared.review.approvalHandoffNonce);
-  assert.equal(retained.approvalHandoff.promptContextId, 'popup-context-unit-test');
-  assert.deepEqual(retained.approvalHandoff.approval, detailedApproval());
-  assert.deepEqual(session.values['sitewipe.permissionLease.v1'], lease);
+  assert.equal(retained.approvalHandoff.promptInvocation.popupContextId, 'popup-context-unit-test');
+  assert.ok(retained.approvalHandoff.promptInvocation.recordedAtMs > retained.expiresAtMs);
+  assert.equal(session.values['sitewipe.permissionLease.v1'].ownershipProof, 'reviewed_prompt_grant');
+  assert.equal(session.values['sitewipe.permissionLease.v1'].id, lease.id);
+  assert.deepEqual(session.values['sitewipe.permissionLease.v1'].temporaryOrigins, lease.temporaryOrigins);
+});
+
+test('a full grant proof arriving after the prompt lease TTL is atomically invalidated without access removal', async () => {
+  const session = createSessionStorage();
+  let nowMs = 1_000;
+  const payload = { input: 'example.com', sourceWindowId: 5, sourceIncognito: false };
+  const dependencies = {
+    getSettings: async () => ({ cleanupMode: 'standard', skipCleanupReview: false, redactReports: true }),
+    isIncognitoAllowed: async () => false,
+    hasHostPermissions: async () => false,
+    getAllHostPermissions: async () => ({ origins: [] }),
+    inspectImpact: async () => ({ matchingTabs: 1, matchedCompletedFileIds: [] }),
+    storageSession: session,
+    now: () => nowMs,
+    createToken: async () => 'expired-prompt-lease-review-token',
+    createHandoffNonce: async () => 'expired-prompt-lease-handoff-nonce'
+  };
+  const prepared = await prepareCleanupReviewRequest(payload, dependencies);
+  await armCleanupReviewApprovalRequest(
+    {
+      approvalToken: prepared.review.approvalToken,
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      sourceWindowId: 5,
+      sourceIncognito: false,
+      approval: detailedApproval()
+    },
+    withVerifiedSourceWindow(payload, dependencies)
+  );
+  const promptPendingUntil = Date.parse(session.values['sitewipe.permissionLease.v1'].promptPendingUntil);
+  await recordCleanupPermissionPromptIntent(
+    {
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      popupContextId: 'popup-context-unit-test'
+    },
+    dependencies
+  );
+  await recordCleanupPermissionPromptInvocation(
+    {
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      popupContextId: 'popup-context-unit-test'
+    },
+    dependencies
+  );
+  nowMs = promptPendingUntil;
+  await recordCleanupPermissionGrantObservation(
+    { origins: prepared.review.temporaryHostPermissionOrigins },
+    dependencies
+  );
+  await assert.rejects(
+    recordCleanupPermissionGrantOutcome(
+      {
+        handoffNonce: prepared.review.approvalHandoffNonce,
+        preRequestTemporaryOriginsAbsent: true,
+        popupContextId: 'popup-context-unit-test'
+      },
+      dependencies
+    ),
+    /could not record reviewed prompt ownership/i
+  );
+  assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY], undefined);
+  assert.equal(session.values['sitewipe.permissionLease.v1'], undefined);
+});
+
+test('an uncertain durable ownership-marker write always erases the runnable session half', async (t) => {
+  for (const writeMode of ['rejected_before_write', 'rejected_after_write']) {
+    await t.test(writeMode, async () => {
+      const session = createSessionStorage();
+      const payload = { input: 'example.com', sourceWindowId: 5, sourceIncognito: false };
+      const dependencies = {
+        getSettings: async () => ({ cleanupMode: 'standard', skipCleanupReview: false, redactReports: true }),
+        isIncognitoAllowed: async () => false,
+        hasHostPermissions: async () => false,
+        getAllHostPermissions: async () => ({ origins: [] }),
+        inspectImpact: async () => ({ matchingTabs: 1, matchedCompletedFileIds: [] }),
+        storageSession: session,
+        now: () => 1_000,
+        createToken: async () => `uncertain-marker-${writeMode}-review-token`,
+        createHandoffNonce: async () => `uncertain-marker-${writeMode}-handoff-nonce`
+      };
+      const prepared = await prepareCleanupReviewRequest(payload, dependencies);
+      await armCleanupReviewApprovalRequest(
+        {
+          approvalToken: prepared.review.approvalToken,
+          handoffNonce: prepared.review.approvalHandoffNonce,
+          sourceWindowId: 5,
+          sourceIncognito: false,
+          approval: detailedApproval()
+        },
+        withVerifiedSourceWindow(payload, dependencies)
+      );
+      await recordCleanupPermissionPromptIntent(
+        {
+          handoffNonce: prepared.review.approvalHandoffNonce,
+          popupContextId: 'popup-context-unit-test'
+        },
+        dependencies
+      );
+      await recordCleanupPermissionPromptInvocation(
+        {
+          handoffNonce: prepared.review.approvalHandoffNonce,
+          popupContextId: 'popup-context-unit-test'
+        },
+        dependencies
+      );
+      await recordCleanupPermissionGrantObservation(
+        { origins: prepared.review.temporaryHostPermissionOrigins },
+        dependencies
+      );
+
+      const originalSet = session.set.bind(session);
+      session.set = async (patch) => {
+        const ownershipWrite = patch?.['sitewipe.permissionLease.v1']?.ownershipProof === 'reviewed_prompt_grant';
+        if (!ownershipWrite) return originalSet(patch);
+        if (writeMode === 'rejected_after_write') await originalSet(patch);
+        throw new Error(`synthetic ${writeMode}`);
+      };
+      await assert.rejects(
+        recordCleanupPermissionGrantOutcome(
+          {
+            handoffNonce: prepared.review.approvalHandoffNonce,
+            preRequestTemporaryOriginsAbsent: true,
+            popupContextId: 'popup-context-unit-test'
+          },
+          dependencies
+        ),
+        new RegExp(writeMode)
+      );
+      assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY], undefined);
+      if (writeMode === 'rejected_after_write') {
+        assert.equal(session.values['sitewipe.permissionLease.v1'].ownershipProof, 'reviewed_prompt_grant');
+      } else {
+        assert.equal(session.values['sitewipe.permissionLease.v1'], undefined);
+      }
+    });
+  }
 });
 
 test('popup reopen blocks changed authority while preserving the active review, lease, and external broad grant', async () => {
@@ -664,13 +952,14 @@ test('extension-local reset abandons an unarmed lease without removing externall
 
   assert.equal(result.cleared, true);
   assert.equal(result.hostPermissionCleanup.released, false);
-  assert.equal(result.hostPermissionCleanup.recordRetained, true);
-  assert.equal(result.hostPermissionCleanup.reason, 'permission_prompt_pending');
+  assert.equal(result.hostPermissionCleanup.recordRetained, false);
+  assert.equal(result.hostPermissionCleanup.permissionsPreserved, true);
+  assert.equal(result.hostPermissionCleanup.reason, 'proofless_lease_discarded');
   assert.deepEqual(granted, new Set([preexistingOrigin, temporaryOrigin]));
   assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY], undefined);
 });
 
-test('cancel and invalid approval revoke transaction-temporary drift while passive expiry retains prompt recovery', async () => {
+test('cancel, expiry, and invalid approval preserve external grants when no SiteWipe prompt was invoked', async () => {
   for (const terminalPath of ['cancel', 'expire', 'invalid-context']) {
     const session = createSessionStorage();
     let granted = false;
@@ -701,11 +990,13 @@ test('cancel and invalid approval revoke transaction-temporary drift while passi
 
     if (terminalPath === 'cancel') {
       const result = await cancelCleanupReviewRequest({ approvalToken: `temporary-${terminalPath}` }, dependencies);
-      assert.equal(result.hostPermissionCleanup.released, true);
+      assert.equal(result.hostPermissionCleanup.permissionsPreserved, true);
+      assert.equal(result.hostPermissionCleanup.recordRetained, false);
     } else if (terminalPath === 'expire') {
       const result = await clearExpiredCleanupReview(session, 1_000 + 5 * 60 * 1000 + 1, dependencies);
       assert.equal(result.hostPermissionCleanup.released, false);
-      assert.equal(result.hostPermissionCleanup.recordRetained, true);
+      assert.equal(result.hostPermissionCleanup.recordRetained, false);
+      assert.equal(result.hostPermissionCleanup.permissionsPreserved, true);
     } else {
       await assert.rejects(
         consumeCleanupReviewRequest(
@@ -727,8 +1018,8 @@ test('cancel and invalid approval revoke transaction-temporary drift while passi
       );
     }
 
-    assert.equal(granted, terminalPath === 'expire');
-    assert.equal(releasedOrigins.length, terminalPath === 'expire' ? 0 : 4);
+    assert.equal(granted, true);
+    assert.equal(releasedOrigins.length, 0);
     assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY], undefined);
   }
 });
@@ -763,9 +1054,10 @@ test('review cleanup preserves origin patterns that were granted before a partia
   granted.add('http://alice.blogspot.com/*');
   const result = await cancelCleanupReviewRequest({ approvalToken: 'partial-permission-token' }, dependencies);
 
-  assert.equal(result.hostPermissionCleanup.released, true);
-  assert.deepEqual(releasedOrigins, ['http://alice.blogspot.com/*']);
-  assert.deepEqual(new Set(granted), preexisting);
+  assert.equal(result.hostPermissionCleanup.permissionsPreserved, true);
+  assert.equal(result.hostPermissionCleanup.recordRetained, false);
+  assert.deepEqual(releasedOrigins, []);
+  assert.deepEqual(new Set(granted), new Set([...preexisting, 'http://alice.blogspot.com/*']));
 });
 
 test('approval is single-use, context-bound, and validated before execution data is returned', async () => {
@@ -948,6 +1240,32 @@ test('background requires complete reviewed approval for elevated and uncertain 
     },
     withVerifiedSourceWindow({ sourceWindowId: 6, sourceIncognito: false }, { ...dependencies, now: () => 2_001 })
   );
+  await recordCleanupPermissionPromptIntent(
+    {
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      popupContextId: 'popup-context-unit-test'
+    },
+    { ...dependencies, now: () => 2_002 }
+  );
+  await recordCleanupPermissionPromptInvocation(
+    {
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      popupContextId: 'popup-context-unit-test'
+    },
+    { ...dependencies, now: () => 2_003 }
+  );
+  await recordCleanupPermissionGrantObservation(
+    { origins: prepared.review.temporaryHostPermissionOrigins },
+    { ...dependencies, now: () => 2_004 }
+  );
+  await recordCleanupPermissionGrantOutcome(
+    {
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      preRequestTemporaryOriginsAbsent: true,
+      popupContextId: 'popup-context-unit-test'
+    },
+    { ...dependencies, now: () => 2_005 }
+  );
   for (const origin of session.values['sitewipe.permissionLease.v1'].temporaryOrigins) grantedOrigins.add(origin);
   const ready = await getReadyArmedCleanupReview({ ...dependencies, now: () => 2_002 });
   assert.equal(ready.handoffNonce, armed.handoffNonce);
@@ -1043,8 +1361,8 @@ test('approval fails closed when Expert cleanup settings changed after review', 
     /settings or target scope changed after review/i
   );
   assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY], undefined);
-  assert.equal(granted, false);
-  assert.equal(released.length, 4);
+  assert.equal(granted, true);
+  assert.equal(released.length, 0);
 });
 
 test('approval rejects both private-access expansion and revocation after review', async () => {
@@ -1451,35 +1769,45 @@ test('service-worker routing keeps all cleanup mutations behind token consumptio
   );
 });
 
-test('popup requests missing host access only from the final cleanup approval gesture', async () => {
-  const source = await readFile(new URL('../../src/popup/popup.js', import.meta.url), 'utf8');
+test('popup opens the persistent handoff without requesting host access itself', async () => {
+  const [source, handoff] = await Promise.all([
+    readFile(new URL('../../src/popup/popup.js', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/handoff/handoff.js', import.meta.url), 'utf8')
+  ]);
   const handlerStart = source.indexOf('async function runApprovedCleanup()');
   const handlerEnd = source.indexOf('function renderCleanupReview', handlerStart);
   const handler = source.slice(handlerStart, handlerEnd);
-  const permissionRequest = handler.indexOf('chrome.permissions.request');
-  const cleanupRequest = handler.indexOf('sendMessage(MESSAGE_TYPES.runDeepClean');
 
   assert.ok(handlerStart >= 0 && handlerEnd > handlerStart);
-  assert.ok(permissionRequest >= 0 && cleanupRequest > permissionRequest);
+  assert.match(handler, /sendMessage\(MESSAGE_TYPES\.openCleanupPermissionHandoff/);
+  assert.doesNotMatch(source, /chrome\.permissions\.(?:getAll|request)/);
+  assert.match(handoff, /chrome\.permissions\.getAll\(\)/);
+  assert.match(handoff, /chrome\.permissions\.request\(\{ origins: handoff\.origins \}\)/);
   assert.doesNotMatch(source, /grantReviewedHostAccess/);
 });
 
-test('popup leaves every granted handoff error to worker-owned reconciliation', async () => {
-  const source = await readFile(new URL('../../src/popup/popup.js', import.meta.url), 'utf8');
+test('persistent handoff leaves every granted error to worker-owned reconciliation', async () => {
+  const [source, handoff] = await Promise.all([
+    readFile(new URL('../../src/popup/popup.js', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/handoff/handoff.js', import.meta.url), 'utf8')
+  ]);
   const handlerStart = source.indexOf('async function runApprovedCleanup()');
   const handlerEnd = source.indexOf('function renderCleanupReview', handlerStart);
   const handler = source.slice(handlerStart, handlerEnd);
   assert.ok(handlerStart >= 0 && handlerEnd > handlerStart);
-  assert.match(handler, /permissionRequestGranted = granted === true/);
-  assert.match(handler, /handedOffPromptIsWorkerOwned/);
-  assert.match(handler, /!reviewStillUsable && !handedOffPromptIsWorkerOwned/);
+  assert.match(handler, /MESSAGE_TYPES\.openCleanupPermissionHandoff/);
+  assert.doesNotMatch(handler, /beginCleanupPermissionPrompt|settleCleanupPermissionPrompt|resumeArmedCleanup/);
+  assert.match(handoff, /request\.value !== true/);
+  assert.match(handoff, /MESSAGE_TYPES\.confirmCleanupPermissionHandoffGrant/);
+  assert.match(handoff, /MESSAGE_TYPES\.resumeCleanupPermissionHandoff/);
+  assert.match(handoff, /MESSAGE_TYPES\.settleCleanupPermissionHandoff/);
   assert.doesNotMatch(
-    handler,
+    `${handler}\n${handoff}`,
     /releaseTemporaryReviewHostPermissions|cleanupRequestRejectedBeforeJob|chrome\.permissions\.remove/
   );
 });
 
-test('popup keeps default review preparation and uses only a pre-armed direct cleanup from submit', async () => {
+test('popup keeps default review preparation and uses only the prepared direct cleanup from submit', async () => {
   const source = await readFile(new URL('../../src/popup/popup.js', import.meta.url), 'utf8');
   const submitStart = source.indexOf('async function onSubmit(event)');
   const submitEnd = source.indexOf('async function runApprovedCleanup()', submitStart);
@@ -1491,7 +1819,10 @@ test('popup keeps default review preparation and uses only a pre-armed direct cl
   assert.match(submitHandler, /runPreparedDirectCleanup\(\)/);
   assert.doesNotMatch(submitHandler, /MESSAGE_TYPES\.runDeepClean|chrome\.permissions\.request/);
   assert.match(source, /async function prepareDirectCleanup\(input\)/);
-  assert.match(source, /return directCleanupEnabled\(\) \? 'Clean now' : 'Review cleanup'/);
+  assert.match(
+    source,
+    /cleanupApprovalHandoffIsArmed\(directCleanupReview\)[\s\S]*?'Grant access and clean'[\s\S]*?: 'Clean now'/
+  );
   assert.doesNotMatch(source, /approvalMode: 'quick'/);
 });
 
@@ -1506,6 +1837,7 @@ test('direct cleanup setting is present in runtime settings and Expert-mode opti
     assert.match(source, /skipCleanupReview/);
   }
   assert.match(optionsHtml, /Skip detailed cleanup review completely/);
-  assert.match(optionsHtml, /starts the current target directly/i);
+  assert.match(optionsHtml, /pregranted[\s\S]*one popup activation[\s\S]*starts the current target[\s\S]*directly/i);
+  assert.match(optionsHtml, /missing[\s\S]*one activation durably[\s\S]*second fresh activation/i);
   assert.match(optionsJs, /skipCleanupReview: isChecked\('skipCleanupReview'\)/);
 });

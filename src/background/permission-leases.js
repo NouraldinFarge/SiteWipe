@@ -3,7 +3,7 @@ import { getRegistrableDomain } from '../shared/public-suffix.js';
 import { findProtectedBrowserServiceTargets } from '../shared/safety.js';
 import { scrubSensitiveText } from '../shared/report-redaction.js';
 
-export const PERMISSION_LEASE_SCHEMA_VERSION = 2;
+export const PERMISSION_LEASE_SCHEMA_VERSION = 3;
 export const PERMISSION_PROMPT_PENDING_TTL_MS = 30 * 60 * 1000;
 const MAX_PERMISSION_ORIGINS = 128;
 /** @type {Promise<unknown>} */
@@ -59,6 +59,8 @@ export async function preparePermissionLease(
       updatedAt: new Date(nowMs).toISOString(),
       reviewExpiresAt: normalizedReviewExpiresAt,
       promptPendingUntil: null,
+      ownershipProof: null,
+      ownershipRevokedAt: null,
       releaseAttemptCount: 0,
       lastReleaseAttemptAt: null,
       lastError: null
@@ -74,17 +76,93 @@ export async function markPermissionLeaseActive(storageLocal, leaseId, now = () 
     const lease = await getPermissionLease(storageLocal);
     if (!lease || lease.id !== String(leaseId || '')) return null;
     const binding = normalizePermissionLeaseBinding(expectedBinding);
-    if (lease.status !== 'prompt_pending' || !binding || !permissionLeaseBindingMatches(lease, binding)) return null;
+    if (
+      lease.status !== 'prompt_pending' ||
+      lease.ownershipProof !== 'reviewed_prompt_grant' ||
+      !binding ||
+      !permissionLeaseBindingMatches(lease, binding)
+    ) {
+      return null;
+    }
     const nowMs = Number(now());
     if (!Number.isFinite(nowMs)) throw new Error('Permission lease clock is unavailable.');
     const updated = {
       ...lease,
       status: 'active_cleanup',
+      ownershipProof: 'admitted_cleanup',
+      ownershipRevokedAt: null,
       promptPendingUntil: null,
       updatedAt: new Date(Math.max(nowMs, Date.parse(lease.createdAt))).toISOString()
     };
     await storageLocal.set({ [STORAGE_KEYS.permissionLease]: updated });
     return updated;
+  });
+}
+
+export async function markPermissionLeasePromptGrantOwned(
+  storageLocal,
+  leaseId,
+  now = () => Date.now(),
+  expectedBinding = null
+) {
+  return serializePermissionLeaseMutation(async () => {
+    assertStorageArea(storageLocal);
+    const lease = await getPermissionLease(storageLocal);
+    if (!lease || lease.id !== String(leaseId || '')) return null;
+    const binding = normalizePermissionLeaseBinding(expectedBinding);
+    if (
+      lease.status !== 'prompt_pending' ||
+      ![null, 'reviewed_prompt_grant'].includes(lease.ownershipProof) ||
+      !binding ||
+      !permissionLeaseBindingMatches(lease, binding)
+    ) {
+      return null;
+    }
+    const nowMs = Number(now());
+    if (!Number.isFinite(nowMs)) throw new Error('Permission lease clock is unavailable.');
+    if (nowMs >= Date.parse(lease.promptPendingUntil || '')) return null;
+    const updated = {
+      ...lease,
+      ownershipProof: 'reviewed_prompt_grant',
+      ownershipRevokedAt: null,
+      updatedAt: new Date(Math.max(nowMs, Date.parse(lease.createdAt))).toISOString()
+    };
+    await storageLocal.set({ [STORAGE_KEYS.permissionLease]: updated });
+    return updated;
+  });
+}
+
+export async function revokePermissionLeaseOwnership(storageLocal, removedOrigins = [], now = () => Date.now()) {
+  return serializePermissionLeaseMutation(async () => {
+    assertStorageArea(storageLocal);
+    const lease = await getPermissionLease(storageLocal);
+    if (!lease) return { found: false, revoked: false };
+    // onRemoved is an invalidation signal, not an authority-creating proof.
+    // Conservatively notice any exact leased pattern even when Chrome reports
+    // it alongside unrelated, broad, duplicated, named, or malformed entries.
+    const removed = new Set(
+      Array.isArray(removedOrigins) ? removedOrigins.filter((origin) => typeof origin === 'string') : []
+    );
+    if (!lease.temporaryOrigins.some((origin) => removed.has(origin)) || lease.ownershipProof == null) {
+      return { found: true, revoked: false, leaseId: lease.id };
+    }
+    if (lease.ownershipProof === 'revoked') {
+      return { found: true, revoked: true, leaseId: lease.id, alreadyRevoked: true };
+    }
+    const nowMs = Number(now());
+    if (!Number.isFinite(nowMs)) throw new Error('Permission lease clock is unavailable.');
+    const revokedAtMs = Math.max(nowMs, Date.parse(lease.createdAt));
+    const promptPendingExpired =
+      lease.status === 'prompt_pending' && revokedAtMs >= Date.parse(lease.promptPendingUntil || '');
+    const updated = {
+      ...lease,
+      ...(promptPendingExpired ? { status: 'release_pending', promptPendingUntil: null } : {}),
+      ownershipProof: 'revoked',
+      ownershipRevokedAt: new Date(revokedAtMs).toISOString(),
+      updatedAt: new Date(revokedAtMs).toISOString()
+    };
+    await storageLocal.set({ [STORAGE_KEYS.permissionLease]: updated });
+    return { found: true, revoked: true, leaseId: lease.id, lease: updated };
   });
 }
 
@@ -131,7 +209,7 @@ export async function markPermissionLeasePromptPending(
     assertStorageArea(storageLocal);
     const lease = await getPermissionLease(storageLocal);
     if (!lease || lease.id !== String(leaseId || '')) return null;
-    if (!['prepared', 'prompt_pending'].includes(lease.status)) return null;
+    if (!['prepared', 'prompt_pending'].includes(lease.status) || lease.ownershipProof != null) return null;
     const nowMs = Number(now());
     const ttlMs = Number(promptTtlMs);
     if (!Number.isFinite(nowMs) || !Number.isSafeInteger(ttlMs) || ttlMs <= 0) {
@@ -213,7 +291,7 @@ export async function restorePermissionLeasePromptOwnership(storageLocal, leaseB
     if (existing && !permissionLeaseBindingMatches(existing, binding)) {
       throw new Error('The temporary target-access lease no longer matches the cleanup review.');
     }
-    if (existing?.status === 'active_cleanup') {
+    if (existing?.status === 'active_cleanup' || existing?.ownershipProof != null) {
       throw new Error('An admitted cleanup lease cannot be restored as a pending browser prompt.');
     }
 
@@ -230,6 +308,8 @@ export async function restorePermissionLeasePromptOwnership(storageLocal, leaseB
       updatedAt: new Date(updatedAtMs).toISOString(),
       reviewExpiresAt: normalizedReviewExpiresAt,
       promptPendingUntil: new Date(updatedAtMs + PERMISSION_PROMPT_PENDING_TTL_MS).toISOString(),
+      ownershipProof: null,
+      ownershipRevokedAt: null,
       releaseAttemptCount: Number(existing?.releaseAttemptCount || 0),
       lastReleaseAttemptAt: existing?.lastReleaseAttemptAt || null,
       lastError: existing?.lastError || null
@@ -244,6 +324,229 @@ export function isPreparedPermissionLeaseLive(lease, now = Date.now()) {
   const expiresAt = Date.parse(lease.reviewExpiresAt || '');
   const nowMs = Number(now);
   return Number.isFinite(expiresAt) && Number.isFinite(nowMs) && nowMs <= expiresAt;
+}
+
+/**
+ * Drops bookkeeping when a review cannot prove ownership of a complete exact
+ * browser grant. Any matching access that appeared meanwhile is external or
+ * user-owned, so this path intentionally does not call permissions.remove().
+ */
+export async function discardUninvokedPermissionLease(storageLocal, expectedLeaseId) {
+  return serializePermissionLeaseMutation(async () => {
+    assertStorageArea(storageLocal);
+    const data = await storageLocal.get([STORAGE_KEYS.permissionLease]);
+    const rawLease = data?.[STORAGE_KEYS.permissionLease];
+    if (rawLease == null) {
+      return {
+        found: false,
+        released: false,
+        accessRemains: null,
+        recordRetained: false,
+        permissionsPreserved: true,
+        admittedCleanupRetained: false,
+        reason: 'no_lease'
+      };
+    }
+    const lease = normalizePermissionLease(rawLease);
+    if (!lease) {
+      const rawLeaseId = String(rawLease?.id || '');
+      if (expectedLeaseId && rawLeaseId && rawLeaseId !== String(expectedLeaseId)) {
+        return {
+          found: true,
+          released: false,
+          accessRemains: null,
+          recordRetained: true,
+          permissionsPreserved: true,
+          leaseId: rawLeaseId,
+          reason: 'lease_mismatch'
+        };
+      }
+      await storageLocal.remove(STORAGE_KEYS.permissionLease);
+      return {
+        found: true,
+        released: false,
+        accessRemains: null,
+        recordRetained: false,
+        permissionsPreserved: true,
+        ...(rawLeaseId ? { leaseId: rawLeaseId } : {}),
+        reason: 'invalid_proofless_lease_discarded'
+      };
+    }
+    if (expectedLeaseId && lease.id !== String(expectedLeaseId)) {
+      return {
+        found: true,
+        released: false,
+        accessRemains: null,
+        recordRetained: true,
+        permissionsPreserved: true,
+        leaseId: lease.id,
+        reason: 'lease_mismatch'
+      };
+    }
+    if (
+      !['prepared', 'prompt_pending', 'release_pending', 'active_cleanup'].includes(lease.status) ||
+      ![null, 'revoked'].includes(lease.ownershipProof)
+    ) {
+      return {
+        found: true,
+        released: false,
+        accessRemains: null,
+        recordRetained: true,
+        permissionsPreserved: true,
+        leaseId: lease.id,
+        reason: 'lease_not_proofless'
+      };
+    }
+    await storageLocal.remove(STORAGE_KEYS.permissionLease);
+    return {
+      found: true,
+      released: false,
+      accessRemains: null,
+      recordRetained: false,
+      permissionsPreserved: true,
+      leaseId: lease.id,
+      reason: 'proofless_lease_discarded'
+    };
+  });
+}
+
+/**
+ * Neutralizes the single durable permission lease before invalid session
+ * review bytes are discarded. An invalid review cannot authenticate a prompt
+ * grant, so every non-admitted lease is bookkeeping only and is removed
+ * without touching browser permissions. A valid admitted-cleanup proof remains
+ * worker-owned in every status (including release_pending) for ordinary
+ * recovery.
+ */
+export async function discardInvalidReviewPermissionLease(storageLocal) {
+  return serializePermissionLeaseMutation(async () => {
+    assertStorageArea(storageLocal);
+    const data = await storageLocal.get([STORAGE_KEYS.permissionLease]);
+    const rawLease = data?.[STORAGE_KEYS.permissionLease];
+    if (rawLease == null) {
+      return {
+        found: false,
+        released: false,
+        accessRemains: null,
+        recordRetained: false,
+        permissionsPreserved: true,
+        admittedCleanupRetained: false,
+        reason: 'no_lease'
+      };
+    }
+    const lease = normalizePermissionLease(rawLease);
+    const rawLeaseId = String(rawLease?.id || '');
+    const leaseId = lease?.id || (/^[a-zA-Z0-9._:-]{8,128}$/.test(rawLeaseId) ? rawLeaseId : null);
+    if (lease?.ownershipProof === 'admitted_cleanup') {
+      return {
+        found: true,
+        released: false,
+        accessRemains: null,
+        recordRetained: true,
+        permissionsPreserved: true,
+        ...(leaseId ? { leaseId } : {}),
+        reason: 'admitted_cleanup_recovery_retained',
+        admittedCleanupRetained: true
+      };
+    }
+    let removalError = null;
+    try {
+      await storageLocal.remove(STORAGE_KEYS.permissionLease);
+    } catch (error) {
+      removalError = error;
+    }
+    let postRemoval;
+    try {
+      postRemoval = await storageLocal.get([STORAGE_KEYS.permissionLease]);
+    } catch (error) {
+      return {
+        found: true,
+        released: false,
+        accessRemains: null,
+        recordRetained: true,
+        permissionsPreserved: true,
+        admittedCleanupRetained: false,
+        ...(leaseId ? { leaseId } : {}),
+        reason: 'invalid_review_lease_neutralization_unproven',
+        error: readableMessage(removalError || error)
+      };
+    }
+    if (postRemoval?.[STORAGE_KEYS.permissionLease] != null) {
+      return {
+        found: true,
+        released: false,
+        accessRemains: null,
+        recordRetained: true,
+        permissionsPreserved: true,
+        admittedCleanupRetained: false,
+        ...(leaseId ? { leaseId } : {}),
+        reason: 'invalid_review_lease_neutralization_unproven',
+        ...(removalError ? { error: readableMessage(removalError) } : {})
+      };
+    }
+    return {
+      found: true,
+      released: false,
+      accessRemains: null,
+      recordRetained: false,
+      permissionsPreserved: true,
+      admittedCleanupRetained: false,
+      ...(leaseId ? { leaseId } : {}),
+      reason: 'invalid_review_lease_discarded'
+    };
+  });
+}
+
+/**
+ * Drops lease bookkeeping after Chrome reports that one of the exact
+ * temporary origins was removed. The browser event proves that the old grant
+ * no longer exists, so retaining any ownership provenance could only let a
+ * later manual regrant be misattributed to the old review. This recovery path
+ * never calls permissions.remove().
+ */
+export async function discardPermissionLeaseAfterObservedRemoval(storageLocal, removedOrigins = []) {
+  return serializePermissionLeaseMutation(async () => {
+    assertStorageArea(storageLocal);
+    const removed = new Set(
+      Array.isArray(removedOrigins) ? removedOrigins.filter((origin) => typeof origin === 'string') : []
+    );
+    const data = await storageLocal.get([STORAGE_KEYS.permissionLease]);
+    const rawLease = data?.[STORAGE_KEYS.permissionLease];
+    if (rawLease == null) {
+      return {
+        found: false,
+        discarded: false,
+        recordRetained: false,
+        permissionsPreserved: true,
+        reason: 'no_lease'
+      };
+    }
+    const lease = normalizePermissionLease(rawLease);
+    const candidateOrigins =
+      lease?.temporaryOrigins ||
+      (Array.isArray(rawLease?.temporaryOrigins)
+        ? rawLease.temporaryOrigins.filter((origin) => typeof origin === 'string')
+        : []);
+    if (!candidateOrigins.some((origin) => removed.has(origin))) {
+      return {
+        found: true,
+        discarded: false,
+        recordRetained: true,
+        permissionsPreserved: true,
+        ...(lease?.id || rawLease?.id ? { leaseId: String(lease?.id || rawLease.id) } : {}),
+        reason: 'removed_origins_do_not_intersect_lease'
+      };
+    }
+    await storageLocal.remove(STORAGE_KEYS.permissionLease);
+    return {
+      found: true,
+      discarded: true,
+      recordRetained: false,
+      permissionsPreserved: true,
+      ...(lease?.id || rawLease?.id ? { leaseId: String(lease?.id || rawLease.id) } : {}),
+      reason: 'observed_removed_lease_discarded'
+    };
+  });
 }
 
 /**
@@ -275,6 +578,40 @@ export async function reconcilePermissionLease(storageLocal, dependencies = {}, 
         reason: 'lease_mismatch',
         leaseId: lease.id
       };
+    }
+    if (lease.ownershipProof === 'revoked') {
+      const settlement = {
+        found: true,
+        attempted: false,
+        released: false,
+        accessRemains: null,
+        recordRetained: false,
+        permissionsPreserved: true,
+        leaseId: lease.id,
+        reason: 'revoked_ownership_discarded'
+      };
+      if (typeof dependencies.beforeLeaseRemoval === 'function') {
+        await dependencies.beforeLeaseRemoval(settlement);
+      }
+      await storageLocal.remove(STORAGE_KEYS.permissionLease);
+      return settlement;
+    }
+    if (lease.ownershipProof == null) {
+      const settlement = {
+        found: true,
+        attempted: false,
+        released: false,
+        accessRemains: null,
+        recordRetained: false,
+        permissionsPreserved: true,
+        leaseId: lease.id,
+        reason: 'proofless_ownership_discarded'
+      };
+      if (typeof dependencies.beforeLeaseRemoval === 'function') {
+        await dependencies.beforeLeaseRemoval(settlement);
+      }
+      await storageLocal.remove(STORAGE_KEYS.permissionLease);
+      return settlement;
     }
     if (dependencies.promptSettlementOnly === true && !['prepared', 'prompt_pending'].includes(lease.status)) {
       return {
@@ -334,8 +671,7 @@ export async function reconcilePermissionLease(storageLocal, dependencies = {}, 
     const before = await queryGrantedOrigins(lease.temporaryOrigins, containsHostPermissions, getAllHostPermissions);
     if (!before.ok) return retainLease(storageLocal, lease, before.error, dependencies.now);
     if (!before.granted.length) {
-      await storageLocal.remove(STORAGE_KEYS.permissionLease);
-      return {
+      const settlement = {
         found: true,
         attempted: false,
         released: true,
@@ -346,6 +682,11 @@ export async function reconcilePermissionLease(storageLocal, dependencies = {}, 
         leaseId: lease.id,
         reason: 'already_absent'
       };
+      if (typeof dependencies.beforeLeaseRemoval === 'function') {
+        await dependencies.beforeLeaseRemoval(settlement);
+      }
+      await storageLocal.remove(STORAGE_KEYS.permissionLease);
+      return settlement;
     }
 
     let removeResult = false;
@@ -367,8 +708,7 @@ export async function reconcilePermissionLease(storageLocal, dependencies = {}, 
       );
     }
     if (!after.granted.length) {
-      await storageLocal.remove(STORAGE_KEYS.permissionLease);
-      return {
+      const settlement = {
         found: true,
         attempted: true,
         removeResult,
@@ -380,6 +720,11 @@ export async function reconcilePermissionLease(storageLocal, dependencies = {}, 
         leaseId: lease.id,
         reason: 'absence_proved'
       };
+      if (typeof dependencies.beforeLeaseRemoval === 'function') {
+        await dependencies.beforeLeaseRemoval(settlement);
+      }
+      await storageLocal.remove(STORAGE_KEYS.permissionLease);
+      return settlement;
     }
 
     const retained = await retainLease(
@@ -490,6 +835,25 @@ function normalizePermissionLease(value) {
     ) {
       return null;
     }
+    const ownershipProof =
+      value.ownershipProof == null
+        ? null
+        : ['reviewed_prompt_grant', 'admitted_cleanup', 'revoked'].includes(value.ownershipProof)
+          ? value.ownershipProof
+          : undefined;
+    const ownershipRevokedAt = normalizeTimestamp(value.ownershipRevokedAt);
+    if (
+      ownershipProof === undefined ||
+      (value.ownershipRevokedAt != null && !ownershipRevokedAt) ||
+      (ownershipProof === 'revoked') !== Boolean(ownershipRevokedAt) ||
+      (ownershipRevokedAt &&
+        (Date.parse(ownershipRevokedAt) < createdAtMs || Date.parse(ownershipRevokedAt) > updatedAtMs)) ||
+      (['prepared'].includes(value.status) && ownershipProof !== null) ||
+      (value.status === 'prompt_pending' && ![null, 'reviewed_prompt_grant', 'revoked'].includes(ownershipProof)) ||
+      (value.status === 'active_cleanup' && !['admitted_cleanup', 'revoked'].includes(ownershipProof))
+    ) {
+      return null;
+    }
     const releaseAttemptCount = Number(value.releaseAttemptCount);
     if (!Number.isSafeInteger(releaseAttemptCount) || releaseAttemptCount < 0) return null;
     const lastReleaseAttemptAt = normalizeTimestamp(value.lastReleaseAttemptAt);
@@ -515,6 +879,8 @@ function normalizePermissionLease(value) {
       updatedAt,
       reviewExpiresAt,
       promptPendingUntil,
+      ownershipProof,
+      ownershipRevokedAt,
       releaseAttemptCount,
       lastReleaseAttemptAt,
       lastError: value.lastError ? scrubSensitiveText(value.lastError).slice(0, 500) : null

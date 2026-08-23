@@ -4,6 +4,9 @@ import { readFile } from 'node:fs/promises';
 
 const popupUrl = new URL('../../src/popup/popup.js', import.meta.url);
 const popupHtmlUrl = new URL('../../src/popup/popup.html', import.meta.url);
+const popupCssUrl = new URL('../../src/popup/popup.css', import.meta.url);
+const handoffUrl = new URL('../../src/handoff/handoff.js', import.meta.url);
+const handoffHtmlUrl = new URL('../../src/handoff/handoff.html', import.meta.url);
 let importSequence = 0;
 
 test('popup preparation capabilities remain memory-only and are erased at every popup lifetime boundary', async () => {
@@ -16,18 +19,20 @@ test('popup preparation capabilities remain memory-only and are erased at every 
   );
   assert.match(
     source,
-    /if \(\['completed', 'failed', 'cancelled', 'interrupted'\]\.includes\(job\.status\)\) \{[\s\S]*?popupPreparationBindings\.delete/,
-    'terminal worker state must retire any surviving popup capability'
+    /MESSAGE_TYPES\.openCleanupPermissionHandoff[\s\S]*?popupPreparationBindings\.delete\(review\.approvalToken\);/,
+    'opening the worker-owned handoff tab must retire the popup preparation capability'
   );
   assert.match(
     source,
-    /function forgetResolvedPermissionHandoffBinding[\s\S]*?\['terminal', 'released'\]\.includes[\s\S]*?popupPreparationBindings\.delete\(review\.approvalToken\);/,
-    'a returned terminal or conclusively released handoff must erase the raw capability'
+    /armed = await sendMessage\(MESSAGE_TYPES\.armCleanupApproval[\s\S]*?const opened = await sendMessage\(MESSAGE_TYPES\.openCleanupPermissionHandoff/,
+    'the popup must await durable arm before delegating handoff creation or focus to the worker'
   );
-  assert.match(
+  assert.doesNotMatch(source, /chrome\.permissions\./, 'the action popup must not invoke native permission APIs');
+  assert.doesNotMatch(source, /chrome\.tabs\./, 'the action popup must not create or focus the handoff tab itself');
+  assert.doesNotMatch(
     source,
-    /async function settleCleanupPermissionPrompt[\s\S]*?!retainBindingUntilReleaseProof \|\| permissionSettlementProvesRelease\(settlementResponse\)[\s\S]*?popupPreparationBindings\.delete\(review\.approvalToken\);/,
-    'confirmed settlement must erase the raw capability while an unresolved replay may retain it'
+    /beginCleanupPermissionPrompt|confirmCleanupPermissionPromptInvocation|confirmCleanupPermissionGrantOutcome|resumeArmedCleanup|settleCleanupPermissionPrompt/,
+    'the action popup must not retain any retired native-prompt continuation route'
   );
 });
 
@@ -124,10 +129,11 @@ for (const [cleanupMode, startupFailure] of [
     }
   ]
 ]) {
-  test(`${cleanupMode} direct cleanup waits through fresh-worker readiness and retains one final activation`, async () => {
+  test(`${cleanupMode} direct cleanup waits through fresh-worker readiness and separates approval from target access`, async () => {
     const harness = await createPopupHarness({
       cleanupMode,
       directCleanup: true,
+      handoffFocused: cleanupMode === 'expert',
       hostPermissionsGranted: false,
       prepareResponses: [startupFailure, { review: directReview({ cleanupMode, hostPermissionsGranted: false }) }]
     });
@@ -144,36 +150,82 @@ for (const [cleanupMode, startupFailure] of [
       assert.equal(harness.element('readyBadge').textContent, 'Direct cleanup ready');
       assert.deepEqual(harness.mutationCalls(), [], 'the completed hidden preflight must not begin cleanup');
 
-      const firstAccepted = await harness.clickPrimary();
-      const duplicateAccepted = await harness.clickPrimary();
-      assert.equal(firstAccepted, true);
-      assert.equal(duplicateAccepted, false, 'the first activation must synchronously lock duplicate clicks');
-
-      await waitFor(() => harness.resumeCalls().length === 1);
-      assert.equal(harness.permissionCalls().length, 1);
+      assert.equal(await harness.clickPrimary(), true);
+      await waitFor(() => harness.openHandoffCalls().length === 1);
+      assert.deepEqual(
+        harness.activationBatches()[0],
+        ['sitewipe.armCleanupApproval'],
+        'the popup must not pretend the post-await handoff open still has the original browser activation'
+      );
+      assert.ok(
+        harness.callIndex('sitewipe.armCleanupApproval') < harness.callIndex('sitewipe.openCleanupPermissionHandoff'),
+        'the popup must await the durable arm before asking the worker to open its handoff tab'
+      );
+      assert.equal(harness.permissionCalls().length, 0, 'saving approval must not open browser permission UI');
+      assert.equal(harness.permissionSnapshotCalls().length, 0);
+      assert.equal(harness.retiredPromptRouteCalls().length, 0);
       assert.equal(harness.armCalls().length, 1);
       assert.equal(harness.runCalls().length, 0);
       assert.deepEqual(
-        harness.activationEvents().slice(0, 3),
-        ['permissions.request', 'sitewipe.armCleanupApproval', 'sitewipe.resumeArmedCleanup'],
-        'the native request and non-awaited approval dispatch must both occur before the post-prompt continuation'
+        harness.activationEvents(),
+        ['sitewipe.armCleanupApproval'],
+        'the worker-owned tab open must not depend on browser activation surviving the awaited arm'
       );
       assert.equal(harness.armCalls()[0].payload.approval.approvalMode, 'settings_direct');
       assertPopupAuthorityBinding(harness.armCalls()[0].payload);
-      assertPopupAuthorityBinding(harness.resumeCalls()[0].payload);
       assert.deepEqual(
-        popupAuthorityBinding(harness.resumeCalls()[0].payload),
+        popupAuthorityBinding(harness.openHandoffCalls()[0].payload),
         popupAuthorityBinding(harness.armCalls()[0].payload),
-        'arm and resume must use the exact worker-minted one-use popup authority'
+        'arm and handoff-open must use the exact worker-minted popup preparation authority'
       );
       const reviewedPrompt = directReview({ cleanupMode, hostPermissionsGranted: false });
       assert.equal(harness.armCalls()[0].payload.handoffNonce, reviewedPrompt.approvalHandoffNonce);
-      assert.deepEqual(harness.permissionCalls()[0].payload.origins, reviewedPrompt.temporaryHostPermissionOrigins);
+      assert.equal(harness.openHandoffCalls()[0].payload.handoffNonce, reviewedPrompt.approvalHandoffNonce);
+      await waitFor(() => harness.element('progressTitle').textContent === 'Continue in the SiteWipe access tab');
+      assert.equal(harness.element('progressTitle').textContent, 'Continue in the SiteWipe access tab');
+      assert.match(harness.element('progressDetail').textContent, /persistent SiteWipe tab/i);
     } finally {
       await harness.dispose();
     }
   });
 }
+
+test('a delayed durable-arm acknowledgement cannot open target access early', async () => {
+  const harness = await createPopupHarness({
+    directCleanup: true,
+    armResponseDeferred: true,
+    prepareResponses: [{ review: directReview({ hostPermissionsGranted: false }) }]
+  });
+  try {
+    await waitFor(() => harness.element('deepCleanButton').disabled === false);
+    const click = harness.clickPrimary();
+    await waitFor(() => harness.armCalls().length === 1);
+
+    assert.deepEqual(harness.activationBatches()[0], ['sitewipe.armCleanupApproval']);
+    assert.equal(harness.permissionCalls().length, 0);
+    assert.equal(
+      harness.openHandoffCalls().length,
+      0,
+      'the handoff tab cannot open before durable arm acknowledgement'
+    );
+    assert.equal(await harness.clickPrimary(), false, 'the popup must remain locked before the arm reply');
+
+    harness.settleArmResponse();
+    await waitFor(() => harness.openHandoffCalls().length === 1);
+    assert.equal(await click, true);
+    assert.deepEqual(harness.activationBatches()[0], ['sitewipe.armCleanupApproval']);
+    assert.equal(harness.permissionCalls().length, 0);
+    assert.equal(harness.retiredPromptRouteCalls().length, 0);
+    assert.deepEqual(popupAuthorityBinding(harness.openHandoffCalls()[0].payload), {
+      popupContextId: 'opaque popup/context #test',
+      popupPreparationCapability: '1'.repeat(64)
+    });
+    assert.equal(harness.element('progressTitle').textContent, 'Continue in the SiteWipe access tab');
+  } finally {
+    harness.settleArmResponse();
+    await harness.dispose();
+  }
+});
 
 test('a pre-granted direct cleanup submits the exact worker-minted popup authority', async () => {
   const harness = await createPopupHarness({
@@ -187,7 +239,7 @@ test('a pre-granted direct cleanup submits the exact worker-minted popup authori
 
     assert.equal(harness.permissionCalls().length, 0);
     assert.equal(harness.armCalls().length, 0);
-    assert.equal(harness.resumeCalls().length, 0);
+    assert.equal(harness.retiredPromptRouteCalls().length, 0);
     assertPopupAuthorityBinding(harness.runCalls()[0].payload);
     assert.deepEqual(popupAuthorityBinding(harness.runCalls()[0].payload), {
       popupContextId: 'opaque popup/context #test',
@@ -198,53 +250,174 @@ test('a pre-granted direct cleanup submits the exact worker-minted popup authori
   }
 });
 
-test('job events cannot retire popup authority before post-prompt terminal replay settles', async () => {
-  const harness = await createPopupHarness({
+test('a native prompt can outlive the popup because only the persistent handoff document invokes it', async () => {
+  const popup = await createPopupHarness({
     directCleanup: true,
-    permissionRequestDeferred: true,
-    resumeResponseDeferred: true,
     prepareResponses: [{ review: directReview({ hostPermissionsGranted: false }) }]
   });
   try {
-    await waitFor(() => harness.element('deepCleanButton').disabled === false);
-    const cleanup = harness.clickPrimary();
-    await waitFor(() => harness.permissionCalls().length === 1 && harness.armCalls().length === 1);
+    await waitFor(() => popup.element('deepCleanButton').disabled === false);
+    assert.equal(await popup.clickPrimary(), true);
+    await waitFor(() => popup.openHandoffCalls().length === 1);
+    assert.equal(popup.permissionCalls().length, 0);
+    assert.equal(popup.permissionSnapshotCalls().length, 0);
+    assert.equal(popup.retiredPromptRouteCalls().length, 0);
+    assert.equal(popup.runCalls().length, 0);
+  } finally {
+    await popup.dispose();
+  }
 
-    harness.emitActiveJob({
-      id: 'event-before-resume-job',
-      status: 'running',
-      percent: 20,
-      label: 'Cleanup running',
-      detail: 'Synthetic worker-owned cleanup.'
-    });
-    harness.settlePermissionRequest(true);
-    await waitFor(() => harness.resumeCalls().length === 1);
-    assertPopupAuthorityBinding(harness.resumeCalls()[0].payload);
+  const handoff = await createHandoffHarness({ permissionRequestDeferred: true });
+  try {
+    await waitFor(() => handoff.element('grantAccess').disabled === false);
+    const activation = await handoff.clickGrant();
+    assert.equal(activation.accepted, true);
+    await waitFor(() => handoff.permissionCalls().length === 1);
+    assert.deepEqual(handoff.activationEvents(), [
+      'sitewipe.beginCleanupPermissionHandoff',
+      'permissions.getAll',
+      'permissions.request',
+      'sitewipe.confirmCleanupPermissionHandoffInvocation'
+    ]);
+    assert.equal(handoff.permissionSnapshotCalls()[0].userActivation, true);
+    assert.equal(handoff.permissionCalls()[0].userActivation, true);
+    assert.equal(handoff.grantCalls().length, 0, 'document destruction before result cannot invent outcome proof');
+    assert.equal(handoff.resumeCalls().length, 0);
+    assert.equal(handoff.settlementCalls().length, 0);
+  } finally {
+    await handoff.dispose();
+  }
+});
 
-    harness.emitActiveJob({
-      id: 'event-before-resume-job',
-      status: 'completed',
-      percent: 100,
-      label: 'Cleanup finished',
-      detail: 'Synthetic terminal job event before the resume response.'
+test('a replacement popup exposes and locks an unresolved target-access recovery obligation', async () => {
+  const harness = await createPopupHarness({
+    directCleanup: false,
+    prepareResponses: [
+      {
+        review: detailedReview({
+          hostPermissionsGranted: false,
+          permissionLeaseId: 'lease-armed-in-another-popup',
+          approvalHandoffStatus: 'armed'
+        })
+      }
+    ],
+    temporaryHostAccess: {
+      state: 'prompt_pending',
+      recoveryPending: false,
+      reviewExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      temporaryOriginCount: 4,
+      releaseAttemptCount: 0,
+      lastReleaseAttemptAt: null,
+      lastError: null
+    }
+  });
+  try {
+    await waitFor(() => harness.element('readyBadge').textContent === 'Recovery pending');
+    assert.equal(harness.element('progressCard').hidden, false);
+    assert.equal(harness.bodyHasClass('recovery-active'), true);
+    assert.equal(harness.bodyHasClass('review-active'), false);
+    assert.equal(harness.element('progressTitle').textContent, 'Previous target access needs recovery');
+    assert.match(harness.element('progressDetail').textContent, /prompt pending; 4 exact pattern\(s\)/i);
+    assert.match(harness.element('progressDetail').textContent, /Options.*Maintenance/i);
+    assert.equal(harness.element('targetInput').disabled, true);
+    assert.equal(harness.element('deepCleanButton').disabled, true);
+    assert.equal(harness.prepareCalls().length, 0, "another popup's armed review must not transfer document authority");
+    assert.equal(harness.permissionCalls().length, 0);
+    assert.equal(harness.runCalls().length, 0);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test('the dedicated recovery layout cannot hide its own status card', async () => {
+  const css = await readFile(popupCssUrl, 'utf8');
+  const recoverySelector = css.match(/body\.recovery-active :is\(([^)]*)\)\s*,/);
+  assert.ok(recoverySelector, 'recovery mode must have an explicit isolation selector');
+  assert.doesNotMatch(
+    recoverySelector[1],
+    /progress-card/,
+    'recovery isolation must keep the only recovery explanation visible'
+  );
+});
+
+test('an open popup follows prompt, cleanup, release, and proven-clear lease transitions', async () => {
+  const harness = await createPopupHarness({
+    temporaryHostAccess: {
+      state: 'prompt_pending',
+      recoveryPending: false,
+      temporaryOriginCount: 4
+    }
+  });
+  try {
+    await waitFor(() => harness.element('readyBadge').textContent === 'Recovery pending');
+    harness.emitPermissionLeaseChange({
+      state: 'active_cleanup',
+      recoveryPending: false,
+      temporaryOriginCount: 4
     });
-    assert.equal(
-      harness.element('deepCleanButton').disabled,
-      true,
-      'a terminal storage event must not unlock a duplicate click while the correlated resume is pending'
-    );
-    harness.settleResumeResponse();
-    await cleanup;
+    await waitFor(() => /active cleanup; 4 exact pattern\(s\)/i.test(harness.element('progressDetail').textContent));
+
+    harness.emitPermissionLeaseChange({
+      state: 'release_pending',
+      recoveryPending: true,
+      temporaryOriginCount: 4
+    });
+    await waitFor(() => /release pending; 4 exact pattern\(s\)/i.test(harness.element('progressDetail').textContent));
+
+    harness.emitPermissionLeaseChange({ state: 'none', recoveryPending: false, temporaryOriginCount: 0 });
+    await waitFor(() => harness.element('readyBadge').textContent === 'Ready');
+    assert.equal(harness.bodyHasClass('recovery-active'), false);
+    assert.equal(harness.element('progressCard').hidden, true);
+    assert.equal(harness.element('targetInput').disabled, false);
+    assert.equal(harness.element('deepCleanButton').disabled, false);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test('Clean another site re-proves temporary-access absence before leaving a report', async () => {
+  const harness = await createPopupHarness({ storedReport: completedStoredReport() });
+  try {
     await waitFor(() => harness.element('summaryCard').hidden === false);
+    harness.setTemporaryHostAccess({
+      state: 'release_pending',
+      recoveryPending: true,
+      temporaryOriginCount: 4
+    });
+    assert.equal(await harness.clickStartAnother(), true);
+    await waitFor(() => harness.element('progressTitle').textContent === 'Previous target access needs recovery');
+    assert.equal(harness.bodyHasClass('recovery-active'), true);
+    assert.equal(
+      harness.element('summaryCard').hidden,
+      false,
+      'the stored report must remain available underneath recovery'
+    );
+    assert.equal(harness.element('targetInput').disabled, true);
+    assert.equal(harness.element('deepCleanButton').disabled, true);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test('the exact handoff capability authenticates grant confirmation and one worker-owned resume', async () => {
+  const error = new Error('Synthetic grant-confirmation response loss.');
+  const harness = await createHandoffHarness({
+    grantMessageError: error,
+    resumeResponse: { resumedCompletedResult: true }
+  });
+  try {
+    const activation = await harness.clickGrant();
+    assert.equal(activation.accepted, true);
+    await activation.completion;
+    assert.equal(harness.grantCalls().length, 1);
     assert.equal(harness.resumeCalls().length, 1);
     assert.deepEqual(
-      popupAuthorityBinding(harness.resumeCalls()[0].payload),
-      popupAuthorityBinding(harness.armCalls()[0].payload),
-      'the exact raw authority must survive both job events until terminal replay authenticates'
+      handoffAuthorityBinding(harness.resumeCalls()[0].payload),
+      handoffAuthorityBinding(harness.grantCalls()[0].payload)
     );
+    assert.match(harness.element('status').textContent, /Cleanup finished/i);
+    assert.equal(harness.element('grantAccess').disabled, true);
   } finally {
-    harness.settlePermissionRequest(false);
-    harness.settleResumeResponse();
     await harness.dispose();
   }
 });
@@ -261,22 +434,16 @@ test('every granted handoff error remains exclusively worker-owned', async (t) =
         new Error('SiteWipe could not return a terminal result; the worker may still be continuing.'),
         classification
       );
-      const harness = await createPopupHarness({
-        directCleanup: true,
-        permissionRequestGranted: true,
-        armMessageError: error,
-        prepareResponses: [{ review: directReview({ hostPermissionsGranted: false }) }]
-      });
+      const harness = await createHandoffHarness({ grantMessageError: error, resumeMessageError: error });
       try {
-        await waitFor(() => harness.element('deepCleanButton').disabled === false);
-        assert.equal(await harness.clickPrimary(), true);
-        await waitFor(() => harness.armCalls().length === 1);
-
+        const activation = await harness.clickGrant();
+        await activation.completion;
         assert.equal(harness.permissionCalls().length, 1);
-        assert.equal(harness.resumeCalls().length, 0);
-        assert.equal(harness.permissionRemovalCalls().length, 0);
-        assert.equal(harness.promptSettlementCalls().length, 0);
-        assert.equal(harness.cancelReviewCalls().length, 0);
+        assert.equal(harness.grantCalls().length, 1);
+        assert.equal(harness.resumeCalls().length, 1, 'the exact handoff may attempt one worker-owned resume');
+        assert.equal(harness.settlementCalls().length, 0);
+        assert.match(harness.element('error').textContent, /worker may still be continuing/i);
+        assert.equal(harness.element('grantAccess').disabled, true);
       } finally {
         await harness.dispose();
       }
@@ -284,64 +451,145 @@ test('every granted handoff error remains exclusively worker-owned', async (t) =
   }
 });
 
-test('a conclusive native denial settles its staged handoff even when the arm reply fails', async () => {
-  const armError = Object.assign(new Error('Synthetic staged arm peer timeout.'), {
-    code: 'lifecycle_not_ready',
-    retryable: true
-  });
-  const harness = await createPopupHarness({
-    directCleanup: true,
-    permissionRequestGranted: false,
-    armMessageError: armError,
-    prepareResponses: [{ review: directReview({ hostPermissionsGranted: false }) }]
-  });
+test('a conclusive native denial settles only the exact bound handoff', async () => {
+  const harness = await createHandoffHarness({ permissionRequestGranted: false });
   try {
-    await waitFor(() => harness.element('deepCleanButton').disabled === false);
-    assert.equal(await harness.clickPrimary(), true);
-    await waitFor(() => harness.promptSettlementCalls().length === 1);
-
+    const activation = await harness.clickGrant();
+    await activation.completion;
     assert.equal(harness.permissionCalls().length, 1);
-    assert.equal(harness.armCalls().length, 1);
-    assert.equal(harness.promptSettlementCalls()[0].payload.outcome, 'denied');
-    assertPopupAuthorityBinding(harness.armCalls()[0].payload);
-    assert.deepEqual(
-      popupAuthorityBinding(harness.promptSettlementCalls()[0].payload),
-      popupAuthorityBinding(harness.armCalls()[0].payload),
-      'the conclusive prompt settlement must authenticate with the initiating popup capability'
-    );
-    assert.equal(harness.cancelReviewCalls().length, 0);
-    assert.equal(harness.permissionRemovalCalls().length, 0);
+    assert.equal(harness.settlementCalls().length, 1);
+    assert.equal(harness.settlementCalls()[0].payload.outcome, 'denied');
+    assertHandoffAuthorityBinding(harness.settlementCalls()[0].payload);
+    assert.equal(harness.grantCalls().length, 0);
     assert.equal(harness.resumeCalls().length, 0);
-    assert.equal(harness.runCalls().length, 0);
+    assert.match(harness.element('error').textContent, /not granted/i);
   } finally {
     await harness.dispose();
   }
 });
 
-test('an asynchronously rejected native request never claims that the prompt was not started', async () => {
-  const harness = await createPopupHarness({
-    directCleanup: true,
-    permissionRequestError: new Error('Synthetic ambiguous native request rejection.'),
-    prepareResponses: [{ review: directReview({ hostPermissionsGranted: false }) }]
+for (const scenario of [
+  {
+    name: 'an exact pre-request grant',
+    options: { permissionSnapshot: { permissions: [], origins: ['https://example.com/*'] } }
+  },
+  {
+    name: 'a broad pre-request grant',
+    options: { permissionSnapshot: { permissions: [], origins: ['<all_urls>'] } }
+  },
+  {
+    name: 'a malformed pre-request inventory',
+    options: { permissionSnapshot: { permissions: [], origins: 'not-an-array' } }
+  },
+  {
+    name: 'a rejected pre-request inventory',
+    options: { permissionSnapshotError: new Error('Synthetic pre-request inventory rejection.') }
+  }
+]) {
+  test(`${scenario.name} cannot be composed with a true request result`, async () => {
+    const harness = await createHandoffHarness({ permissionRequestGranted: true, ...scenario.options });
+    try {
+      const activation = await harness.clickGrant();
+      await activation.completion;
+      assert.equal(harness.permissionSnapshotCalls().length, 1);
+      assert.equal(harness.permissionCalls().length, 1);
+      assert.ok(harness.callIndex('permissions.getAll') < harness.callIndex('permissions.request'));
+      assert.equal(harness.permissionSnapshotCalls()[0].userActivation, true);
+      assert.equal(harness.permissionCalls()[0].userActivation, true);
+      assert.equal(harness.settlementCalls().length, 1);
+      assert.equal(harness.settlementCalls()[0].payload.outcome, 'abandoned');
+      assert.equal(harness.grantCalls().length, 0);
+      assert.equal(harness.resumeCalls().length, 0);
+    } finally {
+      await harness.dispose();
+    }
+  });
+}
+
+test('a truthy non-boolean native permission result cannot become handoff grant authority', async () => {
+  const harness = await createHandoffHarness({ permissionRequestResult: 'granted' });
+  try {
+    const activation = await harness.clickGrant();
+    await activation.completion;
+    assert.equal(harness.settlementCalls().length, 1);
+    assert.equal(harness.settlementCalls()[0].payload.outcome, 'abandoned');
+    assert.equal(harness.grantCalls().length, 0);
+    assert.equal(harness.resumeCalls().length, 0);
+    assert.match(harness.element('error').textContent, /invalid target-access result/i);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test('failure to persist authenticated handoff intent never admits a granted cleanup', async () => {
+  const harness = await createHandoffHarness({
+    permissionRequestGranted: true,
+    beginMessageError: new Error('Synthetic prompt-intent persistence failure.')
   });
   try {
-    await waitFor(() => harness.element('deepCleanButton').disabled === false);
-    assert.equal(await harness.clickPrimary(), true);
-    await waitFor(() => harness.cancelReviewCalls().length === 1);
-
+    const activation = await harness.clickGrant();
+    await activation.completion;
+    assert.equal(harness.beginCalls().length, 1);
     assert.equal(harness.permissionCalls().length, 1);
-    assert.equal(harness.armCalls().length, 1);
-    assert.equal(harness.cancelReviewCalls()[0].payload.promptNotStarted, false);
-    assertPopupAuthorityBinding(harness.cancelReviewCalls()[0].payload);
-    assert.deepEqual(
-      popupAuthorityBinding(harness.cancelReviewCalls()[0].payload),
-      popupAuthorityBinding(harness.armCalls()[0].payload),
-      'ambiguous native-request cancellation must retain the exact initiating popup authority'
-    );
-    assert.equal(harness.promptSettlementCalls().length, 0);
-    assert.equal(harness.permissionRemovalCalls().length, 0);
-    assert.equal(harness.resumeCalls().length, 0);
-    assert.equal(harness.runCalls().length, 0);
+    assert.equal(harness.settlementCalls().length, 1);
+    assert.equal(harness.settlementCalls()[0].payload.outcome, 'abandoned');
+    assert.equal(harness.grantCalls().length, 0);
+    assert.match(harness.element('error').textContent, /prompt-intent persistence failure/i);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test('an asynchronously rejected native request abandons its authenticated handoff intent fail-closed', async () => {
+  const harness = await createHandoffHarness({
+    permissionRequestError: new Error('Synthetic ambiguous native request rejection.')
+  });
+  try {
+    const activation = await harness.clickGrant();
+    await activation.completion;
+    assert.equal(harness.beginCalls().length, 1);
+    assert.equal(harness.invocationCalls().length, 1);
+    assert.equal(harness.settlementCalls().length, 1);
+    assert.equal(harness.settlementCalls()[0].payload.outcome, 'abandoned');
+    assertHandoffAuthorityBinding(harness.settlementCalls()[0].payload);
+    assert.equal(harness.grantCalls().length, 0);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test('a synchronous native-request invocation failure records no handoff invocation and settles not-invoked', async () => {
+  const harness = await createHandoffHarness({
+    permissionRequestThrows: new Error('Synthetic synchronous native request failure.')
+  });
+  try {
+    const activation = await harness.clickGrant();
+    await activation.completion;
+    assert.equal(harness.beginCalls().length, 1);
+    assert.equal(harness.permissionSnapshotCalls().length, 1);
+    assert.equal(harness.permissionCalls().length, 1);
+    assert.equal(harness.invocationCalls().length, 0);
+    assert.equal(harness.settlementCalls().length, 1);
+    assert.equal(harness.settlementCalls()[0].payload.outcome, 'not_invoked');
+    assert.match(harness.element('error').textContent, /synchronous native request failure/i);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test('an unrecorded late handoff begin cannot settle an unowned synchronous request failure', async () => {
+  const harness = await createHandoffHarness({
+    promptIntentRecorded: false,
+    permissionRequestThrows: new Error('Synthetic synchronous request failure after late begin.')
+  });
+  try {
+    const activation = await harness.clickGrant();
+    await activation.completion;
+    assert.equal(harness.beginCalls().length, 1);
+    assert.equal(harness.permissionCalls().length, 1);
+    assert.equal(harness.invocationCalls().length, 0);
+    assert.equal(harness.settlementCalls().length, 0);
+    assert.equal(harness.grantCalls().length, 0);
   } finally {
     await harness.dispose();
   }
@@ -482,7 +730,7 @@ test('detailed review remains click-prepared and never routes directly to cleanu
   }
 });
 
-test('a reopened armed detailed review is non-clickable and continues without a second native prompt', async () => {
+test("an armed status without this document's acknowledgement remains non-clickable", async () => {
   const review = detailedReview({
     hostPermissionsGranted: false,
     permissionLeaseId: 'lease-exact-prompt-reopen',
@@ -496,23 +744,23 @@ test('a reopened armed detailed review is non-clickable and continues without a 
     assert.equal(await harness.clickPrimary(), true);
     await waitFor(() => harness.element('reviewCard').hidden === false);
     assert.equal(harness.element('reviewHostPermission').hidden, false);
-    assert.match(harness.element('reviewApprovalError').textContent, /continue automatically/i);
-    assert.equal(harness.element('approveCleanup').textContent, 'Cleanup approved — continuing');
+    assert.equal(harness.element('reviewApprovalCommitted').hidden, true);
+    assert.equal(harness.element('approveCleanup').textContent, 'Saving reviewed approval…');
     assert.equal(harness.element('approveCleanup').disabled, true);
 
     harness.element('reviewScopeAcknowledge').checked = true;
     await harness.element('reviewScopeAcknowledge').emit('change');
     assert.equal(await harness.clickApprove(), false);
 
-    assert.equal(harness.permissionCalls().length, 0, 'reopening must not open a redundant prompt');
-    assert.equal(harness.runCalls().length, 0, 'reopening must not submit the single-use token again');
-    assert.equal(harness.resumeCalls().length, 0, 'worker-owned continuation does not need another popup action');
+    assert.equal(harness.permissionCalls().length, 0, 'status alone must not open a native prompt');
+    assert.equal(harness.runCalls().length, 0, 'status alone must not submit the single-use token again');
+    assert.equal(harness.retiredPromptRouteCalls().length, 0);
   } finally {
     await harness.dispose();
   }
 });
 
-test('expiry in a reopened armed popup revokes cleanup authority without settling another document prompt', async () => {
+test('expiry in a reopened armed popup revokes cleanup authority without claiming another handoff outcome', async () => {
   const review = detailedReview({
     hostPermissionsGranted: false,
     permissionLeaseId: 'lease-reopened-expiring-prompt',
@@ -529,13 +777,9 @@ test('expiry in a reopened armed popup revokes cleanup authority without settlin
     await waitFor(() => harness.element('progressTitle').textContent === 'Cleanup review expired', 1_000);
 
     assert.equal(harness.cancelReviewCalls().length, 1, 'expiry must revoke the stale cleanup approval');
-    assert.equal(
-      harness.promptSettlementCalls().length,
-      0,
-      'a reopened popup must not claim that the initiating document prompt settled'
-    );
+    assert.equal(harness.retiredPromptRouteCalls().length, 0, 'a reopened popup must not use retired prompt routes');
     assert.equal(harness.permissionCalls().length, 0);
-    assert.equal(harness.resumeCalls().length, 0);
+    assert.equal(harness.openHandoffCalls().length, 0);
     assert.equal(harness.runCalls().length, 0);
   } finally {
     await harness.dispose();
@@ -577,18 +821,18 @@ test('a visible detailed review expires closed before it can request access or s
   }
 });
 
-test('review expiry during an unresolved native permission prompt releases a late grant through the worker', async () => {
-  const review = detailedReview({
-    hostPermissionsGranted: false,
-    permissionLeaseId: 'lease-expiring-native-prompt',
-    expiresAt: new Date(Date.now() + 120).toISOString()
-  });
-  const freshReview = detailedReview({ hostPermissionsGranted: true });
+test('a handoff-open failure remains a retryable popup error without invoking native access', async () => {
   const harness = await createPopupHarness({
     directCleanup: false,
-    permissionRequestDeferred: true,
-    resumeMessageError: new Error('The expired handoff has no admitted cleanup result.'),
-    prepareResponses: [{ review }, { review: freshReview }]
+    openHandoffMessageError: new Error('The persistent reviewed-access tab could not be opened.'),
+    prepareResponses: [
+      {
+        review: detailedReview({
+          hostPermissionsGranted: false,
+          permissionLeaseId: 'lease-handoff-open-retry'
+        })
+      }
+    ]
   });
   try {
     assert.equal(await harness.clickPrimary(), true);
@@ -596,319 +840,123 @@ test('review expiry during an unresolved native permission prompt releases a lat
     harness.element('reviewScopeAcknowledge').checked = true;
     await harness.element('reviewScopeAcknowledge').emit('change');
 
-    const approvalClick = harness.clickApprove();
-    await waitFor(() => harness.permissionCalls().length === 1);
-    await waitFor(() => harness.element('progressTitle').textContent === 'Cleanup review expired', 1_000);
+    assert.equal(await harness.clickApprove(), true);
+    await waitFor(() => harness.openHandoffCalls().length === 1);
+    await waitFor(() => harness.element('approveCleanup').disabled === false);
 
-    assert.equal(harness.cancelReviewCalls().length, 1, 'expiry must revoke cleanup authority immediately');
-    assert.equal(
-      harness.promptSettlementCalls().length,
-      0,
-      'an unresolved native prompt must keep its worker-owned tombstone'
-    );
-    assert.equal(harness.resumeCalls().length, 0);
+    assert.equal(harness.armCalls().length, 1);
+    assert.equal(harness.permissionSnapshotCalls().length, 0);
+    assert.equal(harness.permissionCalls().length, 0);
+    assert.equal(harness.retiredPromptRouteCalls().length, 0);
     assert.equal(harness.runCalls().length, 0);
-
-    harness.settlePermissionRequest(true);
-    await approvalClick;
-    assert.equal(
-      harness.promptSettlementCalls().length,
-      1,
-      'the initiating popup must tell the worker that the expired native prompt settled'
-    );
-    assert.equal(harness.promptSettlementCalls()[0].payload.outcome, 'abandoned');
-    assert.equal(harness.promptSettlementCalls()[0].payload.permissionLeaseId, review.permissionLeaseId);
-    assert.equal(
-      harness.permissionRemovalCalls().length,
-      0,
-      'the popup must leave exact revocation to the worker rather than mutating permissions itself'
-    );
-    assert.equal(harness.resumeCalls().length, 1, 'the nonce-bound outcome must be checked before claiming no cleanup');
-    assert.equal(harness.runCalls().length, 0);
-    assert.equal(harness.element('progressTitle').textContent, 'Cleanup review expired');
-    assert.match(harness.element('progressDetail').textContent, /released the temporary target access/i);
-    assert.match(harness.element('progressDetail').textContent, /Prepare a fresh review/i);
-    await wait(320);
-    assert.equal(harness.element('reviewCard').hidden, true, 'the stale reviewed scope must remain hidden');
-    assert.equal(harness.element('approveCleanup').disabled, true, 'the stale approval must remain non-actionable');
-    assert.equal(harness.element('progressCard').hidden, false, 'the finalizer must retain the expiry outcome');
-    assert.equal(harness.element('targetInput').disabled, false);
-    assert.equal(harness.element('deepCleanButton').disabled, false);
-    assert.equal(harness.element('deepCleanLabel').textContent, 'Review cleanup');
-    assert.equal(await harness.clickApprove(), false);
-
-    assert.equal(await harness.clickPrimary(), true, 'the composer must allow a fresh review');
-    await waitFor(() => harness.prepareCalls().length === 2);
-    await waitFor(() => harness.element('reviewCard').hidden === false);
-    assert.equal(harness.element('approveCleanup').disabled, true);
-  } finally {
-    harness.settlePermissionRequest(false);
-    await harness.dispose();
-  }
-});
-
-test('an expired native grant still reaches worker settlement when the arm reply rejects', async () => {
-  const originalDateNow = Date.now;
-  const review = detailedReview({
-    hostPermissionsGranted: false,
-    permissionLeaseId: 'lease-expired-rejected-arm',
-    expiresAt: new Date(Date.now() + 60_000).toISOString()
-  });
-  const harness = await createPopupHarness({
-    directCleanup: false,
-    permissionRequestDeferred: true,
-    armMessageError: new Error('This cleanup approval expired while Chrome target access was being requested.'),
-    resumeMessageError: new Error('The rejected arm has no admitted cleanup result.'),
-    prepareResponses: [{ review }]
-  });
-  try {
-    assert.equal(await harness.clickPrimary(), true);
-    await waitFor(() => harness.element('reviewCard').hidden === false);
-    harness.element('reviewScopeAcknowledge').checked = true;
-    await harness.element('reviewScopeAcknowledge').emit('change');
-
-    const approvalClick = harness.clickApprove();
-    await waitFor(() => harness.permissionCalls().length === 1);
     assert.equal(harness.element('reviewCard').hidden, false);
+    assert.equal(harness.element('approveCleanup').textContent, 'Grant reviewed access and run');
+    await waitFor(() => /could not be opened/i.test(harness.element('reviewApprovalError').textContent));
+    assert.match(harness.element('reviewApprovalError').textContent, /could not be opened/i);
 
-    Date.now = () => Date.parse(review.expiresAt) + 1;
-    harness.settlePermissionRequest(true);
-    await approvalClick;
+    assert.equal(await harness.clickApprove(), true, 'the armed review may retry only the worker-owned handoff open');
+    await waitFor(() => harness.openHandoffCalls().length === 2);
+    assert.equal(harness.armCalls().length, 1, 'retry must not re-arm the durable approval');
+    assert.equal(harness.permissionCalls().length, 0);
+  } finally {
+    await harness.dispose();
+  }
+});
 
-    assert.equal(harness.promptSettlementCalls().length, 1);
-    assert.equal(harness.promptSettlementCalls()[0].payload.outcome, 'abandoned');
-    assert.equal(harness.promptSettlementCalls()[0].payload.handoffNonce, review.approvalHandoffNonce);
-    assert.equal(harness.resumeCalls().length, 1);
-    assert.equal(harness.runCalls().length, 0);
-    assert.equal(harness.permissionRemovalCalls().length, 0);
-    assert.equal(harness.element('progressTitle').textContent, 'Cleanup review expired');
-    assert.match(harness.element('progressDetail').textContent, /released the temporary target access/i);
-    assert.match(harness.element('progressDetail').textContent, /Prepare a fresh review/i);
+test('an expired persistent handoff claim fails closed before any native permission API', async () => {
+  const harness = await createHandoffHarness({
+    claimMessageError: new Error('This reviewed handoff expired. Reopen SiteWipe to prepare a fresh review.')
+  });
+  try {
+    assert.equal(harness.claimCalls().length, 1);
+    assert.equal(harness.element('grantAccess').disabled, true);
+    assert.equal((await harness.clickGrant()).accepted, false);
+    assert.equal(harness.permissionSnapshotCalls().length, 0);
+    assert.equal(harness.permissionCalls().length, 0);
+    assert.match(harness.element('status').textContent, /No cleanup started/i);
+    assert.match(harness.element('error').textContent, /handoff expired/i);
+  } finally {
+    await harness.dispose();
+  }
+});
+
+test('a rejected durable arm never opens the native permission prompt or starts cleanup', async () => {
+  const review = detailedReview({
+    hostPermissionsGranted: false,
+    permissionLeaseId: 'lease-rejected-arm',
+    expiresAt: new Date(Date.now() + 60_000).toISOString()
+  });
+  const harness = await createPopupHarness({
+    directCleanup: false,
+    armMessageError: new Error('The worker could not durably save this exact cleanup approval.'),
+    prepareResponses: [{ review }]
+  });
+  try {
+    assert.equal(await harness.clickPrimary(), true);
+    await waitFor(() => harness.element('reviewCard').hidden === false);
+    harness.element('reviewScopeAcknowledge').checked = true;
+    await harness.element('reviewScopeAcknowledge').emit('change');
+
+    assert.equal(await harness.clickApprove(), true);
+    await waitFor(() => harness.armCalls().length === 1);
+    await waitFor(() => harness.cancelReviewCalls().length === 1);
     await wait(320);
-    assert.equal(harness.element('reviewCard').hidden, true, 'the rejected arm must retire the stale review card');
-    assert.equal(harness.element('approveCleanup').disabled, true, 'the expired approval must not be re-enabled');
-    assert.equal(harness.element('progressCard').hidden, false, 'the finalizer must not hide expiry guidance');
-    assert.equal(harness.element('targetInput').disabled, false);
-    assert.equal(harness.element('deepCleanButton').disabled, false);
-    assert.equal(harness.element('deepCleanLabel').textContent, 'Review cleanup');
+
+    assert.equal(harness.permissionCalls().length, 0);
+    assert.equal(harness.retiredPromptRouteCalls().length, 0);
+    assert.equal(harness.openHandoffCalls().length, 0);
+    assert.equal(harness.runCalls().length, 0);
+    assert.equal(harness.cancelReviewCalls()[0].payload.promptNotStarted, true);
+    assert.equal(harness.element('reviewCard').hidden, true, 'an unconfirmed approval must be retired');
+    assert.equal(harness.element('approveCleanup').disabled, true);
+    assert.match(harness.element('targetError').textContent, /could not durably save/i);
     assert.equal(await harness.clickApprove(), false);
   } finally {
-    Date.now = originalDateNow;
-    harness.settlePermissionRequest(false);
     await harness.dispose();
   }
 });
 
-test('post-arm expiry recovers an already admitted cleanup instead of claiming that no cleanup started', async () => {
-  const originalDateNow = Date.now;
-  const review = detailedReview({
-    hostPermissionsGranted: false,
-    permissionLeaseId: 'lease-expired-after-admission',
-    expiresAt: new Date(Date.now() + 60_000).toISOString()
-  });
-  const harness = await createPopupHarness({
-    directCleanup: false,
-    permissionRequestDeferred: true,
-    prepareResponses: [{ review }]
-  });
-  try {
-    assert.equal(await harness.clickPrimary(), true);
-    await waitFor(() => harness.element('reviewCard').hidden === false);
-    harness.element('reviewScopeAcknowledge').checked = true;
-    await harness.element('reviewScopeAcknowledge').emit('change');
-
-    const approvalClick = harness.clickApprove();
-    await waitFor(() => harness.permissionCalls().length === 1);
-    Date.now = () => Date.parse(review.expiresAt) + 1;
-    harness.settlePermissionRequest(true);
-    await approvalClick;
-
-    assert.equal(harness.resumeCalls().length, 1);
-    assert.equal(harness.promptSettlementCalls().length, 0, 'an admitted cleanup must not be settled as abandoned');
-    assert.equal(harness.runCalls().length, 0);
-    assert.equal(harness.element('reviewCard').hidden, true);
-    assert.equal(harness.element('approveCleanup').disabled, true);
-    assert.equal(harness.element('summaryCard').hidden, false, 'the nonce-bound cleanup result must be rendered');
-    assert.equal(harness.element('summaryTitle').textContent, 'Cleanup complete');
-    assert.doesNotMatch(harness.element('progressDetail').textContent, /No cleanup started/i);
-    assert.doesNotMatch(
-      harness.element('progressDetail').textContent,
-      /SiteWipe released the temporary target access/i
-    );
-    await wait(320);
-    assert.equal(harness.element('summaryCard').hidden, false);
-    assert.equal(harness.element('reviewCard').hidden, true);
-  } finally {
-    Date.now = originalDateNow;
-    harness.settlePermissionRequest(false);
-    await harness.dispose();
+for (const scenario of [
+  {
+    name: 'a completed cleanup',
+    grantResponse: { report: { id: 'handoff-report' }, resumedCompletedResult: true },
+    status: /Cleanup finished.*temporary target access was reconciled/i
+  },
+  {
+    name: 'an admitted running cleanup',
+    grantResponse: { cleanupStarted: true, approvalHandoffRunning: true },
+    status: /Cleanup started from the exact reviewed handoff/i
+  },
+  {
+    name: 'an expired approval reconciled after a late grant',
+    grantResponse: { approvalHandoffCanceled: true, cleanupStarted: false },
+    status: /No cleanup started.*reconciled the temporary target access/i
+  },
+  {
+    name: 'an outcome still under worker reconciliation',
+    grantResponse: { approvalHandoffPending: true, approvalHandoffUncertain: true },
+    status: /still reconciling this exact reviewed handoff.*Do not repeat/i
   }
-});
+]) {
+  test(`the persistent handoff renders ${scenario.name} and remains single-use`, async () => {
+    const harness = await createHandoffHarness({ grantResponse: scenario.grantResponse });
+    try {
+      const activation = await harness.clickGrant();
+      assert.equal(activation.accepted, true);
+      await activation.completion;
 
-test('unprovable post-arm expiry stays explicit and locks the composer without a no-cleanup claim', async () => {
-  const originalDateNow = Date.now;
-  const review = detailedReview({
-    hostPermissionsGranted: false,
-    permissionLeaseId: 'lease-expired-unknown-outcome',
-    expiresAt: new Date(Date.now() + 60_000).toISOString()
+      assert.equal(harness.permissionCalls().length, 1);
+      assert.equal(harness.grantCalls().length, 1);
+      assert.equal(harness.resumeCalls().length, 0);
+      assert.equal(harness.settlementCalls().length, 0);
+      assert.match(harness.element('status').textContent, scenario.status);
+      assert.equal(harness.element('grantAccess').disabled, true);
+      assert.equal((await harness.clickGrant()).accepted, false, 'a terminal handoff document cannot run twice');
+    } finally {
+      await harness.dispose();
+    }
   });
-  const harness = await createPopupHarness({
-    directCleanup: false,
-    permissionRequestDeferred: true,
-    resumeResponse: {
-      approvalHandoffNonce: review.approvalHandoffNonce,
-      approvalHandoffPending: true,
-      approvalHandoffUncertain: true,
-      cleanupStarted: null,
-      temporaryAccessReleased: null,
-      warning: 'Synthetic nonce-bound outcome gap.'
-    },
-    promptSettlementResponse: {
-      released: true,
-      accessRemains: false
-    },
-    prepareResponses: [{ review }]
-  });
-  try {
-    assert.equal(await harness.clickPrimary(), true);
-    await waitFor(() => harness.element('reviewCard').hidden === false);
-    harness.element('reviewScopeAcknowledge').checked = true;
-    await harness.element('reviewScopeAcknowledge').emit('change');
-
-    const approvalClick = harness.clickApprove();
-    await waitFor(() => harness.permissionCalls().length === 1);
-    Date.now = () => Date.parse(review.expiresAt) + 1;
-    harness.settlePermissionRequest(true);
-    await approvalClick;
-    await wait(320);
-
-    assert.equal(harness.resumeCalls().length, 1);
-    assert.equal(harness.promptSettlementCalls().length, 1);
-    assert.equal(harness.runCalls().length, 0);
-    assert.equal(harness.element('reviewCard').hidden, true);
-    assert.equal(harness.element('approveCleanup').disabled, true);
-    assert.equal(harness.element('progressCard').hidden, false);
-    assert.equal(harness.element('progressTitle').textContent, 'Cleanup status needs verification');
-    assert.match(harness.element('progressDetail').textContent, /could not prove whether this cleanup started/i);
-    assert.match(harness.element('progressDetail').textContent, /current job or report/i);
-    assert.match(harness.element('progressDetail').textContent, /Options/i);
-    assert.doesNotMatch(harness.element('progressDetail').textContent, /No cleanup started/i);
-    assert.doesNotMatch(
-      harness.element('progressDetail').textContent,
-      /SiteWipe released the temporary target access/i
-    );
-    assert.equal(harness.element('targetInput').disabled, true);
-    assert.equal(harness.element('deepCleanButton').disabled, true);
-    assert.equal(await harness.clickPrimary(), false);
-    assert.deepEqual(
-      harness.consumePagehidePopupBindingTokens(),
-      [review.approvalToken],
-      'an incomplete successful settlement must retain the raw nonce-replay capability until popup teardown'
-    );
-  } finally {
-    Date.now = originalDateNow;
-    harness.settlePermissionRequest(false);
-    await harness.dispose();
-  }
-});
-
-test('ordinary post-prompt resume renders a matching admitted running job and keeps cleanup locked', async () => {
-  const review = detailedReview({
-    hostPermissionsGranted: false,
-    permissionLeaseId: 'lease-normal-running-replay'
-  });
-  const activeJob = {
-    id: 'running-handoff-job',
-    status: 'running',
-    admissionPhase: 'admitted',
-    approvalHandoffNonce: review.approvalHandoffNonce,
-    percent: 42,
-    label: 'Nonce-bound cleanup is running',
-    detail: 'The worker admitted this exact reviewed cleanup.',
-    cancelRequested: false
-  };
-  const harness = await createPopupHarness({
-    directCleanup: false,
-    resumeResponse: {
-      approvalHandoffNonce: review.approvalHandoffNonce,
-      approvalHandoffPending: false,
-      approvalHandoffRunning: true,
-      cleanupStarted: true,
-      temporaryAccessReleased: false,
-      activeJob
-    },
-    prepareResponses: [{ review }]
-  });
-  try {
-    assert.equal(await harness.clickPrimary(), true);
-    await waitFor(() => harness.element('reviewCard').hidden === false);
-    harness.element('reviewScopeAcknowledge').checked = true;
-    await harness.element('reviewScopeAcknowledge').emit('change');
-    assert.equal(await harness.clickApprove(), true);
-    await wait(320);
-
-    assert.equal(harness.resumeCalls().length, 1);
-    assert.equal(harness.promptSettlementCalls().length, 0);
-    assert.equal(harness.runCalls().length, 0);
-    assert.equal(harness.element('reviewCard').hidden, true);
-    assert.equal(harness.element('summaryCard').hidden, true);
-    assert.equal(harness.element('progressCard').hidden, false);
-    assert.equal(harness.element('progressTitle').textContent, activeJob.label);
-    assert.equal(harness.element('progressDetail').textContent, activeJob.detail);
-    assert.doesNotMatch(harness.element('progressDetail').textContent, /No cleanup started/i);
-    assert.equal(harness.element('targetInput').disabled, true);
-    assert.equal(harness.element('deepCleanButton').disabled, true);
-  } finally {
-    await harness.dispose();
-  }
-});
-
-test('ordinary post-prompt uncertainty remains visible and locked after the finalizer', async () => {
-  const review = detailedReview({
-    hostPermissionsGranted: false,
-    permissionLeaseId: 'lease-normal-unknown-replay'
-  });
-  const harness = await createPopupHarness({
-    directCleanup: false,
-    resumeResponse: {
-      approvalHandoffNonce: review.approvalHandoffNonce,
-      approvalHandoffPending: true,
-      approvalHandoffUncertain: true,
-      cleanupStarted: null,
-      temporaryAccessReleased: null,
-      warning: 'Synthetic ordinary nonce-bound outcome gap.'
-    },
-    prepareResponses: [{ review }]
-  });
-  try {
-    assert.equal(await harness.clickPrimary(), true);
-    await waitFor(() => harness.element('reviewCard').hidden === false);
-    harness.element('reviewScopeAcknowledge').checked = true;
-    await harness.element('reviewScopeAcknowledge').emit('change');
-    assert.equal(await harness.clickApprove(), true);
-    await wait(320);
-
-    assert.equal(harness.resumeCalls().length, 1);
-    assert.equal(harness.promptSettlementCalls().length, 0);
-    assert.equal(harness.runCalls().length, 0);
-    assert.equal(harness.element('reviewCard').hidden, true);
-    assert.equal(harness.element('summaryCard').hidden, true);
-    assert.equal(harness.element('progressCard').hidden, false);
-    assert.equal(harness.element('progressTitle').textContent, 'Cleanup status needs verification');
-    assert.match(harness.element('progressDetail').textContent, /could not prove whether this cleanup started/i);
-    assert.match(harness.element('progressDetail').textContent, /current job or report/i);
-    assert.doesNotMatch(harness.element('progressDetail').textContent, /No cleanup started/i);
-    assert.doesNotMatch(
-      harness.element('progressDetail').textContent,
-      /SiteWipe released the temporary target access/i
-    );
-    assert.equal(harness.element('targetInput').disabled, true);
-    assert.equal(harness.element('deepCleanButton').disabled, true);
-    assert.equal(await harness.clickPrimary(), false);
-  } finally {
-    await harness.dispose();
-  }
-});
+}
 
 function popupAuthorityBinding(payload) {
   return {
@@ -922,6 +970,18 @@ function assertPopupAuthorityBinding(payload) {
   assert.equal(payload.popupContextId, payload.popupContextId.trim());
   assert.ok(payload.popupContextId.length > 0 && payload.popupContextId.length <= 256);
   assert.match(payload.popupPreparationCapability, /^[a-f0-9]{64}$/);
+}
+
+function handoffAuthorityBinding(payload) {
+  return {
+    handoffNonce: payload?.handoffNonce,
+    handoffCapability: payload?.handoffCapability
+  };
+}
+
+function assertHandoffAuthorityBinding(payload) {
+  assert.match(payload?.handoffNonce, /^[a-zA-Z0-9._:-]{8,128}$/);
+  assert.match(payload?.handoffCapability, /^[a-f0-9]{64}$/);
 }
 
 function lifecycleNotReady() {
@@ -1029,12 +1089,18 @@ async function createPopupHarness(options = {}) {
   const prepareResponses = [...(options.prepareResponses || [])];
   const sidePanelBindingLifetimes = [...(options.sidePanelBindingLifetimes || [5 * 60 * 1000])];
   const userActivation = { isActive: true };
-  let settleDeferredPermission = null;
   let settleDeferredPreparation = null;
-  let settleDeferredResume = null;
+  let settleDeferredArm = null;
   let trackingActivation = false;
+  let activeActivationBatch = null;
+  const activationBatches = [];
   let preparationSequence = 0;
   let currentWindow = { id: 7, incognito: false };
+  let storedReport = options.storedReport ? structuredClone(options.storedReport) : null;
+  const activeJob = options.activeJob ? structuredClone(options.activeJob) : null;
+  let temporaryHostAccess = structuredClone(
+    options.temporaryHostAccess || { state: 'none', recoveryPending: false, temporaryOriginCount: 0 }
+  );
   const settings = {
     cleanupMode: options.cleanupMode || 'standard',
     skipCleanupReview: options.directCleanup === true,
@@ -1045,18 +1111,23 @@ async function createPopupHarness(options = {}) {
     runtime: {
       async sendMessage(request) {
         calls.push({ type: request.type, payload: structuredClone(request.payload || {}) });
+        if (activeActivationBatch) activeActivationBatch.push(request.type);
         if (
           trackingActivation &&
-          ['sitewipe.armCleanupApproval', 'sitewipe.runDeepClean', 'sitewipe.resumeArmedCleanup'].includes(request.type)
+          userActivation.isActive &&
+          ['sitewipe.armCleanupApproval', 'sitewipe.openCleanupPermissionHandoff', 'sitewipe.runDeepClean'].includes(
+            request.type
+          )
         ) {
           activationEvents.push(request.type);
         }
         if (request.type === 'sitewipe.getPopupState') {
           return envelope(request, {
             settings: structuredClone(settings),
-            report: options.storedReport ? structuredClone(options.storedReport) : null,
+            report: storedReport ? structuredClone(storedReport) : null,
             incognitoAccess: true,
-            activeJob: null
+            activeJob: activeJob ? structuredClone(activeJob) : null,
+            temporaryHostAccess: structuredClone(temporaryHostAccess)
           });
         }
         if (request.type === 'sitewipe.getActiveTabTarget') {
@@ -1134,37 +1205,30 @@ async function createPopupHarness(options = {}) {
         }
         if (request.type === 'sitewipe.armCleanupApproval') {
           if (options.armMessageError) throw options.armMessageError;
-          return envelope(request, {
+          const armedResponse = envelope(request, {
             approvalArmed: true,
+            handoffStatus: 'armed',
             handoffNonce: request.payload.handoffNonce,
             expiresAt: new Date(Date.now() + 60_000).toISOString()
           });
+          if (options.armResponseDeferred && !settleDeferredArm) {
+            return new Promise((resolve) => {
+              settleDeferredArm = () => resolve(armedResponse);
+            });
+          }
+          return armedResponse;
         }
-        if (request.type === 'sitewipe.settleCleanupPermissionPrompt') {
-          if (options.promptSettlementMessageError) throw options.promptSettlementMessageError;
-          return envelope(request, {
-            settlement: options.promptSettlementResponse || {
-              released: true,
-              accessRemains: false,
-              recordRetained: false
-            }
+        if (request.type === 'sitewipe.openCleanupPermissionHandoff') {
+          if (options.openHandoffMessageError) throw options.openHandoffMessageError;
+          const openedResponse = envelope(request, {
+            handoffOpened: true,
+            handoffFocused: options.handoffFocused === true,
+            tabId: 41
           });
+          return openedResponse;
         }
-        if (['sitewipe.runDeepClean', 'sitewipe.resumeArmedCleanup'].includes(request.type)) {
-          if (request.type === 'sitewipe.resumeArmedCleanup' && options.resumeMessageError) {
-            throw options.resumeMessageError;
-          }
-          if (request.type === 'sitewipe.resumeArmedCleanup' && options.resumeResponse) {
-            return envelope(request, options.resumeResponse);
-          }
+        if (request.type === 'sitewipe.runDeepClean') {
           const terminalResponse = {
-            ...(request.type === 'sitewipe.resumeArmedCleanup'
-              ? {
-                  approvalHandoffNonce: request.payload.handoffNonce,
-                  resumedCompletedResult: true,
-                  resumedTerminalResult: true
-                }
-              : {}),
             reportPersisted: false,
             report: {
               id: 'synthetic-report',
@@ -1181,12 +1245,18 @@ async function createPopupHarness(options = {}) {
               }
             }
           };
-          if (request.type === 'sitewipe.resumeArmedCleanup' && options.resumeResponseDeferred) {
-            return new Promise((resolve) => {
-              settleDeferredResume = () => resolve(envelope(request, terminalResponse));
-            });
-          }
           return envelope(request, terminalResponse);
+        }
+        if (
+          [
+            'sitewipe.beginCleanupPermissionPrompt',
+            'sitewipe.confirmCleanupPermissionPromptInvocation',
+            'sitewipe.confirmCleanupPermissionGrantOutcome',
+            'sitewipe.resumeArmedCleanup',
+            'sitewipe.settleCleanupPermissionPrompt'
+          ].includes(request.type)
+        ) {
+          throw new Error(`The popup invoked retired permission route ${request.type}.`);
         }
         return envelope(request, {});
       },
@@ -1212,21 +1282,25 @@ async function createPopupHarness(options = {}) {
       }
     },
     permissions: {
-      request: (request) => {
-        calls.push({ type: 'permissions.request', payload: structuredClone(request) });
-        if (trackingActivation) activationEvents.push('permissions.request');
-        if (options.permissionRequestDeferred) {
-          return new Promise((resolve) => {
-            settleDeferredPermission = resolve;
-          });
-        }
-        if (options.permissionRequestError) return Promise.reject(options.permissionRequestError);
-        return Promise.resolve(options.permissionRequestGranted !== false);
+      getAll: () => {
+        calls.push({ type: 'permissions.getAll', userActivation: userActivation.isActive });
+        throw new Error('The popup must not inspect native permissions.');
       },
-      contains: async () => false,
-      remove: async (request) => {
+      request: (request) => {
+        calls.push({
+          type: 'permissions.request',
+          payload: structuredClone(request),
+          userActivation: userActivation.isActive
+        });
+        throw new Error('The popup must not request native permissions.');
+      },
+      contains: () => {
+        calls.push({ type: 'permissions.contains', userActivation: userActivation.isActive });
+        throw new Error('The popup must not inspect native permissions.');
+      },
+      remove: (request) => {
         calls.push({ type: 'permissions.remove', payload: structuredClone(request) });
-        return true;
+        throw new Error('The popup must not remove native permissions.');
       }
     },
     storage: {
@@ -1258,41 +1332,41 @@ async function createPopupHarness(options = {}) {
 
   return {
     element: (id) => document.byId(id),
+    bodyHasClass: (name) => document.body.classList.values.has(name),
     prepareCalls: () => calls.filter((call) => call.type === 'sitewipe.prepareCleanupReview'),
     sidePanelBindingCalls: () => calls.filter((call) => call.type === 'sitewipe.openSidePanel'),
     sidePanelOpenCalls: () => calls.filter((call) => call.type === 'sidePanel.open'),
     callIndex: (type) => calls.findIndex((call) => call.type === type),
     permissionCalls: () => calls.filter((call) => call.type === 'permissions.request'),
+    permissionSnapshotCalls: () => calls.filter((call) => call.type === 'permissions.getAll'),
     armCalls: () => calls.filter((call) => call.type === 'sitewipe.armCleanupApproval'),
-    resumeCalls: () => calls.filter((call) => call.type === 'sitewipe.resumeArmedCleanup'),
+    openHandoffCalls: () => calls.filter((call) => call.type === 'sitewipe.openCleanupPermissionHandoff'),
+    retiredPromptRouteCalls: () =>
+      calls.filter((call) =>
+        [
+          'sitewipe.beginCleanupPermissionPrompt',
+          'sitewipe.confirmCleanupPermissionPromptInvocation',
+          'sitewipe.confirmCleanupPermissionGrantOutcome',
+          'sitewipe.resumeArmedCleanup',
+          'sitewipe.settleCleanupPermissionPrompt'
+        ].includes(call.type)
+      ),
     runCalls: () => calls.filter((call) => call.type === 'sitewipe.runDeepClean'),
     cancelReviewCalls: () => calls.filter((call) => call.type === 'sitewipe.cancelCleanupReview'),
-    promptSettlementCalls: () => calls.filter((call) => call.type === 'sitewipe.settleCleanupPermissionPrompt'),
-    permissionRemovalCalls: () => calls.filter((call) => call.type === 'permissions.remove'),
     optionsCalls: () => calls.filter((call) => call.type === 'runtime.openOptionsPage'),
     mutationCalls: () => calls.filter((call) => ['permissions.request', 'sitewipe.runDeepClean'].includes(call.type)),
     activationEvents: () => [...activationEvents],
-    consumePagehidePopupBindingTokens() {
-      const bindingTokens = [];
-      const originalMapClear = Map.prototype.clear;
-      Map.prototype.clear = function clearTrackedPopupBindingMap() {
-        bindingTokens.push(...this.keys());
-        return originalMapClear.call(this);
-      };
-      try {
-        for (const listener of pagehideListeners) listener();
-        pagehideListeners.length = 0;
-      } finally {
-        Map.prototype.clear = originalMapClear;
-      }
-      return bindingTokens;
-    },
+    activationBatches: () => activationBatches.map((batch) => [...batch]),
     async clickPrimary() {
       if (document.byId('deepCleanButton').disabled) return false;
+      const activationBatch = [];
+      activationBatches.push(activationBatch);
+      activeActivationBatch = activationBatch;
       trackingActivation = true;
       userActivation.isActive = true;
       const emission = document.byId('targetForm').emit('submit');
       userActivation.isActive = false;
+      activeActivationBatch = null;
       await emission;
       return true;
     },
@@ -1307,16 +1381,25 @@ async function createPopupHarness(options = {}) {
     },
     async clickApprove() {
       if (document.byId('approveCleanup').disabled) return false;
+      const activationBatch = [];
+      activationBatches.push(activationBatch);
+      activeActivationBatch = activationBatch;
       trackingActivation = true;
       userActivation.isActive = true;
       const emission = document.byId('approveCleanup').emit('click');
       userActivation.isActive = false;
+      activeActivationBatch = null;
       await emission;
       return true;
     },
     async clickOptions() {
       if (document.byId('openOptions').disabled) return false;
       await document.byId('openOptions').emit('click');
+      return true;
+    },
+    async clickStartAnother() {
+      if (document.byId('startAnotherCleanup').disabled) return false;
+      await document.byId('startAnotherCleanup').emit('click');
       return true;
     },
     emitSettingsChange(nextSettings) {
@@ -1332,12 +1415,17 @@ async function createPopupHarness(options = {}) {
         );
       }
     },
-    emitActiveJob(job) {
+    setTemporaryHostAccess(access) {
+      temporaryHostAccess = structuredClone(access);
+    },
+    emitPermissionLeaseChange(access) {
+      temporaryHostAccess = structuredClone(access);
+      const newValue = access?.state === 'none' ? undefined : { status: access?.state || 'invalid' };
       for (const listener of settingsListeners) {
         listener(
           {
-            'sitewipe.activeJob.v1': {
-              newValue: structuredClone(job)
+            'sitewipe.permissionLease.v1': {
+              newValue
             }
           },
           'local'
@@ -1347,24 +1435,197 @@ async function createPopupHarness(options = {}) {
     setCurrentWindow(nextWindow) {
       currentWindow = structuredClone(nextWindow);
     },
-    settlePermissionRequest(granted) {
-      const settle = settleDeferredPermission;
-      settleDeferredPermission = null;
-      settle?.(granted === true);
-    },
     settlePreparation() {
       const settle = settleDeferredPreparation;
       settleDeferredPreparation = null;
       settle?.();
     },
-    settleResumeResponse() {
-      const settle = settleDeferredResume;
-      settleDeferredResume = null;
+    settleArmResponse() {
+      const settle = settleDeferredArm;
+      settleDeferredArm = null;
       settle?.();
     },
     async dispose() {
       for (const listener of pagehideListeners) listener();
       await wait(380);
+      restoreGlobals();
+    }
+  };
+}
+
+async function createHandoffHarness(options = {}) {
+  const html = await readFile(handoffHtmlUrl, 'utf8');
+  const document = createFakeDocument([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
+  document.byId('grantAccess').disabled = true;
+  document.byId('error').hidden = true;
+  const calls = [];
+  const activationEvents = [];
+  const pagehideListeners = [];
+  const userActivation = { isActive: false };
+  const origins = [
+    'http://example.com/*',
+    'https://example.com/*',
+    'http://*.example.com/*',
+    'https://*.example.com/*'
+  ];
+  const handoffNonce = options.handoffNonce || 'handoff-nonce-test';
+  const handoffCapability = options.handoffCapability || 'c'.repeat(64);
+  let settleDeferredPermission = null;
+
+  const responseFor = (request, payload = {}) => envelope(request, payload);
+  const chrome = {
+    runtime: {
+      async sendMessage(request) {
+        calls.push({
+          type: request.type,
+          payload: structuredClone(request.payload || {}),
+          userActivation: userActivation.isActive
+        });
+        if (userActivation.isActive) activationEvents.push(request.type);
+        if (request.type === 'sitewipe.claimCleanupPermissionHandoff') {
+          if (options.claimMessageError) throw options.claimMessageError;
+          return responseFor(request, {
+            handoffClaimed: options.handoffClaimed !== false,
+            handoffNonce,
+            handoffCapability,
+            temporaryHostPermissionOrigins: structuredClone(options.origins || origins),
+            targetDisplayName: 'example.com',
+            expiresAt: new Date(Date.now() + 60_000).toISOString()
+          });
+        }
+        if (request.type === 'sitewipe.beginCleanupPermissionHandoff') {
+          if (options.beginMessageError) throw options.beginMessageError;
+          return responseFor(request, {
+            promptIntentRecorded: options.promptIntentRecorded !== false,
+            handoffNonce
+          });
+        }
+        if (request.type === 'sitewipe.confirmCleanupPermissionHandoffInvocation') {
+          if (options.invocationMessageError) throw options.invocationMessageError;
+          return responseFor(request, {
+            promptInvocationRecorded: options.promptInvocationRecorded !== false,
+            handoffNonce
+          });
+        }
+        if (request.type === 'sitewipe.confirmCleanupPermissionHandoffGrant') {
+          if (options.grantMessageError) throw options.grantMessageError;
+          return responseFor(
+            request,
+            options.grantResponse || {
+              approvalHandoffRunning: true,
+              cleanupStarted: true,
+              approvalHandoffNonce: handoffNonce
+            }
+          );
+        }
+        if (request.type === 'sitewipe.resumeCleanupPermissionHandoff') {
+          if (options.resumeMessageError) throw options.resumeMessageError;
+          return responseFor(
+            request,
+            options.resumeResponse || {
+              approvalHandoffPending: true,
+              approvalHandoffUncertain: true,
+              approvalHandoffNonce: handoffNonce
+            }
+          );
+        }
+        if (request.type === 'sitewipe.settleCleanupPermissionHandoff') {
+          if (options.settlementMessageError) throw options.settlementMessageError;
+          return responseFor(request, {
+            settlement: options.settlementResponse || {
+              released: true,
+              accessRemains: false,
+              recordRetained: false
+            }
+          });
+        }
+        throw new Error(`Unexpected handoff message: ${request.type}`);
+      }
+    },
+    permissions: {
+      getAll() {
+        calls.push({ type: 'permissions.getAll', userActivation: userActivation.isActive });
+        if (userActivation.isActive) activationEvents.push('permissions.getAll');
+        if (options.permissionSnapshotThrows) throw options.permissionSnapshotThrows;
+        if (options.permissionSnapshotError) return Promise.reject(options.permissionSnapshotError);
+        return Promise.resolve(structuredClone(options.permissionSnapshot || { permissions: [], origins: [] }));
+      },
+      request(request) {
+        calls.push({
+          type: 'permissions.request',
+          payload: structuredClone(request),
+          userActivation: userActivation.isActive
+        });
+        if (userActivation.isActive) activationEvents.push('permissions.request');
+        if (options.permissionRequestThrows) throw options.permissionRequestThrows;
+        if (options.permissionRequestDeferred) {
+          return new Promise((resolve, reject) => {
+            settleDeferredPermission = { resolve, reject };
+          });
+        }
+        if (options.permissionRequestError) return Promise.reject(options.permissionRequestError);
+        return Promise.resolve(
+          Object.hasOwn(options, 'permissionRequestResult')
+            ? options.permissionRequestResult
+            : options.permissionRequestGranted !== false
+        );
+      }
+    }
+  };
+  const restoreGlobals = installGlobals({
+    chrome,
+    document,
+    navigator: { userActivation },
+    addEventListener(type, listener) {
+      if (type === 'pagehide') pagehideListeners.push(listener);
+    }
+  });
+
+  try {
+    importSequence += 1;
+    await import(`${handoffUrl.href}?direct-startup-retry=${importSequence}`);
+    await document.fireDomReady();
+    userActivation.isActive = false;
+  } catch (error) {
+    restoreGlobals();
+    throw error;
+  }
+
+  const byType = (type) => calls.filter((call) => call.type === type);
+  return {
+    element: (id) => document.byId(id),
+    calls: () => structuredClone(calls),
+    claimCalls: () => byType('sitewipe.claimCleanupPermissionHandoff'),
+    beginCalls: () => byType('sitewipe.beginCleanupPermissionHandoff'),
+    invocationCalls: () => byType('sitewipe.confirmCleanupPermissionHandoffInvocation'),
+    grantCalls: () => byType('sitewipe.confirmCleanupPermissionHandoffGrant'),
+    resumeCalls: () => byType('sitewipe.resumeCleanupPermissionHandoff'),
+    settlementCalls: () => byType('sitewipe.settleCleanupPermissionHandoff'),
+    permissionSnapshotCalls: () => byType('permissions.getAll'),
+    permissionCalls: () => byType('permissions.request'),
+    activationEvents: () => [...activationEvents],
+    callIndex: (type) => calls.findIndex((call) => call.type === type),
+    async clickGrant() {
+      if (document.byId('grantAccess').disabled) return { accepted: false, completion: Promise.resolve() };
+      userActivation.isActive = true;
+      const completion = document.byId('grantAccess').emit('click');
+      userActivation.isActive = false;
+      return { accepted: true, completion };
+    },
+    settlePermissionRequest(value) {
+      const settlement = settleDeferredPermission;
+      settleDeferredPermission = null;
+      settlement?.resolve(value);
+    },
+    rejectPermissionRequest(error) {
+      const settlement = settleDeferredPermission;
+      settleDeferredPermission = null;
+      settlement?.reject(error);
+    },
+    async dispose() {
+      settleDeferredPermission = null;
+      for (const listener of pagehideListeners) listener();
+      await Promise.resolve();
       restoreGlobals();
     }
   };
@@ -1442,7 +1703,8 @@ function createFakeDocument(ids) {
     'cancelActiveJob',
     'deepCleanSpinner'
   ]) {
-    elements.get(id).hidden = true;
+    const element = elements.get(id);
+    if (element) element.hidden = true;
   }
   return document;
 }

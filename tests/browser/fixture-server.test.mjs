@@ -13,7 +13,7 @@ import {
   partitionFrameUrl
 } from './fixtures/partition-fixture-route.js';
 
-test('partition fixture keeps setup seeding separate from the read-only preservation probe', () => {
+test('partition fixture keeps setup seeding separate from the read-only observation probe', () => {
   assert.equal(partitionEmbedMode({ pathname: '/', embed: '1' }), 'seed');
   assert.equal(partitionEmbedMode({ pathname: '/partition-probe', embed: '1' }), 'probe');
   assert.equal(partitionEmbedMode({ pathname: '/', embed: null }), null);
@@ -131,7 +131,14 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
     assert.match(popupMock.body, /fixtureParameters\.get\('mode'\) === 'standard'/);
     assert.match(popupMock.body, /approvalMode: directCleanup \? 'settings_direct' : 'detailed_review'/);
     assert.match(popupMock.body, /case 'sitewipe\.armCleanupApproval'/);
+    assert.match(popupMock.body, /case 'sitewipe\.beginCleanupPermissionPrompt'/);
+    assert.match(popupMock.body, /case 'sitewipe\.confirmCleanupPermissionPromptInvocation'/);
+    assert.match(popupMock.body, /case 'sitewipe\.confirmCleanupPermissionGrantOutcome'/);
     assert.match(popupMock.body, /case 'sitewipe\.resumeArmedCleanup'/);
+    assert.match(popupMock.body, /async getAll\(\)/);
+    assert.match(popupMock.body, /onAdded:/);
+    assert.match(popupMock.body, /promptGrantObserved/);
+    assert.match(popupMock.body, /preRequestTemporaryOriginsAbsent/);
     assert.match(popupMock.body, /fixtureLastApprovalMode/);
     assert.match(popupMock.body, /fixtureExpireAfterNativeGrant/);
     assert.match(popupMock.body, /Unsupported scheme chrome-extension:\. Use http or https domains only\./);

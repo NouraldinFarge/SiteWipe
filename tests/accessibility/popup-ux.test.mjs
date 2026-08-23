@@ -41,14 +41,15 @@ test('popup keeps path and query details out of automatic target and review rend
   assert.doesNotMatch(script, /#reviewEnteredTarget'\)\.textContent = review\.enteredTarget/);
 });
 
-test('popup exposes calm, named completion highlights and a distinct one-click mode', async () => {
+test('popup exposes calm, named completion highlights and a distinct direct mode', async () => {
   const [html, script] = await Promise.all([source('popup/popup.html'), source('popup/popup.js')]);
 
   assert.match(html, /id="summaryMetrics"[^>]+role="list"[^>]+aria-label="Cleanup highlights"/);
   assert.match(html, /id="summaryAnnouncement"[^>]+role="status"[^>]+aria-live="polite"/);
   assert.match(html, /id="summaryTitle"[^>]+tabindex="-1"/);
   assert.match(html, /id="cleanupModeBadge"[^>]+role="status"/);
-  assert.match(script, /`\$\{mode\} · \$\{directCleanupEnabled\(\) \? 'One click' : 'Review'\}`/);
+  assert.match(script, /`\$\{mode\} · \$\{directCleanupEnabled\(\) \? 'Direct' : 'Review'\}`/);
+  assert.match(html, /Missing browser access requires a separate grant\s+activation/);
   assert.match(script, /function cleanupOutcomeTitle\(report\)/);
   assert.match(script, /metric\.setAttribute\('role', 'listitem'\)/);
 });
@@ -97,7 +98,7 @@ test('detailed-review approval failures stay visible and announced inside the op
     script,
     /setReviewMode\(Boolean\(cleanupReview\)\);[\s\S]*?setReviewApprovalError\(detailedReviewRetryError, \{ runtime: true \}\)/
   );
-  assert.match(script, /Retry approval, grant access, and run/);
+  assert.match(script, /Grant reviewed access and run/);
   assert.match(script, /qs\('#approveCleanup'\)\.focus\(\{ preventScroll: true \}\)/);
   assert.match(script, /if \(!direct\) setReviewApprovalError\(''\)/);
 });

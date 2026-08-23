@@ -1,11 +1,45 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createChromeMock } from '../helpers/chrome-mock.mjs';
+import { createChromeMock, createEvent } from '../helpers/chrome-mock.mjs';
 import { DEFAULT_SETTINGS, MESSAGE_TYPES, STORAGE_KEYS } from '../../src/shared/constants.js';
 import {
   armCleanupReviewApprovalRequest,
+  recordCleanupPermissionGrantObservation,
+  recordCleanupPermissionGrantOutcome,
+  recordCleanupPermissionPromptIntent,
+  recordCleanupPermissionPromptInvocation,
   prepareCleanupReviewRequest
 } from '../../src/background/cleanup-preflight.js';
+
+test(
+  'a successful readiness retry re-drives an already granted armed handoff without another popup action',
+  exerciseSuccessfulReadinessRetry
+);
+
+test('the 1.11.63 storage-partition disclosure migration resets an older direct-cleanup opt-in before admission', async () => {
+  const now = new Date().toISOString();
+  const chrome = await createReadyChromeMock({
+    localState: {
+      [STORAGE_KEYS.settings]: {
+        ...readySettings(now),
+        skipCleanupReview: true,
+        storagePartitionDisclosureAppliedAt: null
+      }
+    }
+  });
+  globalThis.chrome = chrome;
+  try {
+    await import(`../../src/background/service-worker.js?storage-partition-disclosure=${uniqueImportKey()}`);
+    const response = await dispatchRuntimeMessageWithoutTimer(chrome, prepareReviewMessage(), popupSender(chrome));
+    assert.equal(response.ok, true, response.error);
+    const settings = chrome.__state.local[STORAGE_KEYS.settings];
+    assert.equal(settings.skipCleanupReview, false);
+    assert.ok(settings.storagePartitionDisclosureAppliedAt);
+    assert.equal(cleanupMutationCallCount(chrome), 0);
+  } finally {
+    delete globalThis.chrome;
+  }
+});
 
 test('immediate onInstalled maintenance forces a safety-proof generation before review', async () => {
   const chrome = await createReadyChromeMock();
@@ -487,7 +521,7 @@ test('a never-settling stale-job mutation reread is bounded before any recovery 
   }
 });
 
-test('a successful readiness retry re-drives an already granted armed handoff without another popup action', async (t) => {
+async function exerciseSuccessfulReadinessRetry(t) {
   const fixture = await createArmedHandoffFixture('readiness-retry-resume');
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const chrome = await createChromeMock({
@@ -527,7 +561,7 @@ test('a successful readiness retry re-drives an already granted armed handoff wi
 
     // No new onAdded event and no resumeArmedCleanup message are emitted. This
     // ordinary popup retry only causes a fresh readiness generation; that
-    // generation must wake the already durable one-click handoff itself.
+    // generation must wake the already durable handoff itself.
     t.mock.timers.reset();
     const retryPromise = dispatchRuntimeMessageWithoutTimer(
       chrome,
@@ -579,9 +613,9 @@ test('a successful readiness retry re-drives an already granted armed handoff wi
   } finally {
     delete globalThis.chrome;
   }
-});
+}
 
-test('a final click stages before slow early maintenance and completes once after settlement', async (t) => {
+test('a final approval stages before slow maintenance and exposes a fresh prompt activation after settlement', async (t) => {
   const chrome = await createReadyChromeMock();
   const maintenanceReadStarted = deferred();
   const releaseMaintenanceRead = deferred();
@@ -622,9 +656,6 @@ test('a final click stages before slow early maintenance and completes once afte
     const maintenance = chrome.__events.alarm.emitAsync({ name: 'sitewipe.maintenance' });
     await maintenanceReadStarted.promise;
     t.mock.timers.enable({ apis: ['setTimeout'] });
-    const permissionRequest = chrome.permissions.request({
-      origins: prepared.review.temporaryHostPermissionOrigins
-    });
     const armPromise = dispatchRuntimeMessageWithoutTimer(
       chrome,
       {
@@ -680,14 +711,53 @@ test('a final click stages before slow early maintenance and completes once afte
 
     t.mock.timers.reset();
     releaseMaintenanceRead.resolve();
-    assert.equal(await permissionRequest, true);
     await maintenance;
+    await waitForWallClock(
+      () => chrome.__state.session['sitewipe.cleanupReview.v1']?.approvalHandoff?.status === 'armed',
+      5_000
+    );
+    const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, sender);
+    const intent = await dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      {
+        type: MESSAGE_TYPES.beginCleanupPermissionHandoff,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    assert.equal(intent.ok, true, intent.error);
+    const permissionRequest = chrome.permissions.request({
+      origins: prepared.review.temporaryHostPermissionOrigins
+    });
+    const promptInvocation = dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    const [invoked, granted] = await Promise.all([promptInvocation, permissionRequest]);
+    assert.equal(invoked.ok, true, invoked.error);
+    assert.equal(granted, true);
+    const grantOutcome = await dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant,
+        payload: {
+          ...handoff.authority,
+          preRequestTemporaryOriginsAbsent: true
+        }
+      },
+      handoff.sender
+    );
+    assert.equal(grantOutcome.ok, true, grantOutcome.error);
     await waitForWallClock(
       () =>
         ['completed', 'failed', 'cancelled', 'interrupted'].includes(
           chrome.__state.local[STORAGE_KEYS.activeJob]?.status
         ),
-      5_000
+      1_000
     );
 
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob]?.status, 'completed');
@@ -715,7 +785,7 @@ test('a final click stages before slow early maintenance and completes once afte
 });
 
 test('a conclusive native denial clears a staged arm after its lifecycle handoff times out', async (t) => {
-  const chrome = await createReadyChromeMock();
+  const chrome = await createReadyChromeMock({ permissionRequestResult: false });
   const maintenanceReadStarted = deferred();
   const releaseMaintenanceRead = deferred();
   const originalGetSessionRules = chrome.declarativeNetRequest.getSessionRules;
@@ -778,43 +848,57 @@ test('a conclusive native denial clears a staged arm after its lifecycle handoff
       500
     );
 
-    // This is the service-worker half of Chrome resolving the popup's native
-    // permissions.request promise to false. No onAdded event or grant exists.
-    const denialPromise = dispatchRuntimeMessageWithoutTimer(
-      chrome,
-      {
-        type: MESSAGE_TYPES.settleCleanupPermissionPrompt,
-        payload: {
-          approvalToken: prepared.review.approvalToken,
-          handoffNonce: prepared.review.approvalHandoffNonce,
-          permissionLeaseId: prepared.review.permissionLeaseId,
-          ...popupPreparationBinding(prepared),
-          outcome: 'denied'
-        }
-      },
-      sender
-    );
     let armResponse = null;
-    let denialResponse = null;
     void armPromise.then((response) => {
       armResponse = response;
-    });
-    void denialPromise.then((response) => {
-      denialResponse = response;
     });
     await flushMicrotasks(50);
     t.mock.timers.tick(8_000);
     await flushMicrotasks(80);
     assert.equal(armResponse?.ok, false);
     assert.equal(armResponse?.errorCode, 'lifecycle_not_ready');
-    assert.equal(denialResponse?.ok, false);
-    assert.equal(denialResponse?.errorCode, 'lifecycle_not_ready');
     assert.equal(chrome.__state.session['sitewipe.cleanupReview.v1']?.approvalHandoff?.status, 'arming');
     assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease]?.status, 'prompt_pending');
 
     t.mock.timers.reset();
     releaseMaintenanceRead.resolve();
     await maintenance;
+    await waitForWallClock(
+      () => chrome.__state.session['sitewipe.cleanupReview.v1']?.approvalHandoff?.status === 'armed',
+      5_000
+    );
+
+    // Only the worker-opened persistent handoff document can invoke and settle
+    // Chrome's native denial after the staged arm finishes its exact peer wait.
+    const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, sender);
+    const intent = await dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      { type: MESSAGE_TYPES.beginCleanupPermissionHandoff, payload: handoff.authority },
+      handoff.sender
+    );
+    assert.equal(intent.ok, true, intent.error);
+    const permissionRequest = chrome.permissions.request({
+      origins: prepared.review.temporaryHostPermissionOrigins
+    });
+    const invocation = dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      { type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation, payload: handoff.authority },
+      handoff.sender
+    );
+    const [granted, invoked] = await Promise.all([permissionRequest, invocation]);
+    assert.equal(granted, false);
+    assert.equal(invoked.ok, true, invoked.error);
+    const denialResponse = await dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      {
+        type: MESSAGE_TYPES.settleCleanupPermissionHandoff,
+        payload: { ...handoff.authority, outcome: 'denied' }
+      },
+      handoff.sender
+    );
+    assert.equal(denialResponse.ok, true, denialResponse.error);
+    assert.equal(denialResponse.settlement.permissionsPreserved, true);
+    assert.equal(denialResponse.settlement.recordRetained, false);
     await waitForWallClock(
       () =>
         chrome.__state.session['sitewipe.cleanupReview.v1'] === undefined &&
@@ -824,7 +908,15 @@ test('a conclusive native denial clears a staged arm after its lifecycle handoff
 
     assert.deepEqual(chrome.__state.originPermissions, new Set());
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
-    assert.equal(cleanupMutationCallCount(chrome), 0);
+    assert.equal(
+      cleanupMutationCallCount(chrome),
+      1,
+      'the denied native permission request must be the only cleanup-adjacent browser mutation'
+    );
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'browsingData.remove'),
+      false
+    );
     assert.equal(
       chrome.__calls.some((call) => call.api === 'downloads.removeFile'),
       false
@@ -836,7 +928,7 @@ test('a conclusive native denial clears a staged arm after its lifecycle handoff
   }
 });
 
-test('a staged final click waits for an exact administrative peer and auto-runs after release', async () => {
+test('a staged activation one waits for an exact administrative peer before a fresh activation runs cleanup', async () => {
   const chrome = await createReadyChromeMock();
   const adminWriteStarted = deferred();
   const releaseAdminWrite = deferred();
@@ -866,9 +958,6 @@ test('a staged final click waits for an exact administrative peer and auto-runs 
     );
     await adminWriteStarted.promise;
 
-    const permissionRequest = chrome.permissions.request({
-      origins: prepared.review.temporaryHostPermissionOrigins
-    });
     const armPromise = dispatchRuntimeMessageWithoutTimer(
       chrome,
       {
@@ -891,10 +980,51 @@ test('a staged final click waits for an exact administrative peer and auto-runs 
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
 
     releaseAdminWrite.resolve();
-    const [adminResponse, granted, armed] = await Promise.all([adminPromise, permissionRequest, armPromise]);
+    const [adminResponse, armed] = await Promise.all([adminPromise, armPromise]);
     assert.equal(adminResponse.ok, true, adminResponse.error);
-    assert.equal(granted, true);
     assert.equal(armed.ok, true, armed.error);
+    assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.deepEqual(chrome.__state.originPermissions, new Set());
+
+    // Activation two dispatches a non-runnable intent, synchronously invokes
+    // the exact browser request, then confirms that the API accepted the call.
+    // The confirmation re-drives any early onAdded wake once it is persisted.
+    const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, sender);
+    const intent = await dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      {
+        type: MESSAGE_TYPES.beginCleanupPermissionHandoff,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    assert.equal(intent.ok, true, intent.error);
+    const permissionRequest = chrome.permissions.request({
+      origins: prepared.review.temporaryHostPermissionOrigins
+    });
+    const promptInvocation = dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    const [granted, invoked] = await Promise.all([permissionRequest, promptInvocation]);
+    assert.equal(granted, true);
+    assert.equal(invoked.ok, true, invoked.error);
+    const grantOutcome = await dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant,
+        payload: {
+          ...handoff.authority,
+          preRequestTemporaryOriginsAbsent: true
+        }
+      },
+      handoff.sender
+    );
+    assert.equal(grantOutcome.ok, true, grantOutcome.error);
     await waitForWallClock(() => chrome.__state.local[STORAGE_KEYS.activeJob]?.status === 'completed', 5_000);
 
     assert.equal(
@@ -1226,7 +1356,7 @@ test('a retained temporary-host lease poisons readiness until exact access absen
   const now = new Date(nowMs).toISOString();
   const origins = ['https://example.com/*', 'https://*.example.com/*'];
   const lease = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     id: 'lease-release-pending-000000000000000000000001',
     status: 'release_pending',
     requestedOrigins: origins,
@@ -1236,6 +1366,8 @@ test('a retained temporary-host lease poisons readiness until exact access absen
     updatedAt: now,
     reviewExpiresAt: new Date(nowMs + 5 * 60_000).toISOString(),
     promptPendingUntil: null,
+    ownershipProof: 'admitted_cleanup',
+    ownershipRevokedAt: null,
     releaseAttemptCount: 0,
     lastReleaseAttemptAt: null,
     lastError: null
@@ -1283,8 +1415,339 @@ test('a retained temporary-host lease poisons readiness until exact access absen
   }
 });
 
+test('worker-load recovery preserves an ambiguous reviewed prompt grant after session review loss', async () => {
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const origins = ['https://example.com/*', 'https://*.example.com/*'];
+  const lease = {
+    schemaVersion: 3,
+    id: 'lease-owned-prompt-restart-000000000000000001',
+    status: 'prompt_pending',
+    requestedOrigins: origins,
+    preexistingOrigins: [],
+    temporaryOrigins: origins,
+    createdAt: new Date(nowMs - 60_000).toISOString(),
+    updatedAt: new Date(nowMs - 30_000).toISOString(),
+    reviewExpiresAt: new Date(nowMs + 5 * 60_000).toISOString(),
+    promptPendingUntil: new Date(nowMs + 30 * 60_000).toISOString(),
+    ownershipProof: 'reviewed_prompt_grant',
+    ownershipRevokedAt: null,
+    releaseAttemptCount: 0,
+    lastReleaseAttemptAt: null,
+    lastError: null
+  };
+  const chrome = await createChromeMock({
+    originPermissions: origins,
+    localState: {
+      [STORAGE_KEYS.settings]: readySettings(now),
+      [STORAGE_KEYS.permissionLease]: lease
+    }
+  });
+
+  globalThis.chrome = chrome;
+  try {
+    await import(`../../src/background/service-worker.js?owned-prompt-restart=${uniqueImportKey()}`);
+    await waitForWallClock(() => chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined, 5_000);
+    assert.deepEqual(chrome.__state.originPermissions, new Set(origins));
+    const removals = chrome.__calls.filter((call) => call.api === 'permissions.remove');
+    assert.equal(
+      removals.length,
+      0,
+      'pre-admission ownership without its matching session review is ambiguous and must preserve browser access'
+    );
+    assert.equal(cleanupMutationCallCount(chrome), 0);
+  } finally {
+    delete globalThis.chrome;
+  }
+});
+
+test('worker-load recovery discards stale full prompt proof when exact access disappeared before restart', async () => {
+  const fixture = await createArmedHandoffFixture('restart-after-unpersisted-permission-removal');
+  assert.equal(fixture.localState[STORAGE_KEYS.permissionLease]?.ownershipProof, 'reviewed_prompt_grant');
+  assert.equal(fixture.sessionState['sitewipe.cleanupReview.v1']?.approvalHandoff?.promptGrant?.complete, true);
+  const chrome = await createChromeMock({
+    localState: fixture.localState,
+    sessionState: fixture.sessionState,
+    originPermissions: []
+  });
+
+  globalThis.chrome = chrome;
+  try {
+    await import(`../../src/background/service-worker.js?missing-owned-grant-restart=${uniqueImportKey()}`);
+    await waitForWallClock(
+      () =>
+        chrome.__state.session['sitewipe.cleanupReview.v1'] === undefined &&
+        chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined,
+      5_000
+    );
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'permissions.remove'),
+      false,
+      'missing exact access must discard only stale authority bookkeeping'
+    );
+
+    for (const origin of fixture.temporaryOrigins) chrome.__state.originPermissions.add(origin);
+    chrome.__events.permissionAdded.emit({ origins: fixture.temporaryOrigins });
+    await flushMicrotasks(40);
+
+    assert.deepEqual(chrome.__state.originPermissions, new Set(fixture.temporaryOrigins));
+    assert.equal(chrome.__state.session['sitewipe.cleanupReview.v1'], undefined);
+    assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
+    assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.equal(cleanupMutationCallCount(chrome), 0);
+    assert.equal(
+      chrome.__calls.some((call) => call.api === 'permissions.remove'),
+      false,
+      'a later manual regrant must not inherit stale prompt ownership'
+    );
+  } finally {
+    delete globalThis.chrome;
+  }
+});
+
+test('a durable missing-access tombstone preserves a manual regrant after local recovery writes fail', async () => {
+  const fixture = await createArmedHandoffFixture('missing-access-split-write-restart');
+  const firstChrome = await createChromeMock({
+    localState: fixture.localState,
+    sessionState: fixture.sessionState,
+    originPermissions: []
+  });
+  const originalLocalSet = firstChrome.storage.local.set.bind(firstChrome.storage.local);
+  const originalLocalRemove = firstChrome.storage.local.remove.bind(firstChrome.storage.local);
+  firstChrome.storage.local.set = async (values) => {
+    if (values?.[STORAGE_KEYS.permissionLease]?.ownershipProof === 'revoked') {
+      throw new Error('Injected local revocation write failure');
+    }
+    return originalLocalSet(values);
+  };
+  firstChrome.storage.local.remove = async (keys) => {
+    if (keys === STORAGE_KEYS.permissionLease || (Array.isArray(keys) && keys.includes(STORAGE_KEYS.permissionLease))) {
+      throw new Error('Injected local lease discard failure');
+    }
+    return originalLocalRemove(keys);
+  };
+
+  globalThis.chrome = firstChrome;
+  try {
+    await import(`../../src/background/service-worker.js?missing-access-split-first=${uniqueImportKey()}`);
+    await waitForWallClock(
+      () =>
+        firstChrome.__state.session['sitewipe.cleanupReview.v1']?.approvalHandoff?.tombstoneReason ===
+        'owned_exact_access_missing_on_recovery',
+      5_000
+    );
+    assert.equal(firstChrome.__state.local[STORAGE_KEYS.permissionLease]?.ownershipProof, 'reviewed_prompt_grant');
+    assert.equal(
+      firstChrome.__calls.some((call) => call.api === 'permissions.remove'),
+      false
+    );
+  } finally {
+    delete globalThis.chrome;
+  }
+
+  const restartedChrome = await createChromeMock({
+    localState: structuredClone(firstChrome.__state.local),
+    sessionState: structuredClone(firstChrome.__state.session),
+    originPermissions: fixture.temporaryOrigins
+  });
+  globalThis.chrome = restartedChrome;
+  try {
+    await import(`../../src/background/service-worker.js?missing-access-split-second=${uniqueImportKey()}`);
+    await waitForWallClock(
+      () =>
+        restartedChrome.__state.session['sitewipe.cleanupReview.v1'] === undefined &&
+        restartedChrome.__state.local[STORAGE_KEYS.permissionLease] === undefined,
+      5_000
+    );
+    assert.deepEqual(restartedChrome.__state.originPermissions, new Set(fixture.temporaryOrigins));
+    assert.equal(restartedChrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.equal(cleanupMutationCallCount(restartedChrome), 0);
+    assert.equal(
+      restartedChrome.__calls.some((call) => call.api === 'permissions.remove'),
+      false,
+      'the successful session-side tombstone must prevent removal of a later manual grant'
+    );
+  } finally {
+    delete globalThis.chrome;
+  }
+});
+
+test('dual authority-store failure across restart cannot transfer stale prompt ownership to a manual regrant', async () => {
+  const fixture = await createArmedHandoffFixture('missing-access-dual-write-restart');
+  const reviewKey = 'sitewipe.cleanupReview.v1';
+  const originalReview = structuredClone(fixture.sessionState[reviewKey]);
+  const originalLease = structuredClone(fixture.localState[STORAGE_KEYS.permissionLease]);
+
+  function rejectAuthorityNeutralizationWrites(chrome, generation) {
+    const originalSessionSet = chrome.storage.session.set.bind(chrome.storage.session);
+    const originalSessionRemove = chrome.storage.session.remove.bind(chrome.storage.session);
+    const originalLocalSet = chrome.storage.local.set.bind(chrome.storage.local);
+    const originalLocalRemove = chrome.storage.local.remove.bind(chrome.storage.local);
+    const failures = { session: 0, local: 0 };
+    chrome.storage.session.set = async (values) => {
+      if (values?.[reviewKey]?.approvalHandoff?.status === 'prompt_tombstone') {
+        failures.session += 1;
+        throw new Error(`Injected ${generation} session tombstone write failure`);
+      }
+      return originalSessionSet(values);
+    };
+    chrome.storage.session.remove = async (keys) => {
+      if (keys === reviewKey || (Array.isArray(keys) && keys.includes(reviewKey))) {
+        failures.session += 1;
+        throw new Error(`Injected ${generation} session review removal failure`);
+      }
+      return originalSessionRemove(keys);
+    };
+    chrome.storage.local.set = async (values) => {
+      if (values?.[STORAGE_KEYS.permissionLease]?.ownershipProof === 'revoked') {
+        failures.local += 1;
+        throw new Error(`Injected ${generation} local revocation write failure`);
+      }
+      return originalLocalSet(values);
+    };
+    chrome.storage.local.remove = async (keys) => {
+      if (
+        keys === STORAGE_KEYS.permissionLease ||
+        (Array.isArray(keys) && keys.includes(STORAGE_KEYS.permissionLease))
+      ) {
+        failures.local += 1;
+        throw new Error(`Injected ${generation} local lease removal failure`);
+      }
+      return originalLocalRemove(keys);
+    };
+    return {
+      failures,
+      restore() {
+        chrome.storage.session.set = originalSessionSet;
+        chrome.storage.session.remove = originalSessionRemove;
+        chrome.storage.local.set = originalLocalSet;
+        chrome.storage.local.remove = originalLocalRemove;
+      }
+    };
+  }
+
+  const firstChrome = await createChromeMock({
+    localState: fixture.localState,
+    sessionState: fixture.sessionState,
+    originPermissions: []
+  });
+  const firstFailure = rejectAuthorityNeutralizationWrites(firstChrome, 'first-worker');
+  globalThis.chrome = firstChrome;
+  try {
+    await import(`../../src/background/service-worker.js?missing-access-dual-first=${uniqueImportKey()}`);
+    await waitForWallClock(() => firstFailure.failures.session > 0 && firstFailure.failures.local > 0, 5_000);
+    assert.deepEqual(firstChrome.__state.session[reviewKey], originalReview);
+    assert.deepEqual(firstChrome.__state.local[STORAGE_KEYS.permissionLease], originalLease);
+    assert.equal(firstChrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.equal(cleanupMutationCallCount(firstChrome), 0);
+    assert.equal(
+      firstChrome.__calls.some((call) => call.api === 'permissions.remove'),
+      false
+    );
+  } finally {
+    delete globalThis.chrome;
+  }
+
+  const restartedChrome = await createChromeMock({
+    localState: structuredClone(firstChrome.__state.local),
+    sessionState: structuredClone(firstChrome.__state.session),
+    originPermissions: []
+  });
+  const restartedFailure = rejectAuthorityNeutralizationWrites(restartedChrome, 'restarted-worker');
+  globalThis.chrome = restartedChrome;
+  try {
+    await import(`../../src/background/service-worker.js?missing-access-dual-second=${uniqueImportKey()}`);
+    await waitForWallClock(() => restartedFailure.failures.session > 0 && restartedFailure.failures.local > 0, 5_000);
+
+    const blocked = await dispatchRuntimeMessageWithoutTimer(
+      restartedChrome,
+      prepareReviewMessage(),
+      popupSender(restartedChrome, 'popup-document-dual-write-restart')
+    );
+    assert.equal(blocked.ok, false);
+    assert.equal(blocked.errorCode, 'lifecycle_not_ready');
+    assert.equal(restartedChrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.deepEqual(restartedChrome.__state.session[reviewKey], originalReview);
+    const retainedLease = restartedChrome.__state.local[STORAGE_KEYS.permissionLease];
+    assert.deepEqual(
+      retainedLease,
+      originalLease,
+      'dual authority-store failure must retain the original non-runnable proof instead of rewriting release authority'
+    );
+
+    restartedFailure.restore();
+    for (const origin of fixture.temporaryOrigins) restartedChrome.__state.originPermissions.add(origin);
+    restartedChrome.__events.permissionAdded.emit({ origins: fixture.temporaryOrigins });
+    await waitForWallClock(
+      () =>
+        restartedChrome.__state.session[reviewKey] === undefined &&
+        restartedChrome.__state.local[STORAGE_KEYS.permissionLease] === undefined,
+      5_000
+    );
+
+    assert.deepEqual(restartedChrome.__state.originPermissions, new Set(fixture.temporaryOrigins));
+    assert.equal(restartedChrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.equal(cleanupMutationCallCount(restartedChrome), 0);
+    assert.equal(
+      restartedChrome.__calls.some((call) => call.api === 'permissions.remove'),
+      false,
+      'the manual regrant must remain external after both stale authority writes previously failed'
+    );
+  } finally {
+    restartedFailure.restore();
+    delete globalThis.chrome;
+  }
+});
+
+test('worker-load recovery drops every schema-2 lease shape without touching browser access', async (t) => {
+  for (const status of ['prompt_pending', 'release_pending', 'active_cleanup']) {
+    await t.test(status, async () => {
+      const nowMs = Date.now();
+      const now = new Date(nowMs).toISOString();
+      const origins = ['https://example.com/*', 'https://*.example.com/*'];
+      const lease = {
+        schemaVersion: 2,
+        id: `lease-legacy-${status}-000000000000000001`,
+        status,
+        requestedOrigins: origins,
+        preexistingOrigins: [],
+        temporaryOrigins: origins,
+        createdAt: new Date(nowMs - 60_000).toISOString(),
+        updatedAt: new Date(nowMs - 30_000).toISOString(),
+        reviewExpiresAt: new Date(nowMs + 5 * 60_000).toISOString(),
+        promptPendingUntil: status === 'prompt_pending' ? new Date(nowMs + 30 * 60_000).toISOString() : null,
+        releaseAttemptCount: 0,
+        lastReleaseAttemptAt: null,
+        lastError: null
+      };
+      const chrome = await createChromeMock({
+        originPermissions: origins,
+        localState: {
+          [STORAGE_KEYS.settings]: readySettings(now),
+          [STORAGE_KEYS.permissionLease]: lease
+        }
+      });
+
+      globalThis.chrome = chrome;
+      try {
+        await import(`../../src/background/service-worker.js?legacy-${status}=${uniqueImportKey()}`);
+        await waitForWallClock(() => chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined, 5_000);
+        assert.deepEqual(chrome.__state.originPermissions, new Set(origins));
+        assert.equal(
+          chrome.__calls.some((call) => call.api === 'permissions.remove'),
+          false,
+          'provenance-free records must never authorize browser-access removal'
+        );
+        assert.equal(cleanupMutationCallCount(chrome), 0);
+      } finally {
+        delete globalThis.chrome;
+      }
+    });
+  }
+});
+
 test('a definitive native denial settles the old prompt lease and a worker wake can prepare fresh authority', async () => {
-  const firstChrome = await createReadyChromeMock();
+  const firstChrome = await createReadyChromeMock({ permissionRequestResult: false });
   globalThis.chrome = firstChrome;
   let prepared;
   try {
@@ -1300,25 +1763,47 @@ test('a definitive native denial settles the old prompt lease and a worker wake 
       initiatingSender
     );
     assert.equal(armed.ok, true, armed.error);
+    const handoff = await openAndClaimPersistentPermissionHandoff(firstChrome, prepared, initiatingSender);
+    const intentResult = await dispatchRuntimeMessageWithoutTimer(
+      firstChrome,
+      {
+        type: MESSAGE_TYPES.beginCleanupPermissionHandoff,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    assert.equal(intentResult.ok, true, intentResult.error);
+    const permissionRequest = firstChrome.permissions.request({
+      origins: prepared.review.temporaryHostPermissionOrigins
+    });
+    const invocation = dispatchRuntimeMessageWithoutTimer(
+      firstChrome,
+      {
+        type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation,
+        payload: handoff.authority
+      },
+      handoff.sender
+    );
+    const [granted, invoked] = await Promise.all([permissionRequest, invocation]);
+    assert.equal(granted, false);
+    assert.equal(invoked.ok, true, invoked.error);
     const permissionRemovalsBeforeDenial = firstChrome.__calls.filter(
       (call) => call.api === 'permissions.remove'
     ).length;
     const denied = await dispatchRuntimeMessageWithoutTimer(
       firstChrome,
       {
-        type: MESSAGE_TYPES.settleCleanupPermissionPrompt,
+        type: MESSAGE_TYPES.settleCleanupPermissionHandoff,
         payload: {
-          approvalToken: prepared.review.approvalToken,
-          handoffNonce: prepared.review.approvalHandoffNonce,
-          permissionLeaseId: prepared.review.permissionLeaseId,
-          ...popupPreparationBinding(prepared),
+          ...handoff.authority,
           outcome: 'denied'
         }
       },
-      initiatingSender
+      handoff.sender
     );
     assert.equal(denied.ok, true, denied.error);
-    assert.equal(denied.settlement.released, true);
+    assert.equal(denied.settlement.released, false);
+    assert.equal(denied.settlement.permissionsPreserved, true);
     assert.equal(denied.settlement.recordRetained, false);
     assert.equal(
       firstChrome.__calls.filter((call) => call.api === 'permissions.remove').length,
@@ -1353,82 +1838,14 @@ test('a definitive native denial settles the old prompt lease and a worker wake 
   }
 });
 
-test('abandoned permission-prompt rollback holds the sole lifecycle reservation through host-access settlement', async () => {
-  const chrome = await createReadyChromeMock();
-  globalThis.chrome = chrome;
-  const releaseStarted = deferred();
-  const releasePermissionRemoval = deferred();
-  const originalPermissionRemove = chrome.permissions.remove;
-  const originalGetWindow = chrome.windows.get;
-  let reviewWindowInspections = 0;
-  try {
-    await import(`../../src/background/service-worker.js?prompt-settlement-reservation=${uniqueImportKey()}`);
-    const initiatingSender = popupSender(chrome, 'popup-document-abandoned-prompt');
-    const prepared = await dispatchRuntimeMessageWithoutTimer(chrome, prepareReviewMessage(), initiatingSender);
-    assert.equal(prepared.ok, true, prepared.error);
-    const armed = await dispatchRuntimeMessageWithoutTimer(
-      chrome,
-      armPreparedReviewMessage(prepared),
-      initiatingSender
-    );
-    assert.equal(armed.ok, true, armed.error);
-    const lease = chrome.__state.local[STORAGE_KEYS.permissionLease];
-    for (const origin of lease.temporaryOrigins) chrome.__state.originPermissions.add(origin);
-    chrome.permissions.remove = async (...args) => {
-      releaseStarted.resolve();
-      await releasePermissionRemoval.promise;
-      return originalPermissionRemove(...args);
-    };
-    chrome.windows.get = async (...args) => {
-      reviewWindowInspections += 1;
-      return originalGetWindow(...args);
-    };
-
-    const settlementPromise = dispatchRuntimeMessageWithoutTimer(
-      chrome,
-      {
-        type: MESSAGE_TYPES.settleCleanupPermissionPrompt,
-        payload: {
-          approvalToken: prepared.review.approvalToken,
-          handoffNonce: prepared.review.approvalHandoffNonce,
-          permissionLeaseId: lease.id,
-          ...popupPreparationBinding(prepared),
-          outcome: 'abandoned'
-        }
-      },
-      initiatingSender
-    );
-    await releaseStarted.promise;
-    const conflict = await dispatchRuntimeMessageWithoutTimer(chrome, prepareReviewMessage(), popupSender(chrome));
-    assert.equal(conflict.ok, false);
-    assert.equal(conflict.errorCode, 'sitewipe_action_failed');
-    assert.match(conflict.error, /settle target site access/i);
-    assert.equal(reviewWindowInspections, 0);
-
-    releasePermissionRemoval.resolve();
-    const settled = await settlementPromise;
-    assert.equal(settled.ok, true, settled.error);
-    assert.equal(settled.settlement.released, true);
-    assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
-    assert.equal(chrome.__state.session['sitewipe.cleanupReview.v1'], undefined);
-
-    const recovered = await dispatchRuntimeMessageWithoutTimer(chrome, prepareReviewMessage(), popupSender(chrome));
-    assert.equal(recovered.ok, true, recovered.error);
-    assert.equal(reviewWindowInspections, 1);
-    assert.equal(cleanupMutationCallCount(chrome), 0);
-  } finally {
-    releasePermissionRemoval.resolve();
-    delete globalThis.chrome;
-  }
-});
-
-test('worker-load recovery tombstones orphan arming and fully reconciles orphan admission boundaries', async (t) => {
-  await t.test('orphan arming becomes a non-runnable prompt tombstone', async () => {
-    const fixture = await createArmedHandoffFixture('orphan-arming');
+test('worker-load recovery discards uninvoked arming and fully reconciles orphan admission boundaries', async (t) => {
+  await t.test('orphan arming discards bookkeeping without claiming an external exact grant', async () => {
+    const fixture = await createArmedHandoffFixture('orphan-arming', { recordPromptInvocation: false });
     fixture.sessionState['sitewipe.cleanupReview.v1'].approvalHandoff.status = 'arming';
     const chrome = await createChromeMock({
       localState: fixture.localState,
-      sessionState: fixture.sessionState
+      sessionState: fixture.sessionState,
+      originPermissions: fixture.temporaryOrigins
     });
     globalThis.chrome = chrome;
     try {
@@ -1439,10 +1856,16 @@ test('worker-load recovery tombstones orphan arming and fully reconciles orphan 
         popupSender(chrome)
       );
       assert.equal(ready.ok, true, ready.error);
-      assert.equal(chrome.__state.session['sitewipe.cleanupReview.v1'].approvalHandoff.status, 'prompt_tombstone');
-      assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease].status, 'prompt_pending');
+      assert.equal(chrome.__state.session['sitewipe.cleanupReview.v1'], undefined);
+      assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
+      assert.deepEqual(chrome.__state.originPermissions, new Set(fixture.temporaryOrigins));
       assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
       assert.equal(cleanupMutationCallCount(chrome), 0);
+      assert.equal(
+        chrome.__calls.some((call) => call.api === 'permissions.remove'),
+        false,
+        'activation one never owns an external grant'
+      );
     } finally {
       delete globalThis.chrome;
     }
@@ -1451,8 +1874,8 @@ test('worker-load recovery tombstones orphan arming and fully reconciles orphan 
   await t.test('orphan admitting with no job removes exact access and cannot replay', async () => {
     const fixture = await createArmedHandoffFixture('orphan-admitting');
     fixture.sessionState['sitewipe.cleanupReview.v1'].approvalHandoff.status = 'admitting';
-    fixture.localState[STORAGE_KEYS.permissionLease].status = 'active_cleanup';
-    fixture.localState[STORAGE_KEYS.permissionLease].promptPendingUntil = null;
+    // Simulate worker loss after the session admission barrier but before the
+    // reviewed prompt lease could be upgraded to admitted_cleanup.
     const chrome = await createChromeMock({
       localState: fixture.localState,
       sessionState: fixture.sessionState,
@@ -1483,6 +1906,7 @@ test('worker-load recovery tombstones orphan arming and fully reconciles orphan 
     record.approvalHandoff.status = 'admitting';
     fixture.localState[STORAGE_KEYS.permissionLease].status = 'active_cleanup';
     fixture.localState[STORAGE_KEYS.permissionLease].promptPendingUntil = null;
+    fixture.localState[STORAGE_KEYS.permissionLease].ownershipProof = 'admitted_cleanup';
     const now = new Date().toISOString();
     fixture.localState[STORAGE_KEYS.activeJob] = {
       id: 'correlated-handoff-admitting-job',
@@ -1535,7 +1959,8 @@ test('a real browser-session startup boundary settles unexpired final-click auth
   const fixture = await createArmedHandoffFixture('startup-boundary');
   const chrome = await createChromeMock({
     localState: fixture.localState,
-    sessionState: fixture.sessionState
+    sessionState: fixture.sessionState,
+    originPermissions: fixture.temporaryOrigins
   });
   globalThis.chrome = chrome;
   try {
@@ -2273,16 +2698,102 @@ test('a missing privacy marker with a hung migration read remains fail-closed un
   }
 });
 
-async function createReadyChromeMock() {
+async function createReadyChromeMock(options = {}) {
   const now = new Date().toISOString();
   return createChromeMock({
+    ...options,
     localState: {
-      [STORAGE_KEYS.settings]: readySettings(now)
+      [STORAGE_KEYS.settings]: readySettings(now),
+      ...(options.localState || {})
     }
   });
 }
 
-async function createArmedHandoffFixture(label) {
+let nextPermissionHandoffTabId = 50_000;
+let nextPermissionHandoffContextId = 1;
+
+function installPersistentPermissionHandoffTabSupport(chrome) {
+  chrome.tabs.onRemoved ||= createEvent();
+  chrome.tabs.create ||= async (properties) => {
+    while (chrome.__state.tabs.has(nextPermissionHandoffTabId)) nextPermissionHandoffTabId += 1;
+    const tab = {
+      id: nextPermissionHandoffTabId,
+      windowId: properties.windowId,
+      active: properties.active === true,
+      incognito: false,
+      url: properties.url
+    };
+    nextPermissionHandoffTabId += 1;
+    chrome.__calls.push({ api: 'tabs.create', args: [structuredClone(properties)] });
+    chrome.__state.tabs.set(tab.id, structuredClone(tab));
+    return structuredClone(tab);
+  };
+}
+
+async function openAndClaimPersistentPermissionHandoff(chrome, prepared, initiatingSender) {
+  installPersistentPermissionHandoffTabSupport(chrome);
+  const opened = await dispatchRuntimeMessageWithoutTimer(
+    chrome,
+    {
+      type: MESSAGE_TYPES.openCleanupPermissionHandoff,
+      payload: {
+        approvalToken: prepared.review.approvalToken,
+        handoffNonce: prepared.review.approvalHandoffNonce,
+        ...popupPreparationBinding(prepared)
+      }
+    },
+    initiatingSender
+  );
+  assert.equal(opened.ok, true, opened.error);
+  assert.equal(opened.handoffOpened, true);
+
+  const tab = chrome.__state.tabs.get(opened.tabId);
+  assert.ok(tab, 'the worker-created permission handoff tab must exist');
+  const handoffUrl = chrome.runtime.getURL('handoff/handoff.html');
+  const contextId = `startup-permission-handoff-context-${nextPermissionHandoffContextId++}`;
+  const documentId = `${contextId}-document`;
+  chrome.__state.runtimeContexts.push({
+    contextId,
+    contextType: 'TAB',
+    documentId,
+    documentOrigin: chrome.runtime.getURL('').replace(/\/$/, ''),
+    documentUrl: handoffUrl,
+    frameId: 0,
+    tabId: tab.id,
+    windowId: tab.windowId,
+    incognito: false
+  });
+  const sender = {
+    id: chrome.runtime.id,
+    url: handoffUrl,
+    documentUrl: handoffUrl,
+    documentId,
+    origin: chrome.runtime.getURL('').replace(/\/$/, ''),
+    frameId: 0,
+    tab: {
+      id: tab.id,
+      windowId: tab.windowId,
+      incognito: false,
+      url: handoffUrl
+    }
+  };
+  const claimed = await dispatchRuntimeMessageWithoutTimer(
+    chrome,
+    { type: MESSAGE_TYPES.claimCleanupPermissionHandoff, payload: {} },
+    sender
+  );
+  assert.equal(claimed.ok, true, claimed.error);
+  assert.equal(claimed.handoffClaimed, true);
+  return {
+    sender,
+    authority: {
+      handoffNonce: prepared.review.approvalHandoffNonce,
+      handoffCapability: claimed.handoffCapability
+    }
+  };
+}
+
+async function createArmedHandoffFixture(label, { recordPromptInvocation = true } = {}) {
   const chrome = await createReadyChromeMock();
   const payload = prepareReviewMessage().payload;
   const promptContextId = `popup-context-${label}`;
@@ -2309,6 +2820,34 @@ async function createArmedHandoffFixture(label) {
     { ...dependencies, promptContextId }
   );
   assert.equal(armed.handoffNonce, prepared.review.approvalHandoffNonce);
+  if (recordPromptInvocation) {
+    await recordCleanupPermissionPromptIntent(
+      {
+        handoffNonce: prepared.review.approvalHandoffNonce,
+        popupContextId: promptContextId
+      },
+      dependencies
+    );
+    await recordCleanupPermissionPromptInvocation(
+      {
+        handoffNonce: prepared.review.approvalHandoffNonce,
+        popupContextId: promptContextId
+      },
+      dependencies
+    );
+    await recordCleanupPermissionGrantObservation(
+      { origins: prepared.review.temporaryHostPermissionOrigins },
+      dependencies
+    );
+    await recordCleanupPermissionGrantOutcome(
+      {
+        handoffNonce: prepared.review.approvalHandoffNonce,
+        preRequestTemporaryOriginsAbsent: true,
+        popupContextId: promptContextId
+      },
+      dependencies
+    );
+  }
   return {
     localState: structuredClone(chrome.__state.local),
     sessionState: structuredClone(chrome.__state.session),
@@ -2323,7 +2862,8 @@ function readySettings(now) {
     updatedAt: now,
     stabilityDefaultsAppliedAt: now,
     performanceDefaultsAppliedAt: now,
-    privacyDefaultsAppliedAt: now
+    privacyDefaultsAppliedAt: now,
+    storagePartitionDisclosureAppliedAt: now
   };
 }
 

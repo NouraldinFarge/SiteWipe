@@ -85,8 +85,8 @@
         <section class="card warning candidate-notice" role="note" aria-label="Prerelease safety warning">
           <strong>Public-source prerelease — use only in disposable Chrome or Brave profiles</strong>
           <span
-            >It is not approved for publication or everyday browser profiles. Browser and accessibility evidence remains
-            pending.</span
+            >It is not approved for binary publication or everyday browser profiles. Complete browser and accessibility
+            evidence remains pending.</span
           >
         </section>
 
@@ -128,10 +128,17 @@
                 <span class="risk-label">High-impact preference</span>
                 <strong>Skip detailed cleanup review completely</strong>
                 <p>
-                  Off by default. One popup action starts the current target directly in Standard or Expert mode;
-                  browser permission prompts may still appear. Expert actions—including matched downloaded-file
-                  deletion—and incognito data can be affected without a per-run detail screen when those features are
-                  enabled.
+                  Off by default. With exact site access pregranted, one popup activation starts the current target
+                  directly in Standard or Expert mode. If normal-window access is missing, one activation durably
+                  records approval and a second fresh activation opens the browser permission prompt and continues only
+                  after the exact grant. Expert actions—including matched downloaded-file deletion—and incognito data
+                  can be affected without a per-run detail screen when those features are enabled. Chrome/Brave treat
+                  browser-level origin-list storage cleanup as selected-top-level-site cleanup: embedded third-party
+                  LocalStorage, IndexedDB, Cache Storage, file-system data, service workers, and related data
+                  partitioned under the selected site may also be deleted. Their partitions under other top-level sites
+                  are not included. To preserve scheme, host, and port boundaries, SiteWipe skips browser-level
+                  closed-page storage/cache cleanup for exact-origin-only targets; exact live-page cleanup still runs,
+                  so closed-page storage may remain.
                 </p>
               </div>
               <label class="switch"><input id="skipCleanupReview" type="checkbox" disabled /><span></span></label>

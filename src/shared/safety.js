@@ -1,3 +1,8 @@
+import {
+  EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION,
+  selectBrowserLevelStorageOrigins
+} from './storage-partition-policy.js';
+
 export const SAFE_ORIGIN_SCOPED_DATA_TYPES = Object.freeze([
   'cache',
   'cacheStorage',
@@ -59,6 +64,15 @@ export function assertSafeOriginScopedRemoval(options, dataTypes, reviewedTarget
     .map(([key]) => key);
   if (!enabledDataTypes.length || enabledDataTypes.some((key) => !SAFE_DATA_TYPE_SET.has(key))) {
     throw new Error('Safety guard rejected a data type outside the SiteWipe allowlist.');
+  }
+  const cookieOnly = enabledDataTypes.length === 1 && enabledDataTypes[0] === 'cookies';
+  if (reviewedTarget && !cookieOnly) {
+    const storageScope = selectBrowserLevelStorageOrigins(reviewedTarget, origins);
+    if (storageScope.skippedExactOrigins.length) {
+      throw new Error(
+        `Safety guard rejected browser-level storage/cache removal outside the port-safe selected-site scope. ${EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION}`
+      );
+    }
   }
 
   return {

@@ -6,12 +6,135 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.63 — public-source prerelease work — 2026-08-23
+
+- Retain exact installed SiteWipe 1.11.62 as failed historical evidence. Chrome 151 completed the reviewed `example.com` cleanup but also cleared persistent `chips.localhost` page storage partitioned beneath the selected top-level site; the old review and fixture language incorrectly treated that browser-defined selected-site effect as out-of-scope preservation. The out-of-domain CHIPS cookie remained because cookie cleanup is separately host-scoped.
+- Correct the storage-scope contract for the forward successor: registrable-site browser-level cleanup explicitly includes third-party page storage partitioned beneath the selected top-level site and may leave the selected origin's partitions beneath unrelated top-level sites; exact-origin-only browser-level closed-page storage/cache is skipped because Chrome/Brave's schemeful-site key cannot preserve ports. Exact live-page cleanup remains available, closed-page limitations are reported, and SessionStorage is evaluated separately from persistent partition evidence.
+- Enforce the exact-origin storage skip again at the final browser-data mutation boundary, with only the separately disclosed cookie-only host-scoped sweep exempted. Reset any older saved direct-cleanup opt-in during the 1.11.63 disclosure migration so the current selected-site and exact-origin limitations must be acknowledged before direct mode can be re-enabled.
+- Rename the non-reseeding fixture route a read-only partition-observation probe. It now documents target-associated partition deletion, unrelated-top-level preservation, separately host-scoped CHIPS-cookie preservation, and the no-cleanup control needed to distinguish cleanup from navigation.
+
+## 1.11.62 — public-source prerelease work — 2026-08-23
+
+- Keep an invoked native site-access prompt's non-runnable review tombstone and durable lease after the five-minute review expires. Ordinary in-session maintenance now waits for both the exact host-only permission event and the bound handoff document's literal-true outcome; only a real browser-session boundary may discard an unresolved prompt without observing its result.
+- Persist the exact handoff's terminal canceled/reconciled result so concurrent wake-only maintenance cannot turn a proven late-grant release into an indefinite or misleading outcome. Added an installed-order regression covering an unresolved Chrome prompt across expiry, a later exact four-pattern grant, no cleanup admission, exact access reconciliation, and downloaded-file preservation.
+
+## 1.11.61 — public-source prerelease work — 2026-08-22
+
+### Startup-lifecycle test isolation
+
+- Register the readiness-retry regression before other mock service-worker generations in its test file. This preserves the full production assertion while preventing obsolete test-only worker instances from sharing a later global Chrome mock and racing the admitting review.
+
+## 1.11.60 — public-source prerelease work — 2026-08-22
+
+### Persistent-handoff timeout contract correction
+
+- Update the messaging-client timeout regression to exercise the current persistent-handoff grant and resume routes instead of the retired popup continuation routes. Production already assigned the long cleanup-response budget to the current routes; this test-only correction closes the full-suite failure without changing runtime behavior.
+
+## 1.11.59 — public-source prerelease work — 2026-08-22
+
+### Release transaction formatting correction
+
+- Keep the version transaction's generated changelog and release-readiness Markdown formatted before their stable-input fingerprint is computed. The local 1.11.58 transaction was never built, installed, pushed, or published; the forward-only integrity rule advances this formatting-only correction to a new candidate version instead of silently rebinding 1.11.58.
+
+## 1.11.58 — public-source prerelease work — 2026-08-22
+
+### Persistent native-permission handoff
+
+- Treat the exact installed 1.11.57 Brave result as a failed first-grant run: Brave accepted the four reviewed `example.com` patterns but destroyed the action popup before it could report the native request's literal-true result, so the worker correctly kept the lease proofless and started no cleanup.
+- Move the second, user-activated permission step into a dedicated extension-owned tab that survives Chrome/Brave's native prompt. Bind a worker-minted, single-use in-memory capability to that exact tab context while retaining the independent pre-request absence inventory, literal-true result, exact host-only `permissions.onAdded` event, nonce-bound approval, one-job admission, and proven temporary-access release requirements.
+- Add teardown and replay regressions that require exactly one admitted cleanup after the persistent page reports all proofs, preserve downloaded files, and remain fail-closed when that page disappears before reporting the native result.
+- Retain the exact used handoff binding until its worker-opened tab closes so a lost completion response can recover the same running or terminal job without admitting a duplicate cleanup; if recovery itself is unavailable, show an uncertainty-safe warning instead of claiming that no cleanup started.
+- Serialize an external target-access removal against every in-flight SiteWipe release, re-check the durable lease immediately before the native removal, and treat a pre-admission `reviewed_prompt_grant` without its exact matching live review as ambiguous after restart. Stale bookkeeping is discarded while a later manual regrant is preserved; only durably `admitted_cleanup` ownership remains eligible for ordinary restart-time release.
+
+## 1.11.57 — public-source prerelease work — 2026-08-22
+
+### Recovery proof and publication-contract correction
+
+- Preserve a proofless first-activation review and any later manual host-access grant across worker restart. Restart invalidation now treats access as SiteWipe-owned only when the durable review contains the complete authenticated invocation, exact grant event, literal-true popup outcome, and pre-request absence proof; missing-access settlement reuses the existing lifecycle reservation and never removes an unowned grant.
+- Rebind the two permission-listener mutation checks to the current service-worker structure through the parsed JavaScript syntax tree. The contract now proves that permission events cannot synthesize popup grant outcomes and that removal poison is installed before serialized invalidation, without relying on retired neighboring source text.
+- Keep follow-up hardening and evidence-automation ideas in the issue register as explicitly non-blocking deferred work.
+
+## 1.11.56 — public-source prerelease work — 2026-08-22
+
+### Authenticated second-activation permission handoff
+
+- Keep activation one arm-only and non-runnable. On activation two, dispatch capability-authenticated, non-runnable `beginCleanupPermissionPrompt` intent without awaiting; synchronously start `permissions.getAll()` immediately before invoking the exact preflight-bound `permissions.request()`; and immediately dispatch authenticated `confirmCleanupPermissionPromptInvocation` without awaiting either native result. Advance the handoff schema to 2, let confirm persist only `promptInvocation`, separately persist the exact complete post-begin host-only `permissions.onAdded` event as `promptGrant`, and have the initiating popup send and await `confirmCleanupPermissionGrantOutcome` only when the request resolves literal `true` and the pre-request inventory validly proves every reviewed temporary origin was absent from exact and broad coverage. Persist that proof as `promptGrantOutcome` with `preRequestTemporaryOriginsAbsent: true`; rejected, malformed, or already-covering inventory records no outcome.
+- Require the conjunction of `promptInvocation`, `promptGrant.complete === true`, `promptGrantOutcome.granted === true`, and `promptGrantOutcome.preRequestTemporaryOriginsAbsent === true` at readiness, atomic consumption, worker takeover, and prompt-owned permission removal. Invocation, access possession, or either grant proof alone cannot admit cleanup or authorize removal. A resolved-true outcome without its event remains non-runnable and pending through the live review/tombstone window even after bounded resume retries, so a delayed exact event can still complete once. If no event arrives before expiry/session settlement—or the popup disappears before reporting literal `true`—start no cleanup, discard only SiteWipe's review/lease bookkeeping, and preserve the grant. Grant events cannot synthesize popup proof; popup proof cannot synthesize event observation. A synchronous browser-API throw uses authenticated `not_invoked` settlement with the same preservation result. Give unconfirmed intent a dedicated 30-second `reviewPromptConfirmation` alarm while preserving the original five-minute `reviewExpiry`; expiry/invalidation/reset produces non-runnable `prompt_intent_tombstone`, and confirm converts it to `prompt_tombstone`.
+- Advance the durable permission lease to schema 3 with explicit `ownershipProof` provenance. Record `reviewed_prompt_grant` only after the session handoff durably contains the complete invocation/event/outcome/absence proof; require it before admission upgrades the lease to `admitted_cleanup`; and retain that proof through `release_pending` so startup may retry only proven SiteWipe-owned release obligations. Proofless, legacy, or `revoked` leases discard bookkeeping and preserve access. Serialize intersecting `permissions.onRemoved` events to revoke ownership and invalidate pending review authority, so a later manual regrant cannot inherit stale cleanup or permission-removal authority.
+- Move the isolated service-worker prompt-settlement reservation regression into its own safety test realm and drain the bounded startup wake before constructing the late-grant case, preventing test-only lifecycle leakage and older wake races under a slower full-suite run without changing product timing.
+- Bind syntax validation to the declared public source closure, excluding ignored disposable browser profiles so the release count is deterministic from a clean checkout.
+
+## 1.11.55 — public-source prerelease work — 2026-08-22
+
+### Release-contract assertion alignment
+
+- Align the accessibility and preflight source assertions with the formatted direct-mode notice and the two-activation missing-access button state, so the full release suite verifies the implemented grant handoff instead of the retired one-expression label contract.
+
+## 1.11.54 — public-source prerelease work — 2026-08-22
+
+### Durable first-grant handoff and partition-observation correction
+
+- Retain the exact installed SiteWipe 1.11.53 Chrome failure as historical evidence. In a fresh disposable Chrome `151.0.7922.172` profile, Chrome granted the four reviewed `example.com` patterns, but the non-awaited `armCleanupApproval` message was not durably recorded before the popup lifetime ended. The worker correctly refused the wake-only permission event: no cleanup job or report was created and no fixture or downloaded-file mutation occurred.
+- Record the later 1.11.53 Standard cleanup only as a narrow pregranted-path pass. It closed the matching fixture tab and left target local/session storage, IndexedDB, caches, service workers, and cookies at zero, while the protected 63-byte fixture download remained byte-identical. The surviving `chips.localhost` partitioned cookie is an expected out-of-scope preservation canary, not `example.com` residue; a real exhaustive cookie-discovery/removal regression now proves that the partition key cannot broaden cookie ownership.
+- Split missing normal-window access into two SiteWipe activations. The first awaits an exact nonce-bound durable `armed` acknowledgement and cannot open the native prompt or start cleanup. Only then does the same still-live popup expose a second fresh action whose first asynchronous browser API is `permissions.request()` for the exact missing patterns. Pregranted cleanup remains one SiteWipe activation, permission possession/events remain wake-only, and a replacement popup cannot inherit the document-bound capability.
+- Extend popup, browser-fixture, worker, authorization, recovery, expiry, denial, teardown, event-before-arm, cross-document non-transfer, redaction, and downloaded-file-preservation regressions. Exact 1.11.54 Chrome and Brave first-grant validation remains pending and must bind a new reproducible runtime artifact.
+- Record the 2026-08-22 owner amendment approving the exact one-activation pregranted/two-activation missing-access interaction for the 1.11.56 source candidate. Merge, tag, GitHub Release, browser-store submission, promotional publication, runtime-artifact approval, and complete installed-browser evidence remain separately withheld or pending.
+
+## 1.11.53 — public-source prerelease work — 2026-08-22
+
+### Hosted privacy review-line contract
+
+- Put the local privacy review date on its own exact line so the enforced hosted-policy evidence parser can bind the reviewed date without discarding it when adjacent status prose changes.
+- Keep the current validation and hosted-policy status in a separate sentence, preserving the forward-only candidate rule and requiring fresh exact-version evidence before source upload.
+
+## 1.11.52 — public-source prerelease work — 2026-08-22
+
+### Live permission-recovery reconciliation
+
+- Re-query the worker's normalized temporary-access status when the durable permission lease changes and immediately before **Clean another site** leaves a report. Keep local cleanup flows visible, but replace any idle/report composer with the recovery explanation until the worker proves `state: none`; then remove the stale lock and restore the report or composer.
+- Make the two missed-automatic-wake lifecycle tests explicitly suppress and assert the arm timer whose absence defines their premise. Keep serial file execution for host-contention isolation without using it as a substitute for deterministic per-test ordering.
+
+## 1.11.51 — public-source prerelease work — 2026-08-22
+
+### Recovery-layout harness completion
+
+- Expose the popup harness's existing class-list state through a read-only assertion helper so the recovery-layout regression verifies both the dedicated recovery class and the absence of the conflicting review class.
+
+## 1.11.50 — public-source prerelease work — 2026-08-22
+
+### Deterministic lifecycle validation
+
+- Serialize Node test files in the official unit and coverage runner. The files model independent extension service-worker lifecycles with bounded browser-operation timers; running them concurrently under coverage instrumentation produced different one-off timeout assertions while each exact case passed in isolation. Serial execution removes cross-file CPU starvation without weakening any product timeout, expectation, coverage threshold, or safety assertion.
+- Keep permission-recovery and unverified-handoff guidance visibly isolated in a dedicated recovery popup state. The recovery state locks and hides the cleanup composer while deliberately leaving its progress/status card rendered; source and popup-harness regressions reject the review-mode selector that previously hid that explanation.
+
+## 1.11.49 — public-source prerelease work — 2026-08-22
+
+### Permission-recovery status truthfulness
+
+- Prevent a replacement popup from presenting an ordinary Ready composer while the worker still owns a prepared, prompt-pending, active-cleanup, release-pending, or invalid temporary target-access record. Expose only the redacted lease state and exact-pattern count, lock new cleanup, and direct the user to Options → Maintenance without claiming that cleanup did or did not start.
+- Verify the native permission request still runs with live user activation after the handoff reorder, and distinguish the worker's deliberate event-before-arm stress test from the installed popup's new arm-before-request order.
+
+## 1.11.48 — public-source prerelease work — 2026-08-22
+
+### Corrective-candidate formatting normalization
+
+- Supersede 1.11.47 before artifact construction or installed validation because the handoff correction's architecture, testing, and issue-register documentation still required the repository's mechanical formatter after that version transaction.
+- Preserve the native-prompt teardown correction and its regression while advancing monotonically so the next candidate fingerprints only the final formatted stable inputs.
+
+## 1.11.47 — public-source prerelease work — 2026-08-22
+
+### Native-prompt popup-teardown handoff correction
+
+- Retain the exact installed 1.11.46 Brave failure as historical evidence: Brave granted the four reviewed `example.com` patterns but destroyed the action popup inside `permissions.request()` before the following arm-dispatch statement could run. The worker correctly admitted no cleanup without an authenticated `armed` record; no fixture data, DNR rule, report, job, or downloaded file changed, and expiry maintenance reconciled the temporary-access lease.
+- Dispatch the capability-authenticated, non-runnable worker arm first without awaiting it, then invoke the native permission request immediately in the same trusted click task and keep the permission result as the first await. Exact, unexpired handoff and permission proofs remain mandatory before admission, so the reordered call cannot authorize cleanup by itself.
+- Add a popup regression that fires `pagehide` synchronously from the permission-request stub and never settles the prompt, proving the arm and raw popup capability have already left while no popup resume or direct cleanup route runs. Fresh reproducible artifacts and installed Chrome/Brave validation are required under the next forward-only version.
+
 ## 1.11.46 — public-source prerelease work — 2026-08-21
 
-### Permission-expiry and partition-preservation hardening
+### Permission-expiry and partition-observation hardening
 
 - Close the exact late-grant expiry gap observed in the installed 1.11.45 Standard run and the deadline-admission and stale-control defects found during 1.11.46 review. After the native prompt settles, the initiating popup reconciles the authenticated capability/nonce-bound worker outcome before choosing its copy: an admitted running job or terminal report remains authoritative, and only a proven canceled handoff with `cleanupStarted: false` plus strict temporary-access absence may say that no cleanup started and access was released. An unprovable outcome retains the binding, locks fresh cleanup, and directs the user to the current job/report or Options without claiming admission or release. The worker—not the popup—settles or revokes only preflight-classified temporary exact origins, and the popup retires stale review controls while keeping the outcome guidance visible.
-- Add a distinct read-only `chips.localhost` partition-preservation probe. The legacy `embed=1` route remains setup-only and auto-seeds, while `/partition-probe` embeds a snapshot-only frame that ignores `autoseed`, exposes no seed/reset API, disables and hides mutation controls, removes the download target, emits no seeding cookie, and documents the same-scheme/site/port before-and-after protocol.
+- Add a distinct read-only `chips.localhost` partition-observation probe. The legacy `embed=1` route remains setup-only and auto-seeds, while `/partition-probe` embeds a snapshot-only frame that ignores `autoseed`, exposes no seed/reset API, disables and hides mutation controls, removes the download target, emits no seeding cookie, and documents the same-scheme/site/port before-and-after protocol. Its original preservation interpretation was later superseded by the Chrome 151 semantics recorded under SW-049.
 - Extend popup, service-worker, fixture-server, routing, accessibility/message-contract, and pure fixture-policy regressions for missed permission-event wakes, expired arm rejection, exact temporary-grant release, zero cleanup/file mutation, and non-reseeding probe behavior. The 1.11.46 source transaction and ChatGPT in-app Browser synthetic validation are recorded separately; installed Chrome/Brave claims remain pending.
 
 ## 1.11.45 — public-source prerelease work — 2026-08-21

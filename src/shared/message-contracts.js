@@ -24,7 +24,8 @@ const EMPTY_PAYLOAD_TYPES = new Set([
   MESSAGE_TYPES.getSelfTestResults,
   MESSAGE_TYPES.getMaintenanceStatus,
   MESSAGE_TYPES.runMaintenanceNow,
-  MESSAGE_TYPES.resetExtensionLocalState
+  MESSAGE_TYPES.resetExtensionLocalState,
+  MESSAGE_TYPES.claimCleanupPermissionHandoff
 ]);
 
 const MAX_MESSAGE_BYTES = 128 * 1024;
@@ -33,6 +34,7 @@ const MAX_ASSOCIATED_GROUPS_LENGTH = 25_000;
 const MAX_CONFIRMATION_LENGTH = 1024;
 const APPROVAL_TOKEN_PATTERN = /^[a-f0-9]{48}$/;
 const POPUP_PREPARATION_CAPABILITY_PATTERN = /^[a-f0-9]{64}$/;
+const PERMISSION_HANDOFF_CAPABILITY_PATTERN = /^[a-f0-9]{64}$/;
 
 export function validateMessageEnvelope(message, sender, runtimeId, validationOptions = {}) {
   if (!isPlainObject(message)) fail('Messages must be plain objects.');
@@ -122,8 +124,8 @@ function validatePayload(type, payload, validationOptions = {}) {
       assertPermissionLeaseId(payload.handoffNonce);
       assertPermissionLeaseId(payload.permissionLeaseId);
       assertPopupPreparationBinding(payload);
-      if (!['denied', 'abandoned'].includes(payload.outcome)) {
-        fail('permission prompt outcome must be denied or abandoned.');
+      if (!['denied', 'abandoned', 'not_invoked'].includes(payload.outcome)) {
+        fail('permission prompt outcome must be denied, abandoned, or not_invoked.');
       }
       return;
     case MESSAGE_TYPES.armCleanupApproval:
@@ -143,9 +145,62 @@ function validatePayload(type, payload, validationOptions = {}) {
       assertPopupPreparationBinding(payload);
       validateApproval(payload.approval);
       return;
+    case MESSAGE_TYPES.openCleanupPermissionHandoff:
+      assertKeys(payload, ['approvalToken', 'handoffNonce', 'popupContextId', 'popupPreparationCapability']);
+      assertApprovalToken(payload.approvalToken);
+      assertPermissionLeaseId(payload.handoffNonce);
+      assertPopupPreparationBinding(payload);
+      return;
+    case MESSAGE_TYPES.beginCleanupPermissionHandoff:
+      assertKeys(payload, ['handoffNonce', 'handoffCapability']);
+      assertPermissionLeaseId(payload.handoffNonce);
+      if (
+        typeof payload.handoffCapability !== 'string' ||
+        !PERMISSION_HANDOFF_CAPABILITY_PATTERN.test(payload.handoffCapability)
+      ) {
+        fail('handoffCapability is invalid.');
+      }
+      return;
+    case MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation:
+    case MESSAGE_TYPES.resumeCleanupPermissionHandoff:
+      assertKeys(payload, ['handoffNonce', 'handoffCapability']);
+      assertPermissionLeaseId(payload.handoffNonce);
+      assertPermissionHandoffCapability(payload.handoffCapability);
+      return;
+    case MESSAGE_TYPES.confirmCleanupPermissionHandoffGrant:
+      assertKeys(payload, ['handoffNonce', 'handoffCapability', 'preRequestTemporaryOriginsAbsent']);
+      assertPermissionLeaseId(payload.handoffNonce);
+      assertPermissionHandoffCapability(payload.handoffCapability);
+      if (payload.preRequestTemporaryOriginsAbsent !== true) {
+        fail('preRequestTemporaryOriginsAbsent must be true.');
+      }
+      return;
+    case MESSAGE_TYPES.settleCleanupPermissionHandoff:
+      assertKeys(payload, ['handoffNonce', 'handoffCapability', 'outcome']);
+      assertPermissionLeaseId(payload.handoffNonce);
+      assertPermissionHandoffCapability(payload.handoffCapability);
+      if (!['denied', 'abandoned', 'not_invoked'].includes(payload.outcome)) {
+        fail('permission handoff outcome must be denied, abandoned, or not_invoked.');
+      }
+      return;
     case MESSAGE_TYPES.resumeArmedCleanup:
+    case MESSAGE_TYPES.beginCleanupPermissionPrompt:
+    case MESSAGE_TYPES.confirmCleanupPermissionPromptInvocation:
       assertKeys(payload, ['handoffNonce', 'popupContextId', 'popupPreparationCapability']);
       assertPermissionLeaseId(payload.handoffNonce);
+      assertPopupPreparationBinding(payload);
+      return;
+    case MESSAGE_TYPES.confirmCleanupPermissionGrantOutcome:
+      assertKeys(payload, [
+        'handoffNonce',
+        'preRequestTemporaryOriginsAbsent',
+        'popupContextId',
+        'popupPreparationCapability'
+      ]);
+      assertPermissionLeaseId(payload.handoffNonce);
+      if (payload.preRequestTemporaryOriginsAbsent !== true) {
+        fail('preRequestTemporaryOriginsAbsent must be true.');
+      }
       assertPopupPreparationBinding(payload);
       return;
     case MESSAGE_TYPES.runDeepClean:
@@ -234,6 +289,12 @@ function assertPopupPreparationBinding(value) {
     !POPUP_PREPARATION_CAPABILITY_PATTERN.test(value.popupPreparationCapability)
   ) {
     fail('popupPreparationCapability is invalid.');
+  }
+}
+
+function assertPermissionHandoffCapability(value) {
+  if (typeof value !== 'string' || !PERMISSION_HANDOFF_CAPABILITY_PATTERN.test(value)) {
+    fail('handoffCapability is invalid.');
   }
 }
 
