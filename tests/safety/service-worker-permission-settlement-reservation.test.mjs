@@ -13,8 +13,16 @@ test('abandoned permission-prompt rollback holds the sole lifecycle reservation 
   const originalPermissionRemove = chrome.permissions.remove;
   const originalGetWindow = chrome.windows.get;
   let reviewWindowInspections = 0;
+  const startupRetryTimer = parkFirstLoadReadinessArmedCleanupRetry();
   try {
     await import(`../../src/background/service-worker.js?prompt-settlement-reservation=${uniqueImportKey()}`);
+    await withTimeout(startupRetryTimer.parked, 'load-readiness armed-cleanup retry to park');
+    startupRetryTimer.restore();
+    assert.equal(
+      startupRetryTimer.suppressed(),
+      true,
+      'the settlement-reservation test must park the load-readiness armed-cleanup retry'
+    );
     const initiatingSender = popupSender(chrome, 'popup-document-abandoned-prompt');
     const prepared = await dispatchRuntimeMessageWithoutTimer(chrome, prepareReviewMessage(), initiatingSender);
     assert.equal(prepared.ok, true, prepared.error);
@@ -121,6 +129,7 @@ test('abandoned permission-prompt rollback holds the sole lifecycle reservation 
     assert.equal(reviewWindowInspections, 1);
     assert.equal(cleanupMutationCallCount(chrome), 0);
   } finally {
+    startupRetryTimer.restore();
     releasePermissionRemoval.resolve();
     delete globalThis.chrome;
   }
@@ -337,6 +346,35 @@ function suppressUndelayedTimeouts() {
   return {
     restore() {
       globalThis.setTimeout = originalSetTimeout;
+    },
+    suppressed() {
+      return didSuppress;
+    }
+  };
+}
+
+function parkFirstLoadReadinessArmedCleanupRetry() {
+  const originalSetTimeout = globalThis.setTimeout;
+  const parked = deferred();
+  let didSuppress = false;
+  const interceptedSetTimeout = (callback, delay, ...args) => {
+    const stack = new Error().stack || '';
+    const isArmedCleanupRetry =
+      delay === 40 &&
+      stack.includes('resumeArmedCleanupAfterGrant') &&
+      /[/\\]src[/\\]background[/\\]service-worker\.js(?:[?:]|$)/.test(stack);
+    if (!didSuppress && isArmedCleanupRetry) {
+      didSuppress = true;
+      parked.resolve();
+      return 0;
+    }
+    return originalSetTimeout(callback, delay, ...args);
+  };
+  globalThis.setTimeout = interceptedSetTimeout;
+  return {
+    parked: parked.promise,
+    restore() {
+      if (globalThis.setTimeout === interceptedSetTimeout) globalThis.setTimeout = originalSetTimeout;
     },
     suppressed() {
       return didSuppress;

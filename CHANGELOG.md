@@ -6,6 +6,11 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.67 — public-source prerelease work — 2026-08-23
+
+- Replace the remaining coverage-only permission-settlement timing race with causal test-harness synchronization that parks the exact load-readiness retry whose absence defines the regression. The test proves that interception occurred and restores the real timer before constructing the reviewed approval; production runtime behavior is unchanged.
+- Correct stable release documentation to separate the authorized source-candidate branch/pull-request stage from later installed/browser, merge, binary-publication, and owner-authorization gates. No merge, tag, GitHub Release, supported-binary publication, browser-store submission, promotion, or portfolio approval is recorded.
+
 ## 1.11.66 — public-source prerelease work — 2026-08-23
 
 - Apply the repository formatter to the three current-candidate rows in the issue register after the 1.11.65 pre-push format check rejected their table alignment. This is a Markdown formatting and version-integrity correction only; production runtime behavior is unchanged.

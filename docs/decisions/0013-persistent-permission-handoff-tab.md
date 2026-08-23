@@ -2,7 +2,7 @@
 
 > **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-- Status: Accepted for the 1.11.66 corrective successor; implementation complete, with full local and exact-artifact installed validation pending
+- Status: Accepted for the 1.11.67 corrective successor; implementation retained, with active evidence governing local validation and exact-artifact installed validation pending
 - Date: 2026-08-22
 - Supersedes: only ADR 0012's same-action-popup activation-two mechanism
 - Preserves: ADR 0012's durable arm, independent grant proofs, exactly-once admission, permission-ownership provenance, and fail-closed settlement boundaries
@@ -13,7 +13,7 @@ Exact installed SiteWipe 1.11.57 in a disposable Brave Nightly `151.1.95.33` pro
 
 The failure shows that an action-popup document cannot be the required post-prompt outcome witness on browsers that destroy it during native permission UI. Removing the independent outcome proof would be unsafe: permission possession or an event alone cannot prove that this reviewed SiteWipe interaction created the grant, so it also cannot safely authorize cleanup or later automatic removal.
 
-The owner's recorded interaction approval remains one SiteWipe activation when exact access is pregranted and two explicit SiteWipe activations when normal-window access is missing. This decision changes only the extension surface that owns activation two. The owner's later release-unblock instruction separately authorizes the exact final forward source-candidate branch and pull request—now 1.11.66 after failed installed 1.11.62 and the subsequent release-integrity corrections—but does not authorize merge, tag, GitHub Release, browser-store submission, promotional publication, or any supported binary claim.
+The owner's recorded interaction approval remains one SiteWipe activation when exact access is pregranted and two explicit SiteWipe activations when normal-window access is missing. This decision changes only the extension surface that owns activation two. The owner's current instruction separately authorizes preparing and pushing the exact 1.11.67 source candidate, opening a replacement for PR #4, and re-establishing exact-head CI and CodeQL after its source-specific local gates pass. It does not authorize merge, tag, GitHub Release, browser-store submission, promotional publication, portfolio use, or any supported-binary claim.
 
 ## Decision
 
@@ -56,4 +56,4 @@ Terminalization is monotonic: exact reconciliation is proved first; the matching
 
 Source and adversarial checks must cover absent optional sender document ID; exact worker-created about:blank-to-packaged-URL tab in the reviewed normal source window without resizing; exact sender tab/window/URL/frame/origin and unique normal `TAB` context acceptance; zero/multiple/mismatched context rejection; old schema-2 record rejection; direct-open, duplicate, reload, navigation, replacement, replay, stale, and wrong-capability rejection; no raw-capability URL or persistence sink; fresh user activation at `permissions.request()`; exact event/outcome ordering; page destruction before and after each proof and after admission; denial/dismissal; worker suspension/restart; an unresolved invoked prompt across review expiry and full ordinary maintenance; maintenance between late event/outcome proofs; durable terminal canceled replay; expiry and authority invalidation; one-job admission; exact temporary-access release; private-source refusal; and downloaded-file preservation.
 
-Those source checks do not establish installed behavior. The exact 1.11.57, 1.11.61, and 1.11.62 failures remain historical evidence. A forward 1.11.66 artifact must be loaded into fresh disposable Chrome and Brave profiles and retain exact-artifact evidence before any compatibility, binary, or store claim. Installed accessibility, performance, media, hosted-policy parity, independent review, exact-head remote checks, and stage-specific publication approvals remain separate gates.
+Those source checks do not establish installed behavior. The exact 1.11.57, 1.11.61, and 1.11.62 failures remain historical evidence. A forward 1.11.67 artifact must be loaded into fresh disposable Chrome and Brave profiles and retain exact-artifact evidence before any compatibility, merge, binary, or store claim. Installed accessibility, performance, media, hosted-policy parity, independent review, and stage-specific publication approvals remain separate later-stage gates. Exact-head CI and CodeQL are established on the pushed source-candidate pull-request head and do not imply approval of any later stage.

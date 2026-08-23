@@ -1,8 +1,8 @@
-# Deferred SiteWipe 1.11.66 follow-up work
+# Deferred SiteWipe 1.11.67 follow-up work
 
 Reviewed 2026-08-23. This list preserves work that is useful or required before a later merge, tag, supported binary release, browser-store submission, or promotional publication. It is not represented as completed by the narrower source-candidate branch and pull-request evidence.
 
-The current source-candidate scope is exact-artifact local validation, one installed Chrome Standard reviewed cleanup, a real installed Brave compatibility smoke, installed accessibility checks, a narrow performance observation, authentic media, and the authorized candidate branch/pull request. Later publication stages remain separately unauthorized.
+The current source-candidate branch/pull-request scope is the synchronized exact source, deliberate forward version transaction, complete local automated validation, reproducible source/runtime artifacts, truthful candidate-scoped evidence, and exact-head CI/CodeQL after push. Full installed Chrome/Brave cleanup and compatibility, installed accessibility, measured performance, authentic media, hosted-policy parity, merge, and every binary/publication action remain deferred and separately unauthorized.
 
 ## Browser validation
 
@@ -21,7 +21,7 @@ The current source-candidate scope is exact-artifact local validation, one insta
 ## Performance
 
 - Collect repeated installed cleanup timings in Chrome and Brave across small and larger fixtures, cold and warm workers, Standard and Expert modes, normal and private contexts, and adverse browser load.
-- Treat the retained historical SiteWipe 1.11.63 712 ms Chrome result only as a finite prior-artifact observation; it is not current 1.11.66 performance evidence, and no cleanup-speed claim may be published from a single sample.
+- Treat the retained historical SiteWipe 1.11.63 712 ms Chrome result only as a finite prior-artifact observation; it is not current 1.11.67 performance evidence, and no cleanup-speed claim may be published from a single sample.
 
 ## Evidence automation and maintenance
 

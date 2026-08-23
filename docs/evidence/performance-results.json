@@ -4,13 +4,13 @@
   "measuredAt": null,
   "environment": {},
   "artifact": {
-    "version": "1.11.66",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.66.zip",
+    "version": "1.11.67",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.67.zip",
     "sha256": null
   },
   "fixtures": [],
   "limitations": [
-    "The retained 712 ms Chrome observation belongs only to the historical exact SiteWipe 1.11.63 artifact; it is not current 1.11.66 performance evidence, a representative benchmark, or a cleanup-speed claim.",
+    "The retained 712 ms Chrome observation belongs only to the historical exact SiteWipe 1.11.63 artifact; it is not current 1.11.67 performance evidence, a representative benchmark, or a cleanup-speed claim.",
     "That historical 1.11.63 result was one Standard small-fixture observation. Current Chrome and Brave cleanup timing, larger fixtures, repeated distributions, cold-worker starts, private mode, Expert mode, and adverse browser-load conditions remain deferred.",
     "The historical 1.11.63 runtime report exposed only the 712 ms end-to-end cleanup duration without a separately instrumented internal phase breakdown.",
     "Node test duration is not used as browser cleanup performance."

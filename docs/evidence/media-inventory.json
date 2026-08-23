@@ -40,15 +40,15 @@
       "scope": "Historical exact-artifact SiteWipe 1.11.63 installed Chrome screenshots and 65-second demo were visually reviewed frame-by-frame against synthetic fixtures; all retained files were checked for dimensions, hashes, extension identifiers, personal data, and private local paths. Code-native promotional assets were reviewed separately and remain unpublished."
     },
     "limitations": [
-      "This retained review is historical 1.11.63 evidence and is not current 1.11.66 screenshot, demo, store-media, or promotional-publication approval.",
+      "This retained review is historical 1.11.63 evidence and is not current 1.11.67 screenshot, demo, store-media, or promotional-publication approval.",
       "No historical screenshot, demo, or reviewer approval is rebound to the current artifact."
     ]
   },
   "review": null,
   "reviewerApproval": false,
   "artifact": {
-    "version": "1.11.66",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.66.zip",
+    "version": "1.11.67",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.67.zip",
     "sha256": null
   }
 }

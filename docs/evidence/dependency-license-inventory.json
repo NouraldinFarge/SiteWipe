@@ -3,7 +3,7 @@
   "status": "technical_inventory_complete_owner_acknowledged",
   "inventoriedAt": "2026-08-23",
   "lastAuditAt": "2026-08-23",
-  "lockfileSha256": "D854705B3D0830E4D74043600C3A74D75A0C3612665F28D1C20D3DAD7C09F8EC",
+  "lockfileSha256": "36A91DAAAAB0D4C0CEDA4612B02AE74FD87F227AF5F8C25F5C832EE583979F6E",
   "runtimeDependencyCount": 0,
   "lockedDevelopmentGraphCount": 406,
   "licenseCounts": {
@@ -75,12 +75,12 @@
     "path": "dist/sitewipe-development-sbom.cdx.json",
     "bomFormat": "CycloneDX",
     "specVersion": "1.6",
-    "componentVersion": "1.11.66",
+    "componentVersion": "1.11.67",
     "components": 329,
     "dependencyNodes": 388,
     "bytes": 807991,
-    "sha256": "427C2AE4BF07FB5E7C7511A075A580F6DB1328EDCDAA50FD8F7FE4094A202445",
-    "generatedAt": "2026-08-23T18:52:29.198Z"
+    "sha256": "2F8F66A449CED573D971F539984926E840D6DC412F38482C09D919CE69CEC8F8",
+    "generatedAt": "2026-08-23T21:01:46.117Z"
   },
   "directDevelopmentDependencies": [
     {
@@ -168,9 +168,9 @@
     "Every direct dependency is pinned to an exact version in package.json and package-lock.json.",
     "Installation and CI use npm ci --ignore-scripts.",
     "scripts/check-dependency-licenses.mjs binds this inventory to the lockfile hash, exact license counts, metadata exceptions, installed license text, and install-script package inventory.",
-    "npm audit reported zero known vulnerabilities at every severity for the exact 1.11.66 lockfile on 2026-08-23.",
+    "npm audit reported zero known vulnerabilities at every severity for the exact 1.11.67 lockfile on 2026-08-23.",
     "The 59-file runtime allowlist contains no npm runtime dependency files.",
-    "The CycloneDX 1.6 development-graph SBOM was regenerated and integrity-bound for 1.11.66."
+    "The CycloneDX 1.6 development-graph SBOM was regenerated and integrity-bound for 1.11.67."
   ],
   "limitations": [
     "Registry/package metadata and license text are evidence inputs, not a legal license conclusion.",
@@ -179,5 +179,5 @@
   ],
   "ownerApproval": true,
   "ownerApprovedAt": "2026-08-17",
-  "candidateVersion": "1.11.66"
+  "candidateVersion": "1.11.67"
 }
