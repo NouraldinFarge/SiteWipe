@@ -4,7 +4,7 @@
   "reviewedAt": "2026-08-23",
   "reviewer": "owner confirmation and local automated/source audit",
   "technicalStatus": "passed",
-  "technicalValidatedAt": "2026-08-23T16:21:14.268Z",
+  "technicalValidatedAt": "2026-08-23",
   "ownerApproval": true,
   "ownerApprovedAt": "2026-08-17",
   "ownerConfirmation": {
@@ -21,7 +21,7 @@
   "technicalEvidence": {
     "sourceClosurePrivatePathScan": {
       "status": "passed",
-      "repositoryFiles": 305
+      "repositoryFiles": 308
     },
     "runtimePackage": {
       "status": "passed",
@@ -57,7 +57,7 @@
   },
   "notes": [
     "The owner confirmation and first-party rights decision remain recorded.",
-    "The 1.11.63 source closure, 59-file runtime allowlist, 296-file source archive, locked 406-package development graph, current development SBOM, notices, PSL snapshot, icon outputs, private-path scan, exact source-package equivalence, checksum verification, and consecutive local build comparison passed.",
-    "This technical pass does not replace the remaining exact-version browser-matrix, installed accessibility, performance, media, remote-check, or later-publication authorization gates."
+    "The 1.11.66 source closure, 59-file runtime allowlist, 308-file source archive, locked 406-package development graph, current development SBOM, notices, PSL snapshot, icon outputs, 308-file private-path scan, exact source-package equivalence, seven-file checksum verification, and consecutive local build comparison passed.",
+    "This technical pass does not replace the remaining exact-version full automated suite, coverage, browser-matrix, installed accessibility, performance, media, Git, remote-check, or later-publication authorization gates."
   ]
 }

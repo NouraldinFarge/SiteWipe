@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "status": "passed",
+  "status": "pending_installed_validation",
   "reviewedAt": "2026-08-23",
   "sourceContracts": {
     "status": "passed",
     "reviewedAt": "2026-08-23",
     "binding": {
-      "version": "1.11.63",
-      "releaseInputFingerprintSha256": "9481E52D5CD2A575D691E51775FBEE84E964944EC14E5BB9FA54383547A6712A"
+      "version": "1.11.66",
+      "releaseInputFingerprintSha256": "B5D2DF9633E16D693BF88C871878A23C00E566D2B2AE53D1E38591D467577B28"
     },
     "namedTests": 38,
     "coverage": [
@@ -20,21 +20,22 @@
     ]
   },
   "installedChecks": {
-    "axe": "passed",
-    "keyboardOnly": "passed",
-    "focusOrderAndRestoration": "passed",
-    "screenReaderAnnouncements": "passed",
-    "zoom125": "passed",
-    "zoom150": "passed",
-    "zoom200": "passed",
-    "zoom400": "passed",
-    "forcedColors": "passed",
-    "reducedMotion": "passed"
+    "axe": "pending",
+    "keyboardOnly": "pending",
+    "focusOrderAndRestoration": "pending",
+    "screenReaderAnnouncements": "pending",
+    "zoom125": "pending",
+    "zoom150": "pending",
+    "zoom200": "pending",
+    "zoom400": "pending",
+    "forcedColors": "pending",
+    "reducedMotion": "pending"
   },
-  "browserVersions": {
-    "chrome": "151.0.7922.172"
-  },
-  "installedEvidence": {
+  "browserVersions": {},
+  "installedEvidence": null,
+  "priorInstalledEvidence": {
+    "version": "1.11.63",
+    "status": "historical_not_current",
     "observedAt": "2026-08-23T17:29:38.8425590Z",
     "environment": "Exact SiteWipe 1.11.63 runtime in a disposable normal Chrome profile; private access off; window bounds preserved at 1273,718 and 1289x728; all temporary tabs closed and zoom/media state restored.",
     "wcagAxe": {
@@ -97,9 +98,9 @@
     ]
   },
   "artifact": {
-    "version": "1.11.63",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.63.zip",
-    "sha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
+    "version": "1.11.66",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.66.zip",
+    "sha256": null
   },
-  "reviewerApproval": true
+  "reviewerApproval": false
 }

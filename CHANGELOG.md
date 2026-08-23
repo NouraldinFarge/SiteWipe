@@ -6,6 +6,18 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.66 — public-source prerelease work — 2026-08-23
+
+- Apply the repository formatter to the three current-candidate rows in the issue register after the 1.11.65 pre-push format check rejected their table alignment. This is a Markdown formatting and version-integrity correction only; production runtime behavior is unchanged.
+
+## 1.11.65 — public-source prerelease work — 2026-08-23
+
+- Synchronize stable current-candidate documentation and branch references after the deliberate 1.11.64 version transaction exposed stale predecessor text. This is a documentation/version-integrity correction only; production runtime behavior is unchanged.
+
+## 1.11.64 — public-source prerelease work — 2026-08-23
+
+- Make the permission-settlement lifecycle regression deterministic under coverage instrumentation. The test now suppresses every undelayed timer only during its narrowly scoped synthetic approval-arm call, so unrelated coverage/runtime bookkeeping cannot consume a single "next timer" interception and allow the separately tested automatic wake to race this assertion. Production runtime behavior is unchanged.
+
 ## 1.11.63 — public-source prerelease work — 2026-08-23
 
 - Retain exact installed SiteWipe 1.11.62 as failed historical evidence. Chrome 151 completed the reviewed `example.com` cleanup but also cleared persistent `chips.localhost` page storage partitioned beneath the selected top-level site; the old review and fixture language incorrectly treated that browser-defined selected-site effect as out-of-scope preservation. The out-of-domain CHIPS cookie remained because cookie cleanup is separately host-scoped.

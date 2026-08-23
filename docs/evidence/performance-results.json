@@ -1,52 +1,19 @@
 {
   "schemaVersion": 1,
-  "status": "passed",
-  "measuredAt": "2026-08-23T17:06:13.8141762Z",
-  "environment": {
-    "browser": "Google Chrome 151.0.7922.172",
-    "operatingSystem": "Microsoft Windows 11 Pro 10.0.26100, 64-bit",
-    "profile": "fresh disposable normal profile; unsigned-in; Sync disabled",
-    "fixture": "sitewipe-synthetic-v1 small example.com fixture",
-    "cleanupMode": "Standard detailed review with the two-activation missing-access handoff",
-    "incognito": false,
-    "downloadedFileDeletionEnabled": false
-  },
+  "status": "pending",
+  "measuredAt": null,
+  "environment": {},
   "artifact": {
-    "version": "1.11.63",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.63.zip",
-    "sha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
+    "version": "1.11.66",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.66.zip",
+    "sha256": null
   },
-  "fixtures": [
-    {
-      "id": "chrome-standard-small-reviewed-handoff-2026-08-23",
-      "status": "passed",
-      "browser": "Google Chrome 151.0.7922.172",
-      "scale": "small",
-      "observedAt": "2026-08-23T17:06:13.8141762Z",
-      "artifactSha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84",
-      "sampleCount": 1,
-      "samples": [
-        {
-          "id": "chrome-standard-small-run-1",
-          "status": "passed",
-          "totalDurationMs": 712,
-          "phaseTimingsMs": {
-            "installedCleanupTotal": 712
-          }
-        }
-      ],
-      "summary": {
-        "medianMs": 712,
-        "p95Ms": 712,
-        "maximumMs": 712
-      }
-    }
-  ],
+  "fixtures": [],
   "limitations": [
-    "This is one narrow installed-browser observation retained to verify that the exact-artifact cleanup completed and emitted a finite duration; it is not a representative benchmark or a cleanup-speed claim.",
-    "Brave cleanup timing, larger fixtures, repeated distributions, cold-worker starts, private mode, Expert mode, and adverse browser-load conditions remain deferred follow-up measurements.",
-    "The runtime report exposed the end-to-end installed cleanup duration but did not retain a separately instrumented internal phase breakdown, so the single phase value deliberately represents the same whole installed cleanup.",
+    "The retained 712 ms Chrome observation belongs only to the historical exact SiteWipe 1.11.63 artifact; it is not current 1.11.66 performance evidence, a representative benchmark, or a cleanup-speed claim.",
+    "That historical 1.11.63 result was one Standard small-fixture observation. Current Chrome and Brave cleanup timing, larger fixtures, repeated distributions, cold-worker starts, private mode, Expert mode, and adverse browser-load conditions remain deferred.",
+    "The historical 1.11.63 runtime report exposed only the 712 ms end-to-end cleanup duration without a separately instrumented internal phase breakdown.",
     "Node test duration is not used as browser cleanup performance."
   ],
-  "reviewerApproval": true
+  "reviewerApproval": false
 }

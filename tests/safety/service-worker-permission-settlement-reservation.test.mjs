@@ -18,7 +18,7 @@ test('abandoned permission-prompt rollback holds the sole lifecycle reservation 
     const initiatingSender = popupSender(chrome, 'popup-document-abandoned-prompt');
     const prepared = await dispatchRuntimeMessageWithoutTimer(chrome, prepareReviewMessage(), initiatingSender);
     assert.equal(prepared.ok, true, prepared.error);
-    const approvalTimer = suppressNextUndelayedTimeout();
+    const approvalTimer = suppressUndelayedTimeouts();
     let armed;
     try {
       armed = await dispatchRuntimeMessageWithoutTimer(chrome, armPreparedReviewMessage(prepared), initiatingSender);
@@ -320,11 +320,15 @@ async function withTimeout(promise, label, timeoutMs = 10_000) {
   }
 }
 
-function suppressNextUndelayedTimeout() {
+function suppressUndelayedTimeouts() {
   const originalSetTimeout = globalThis.setTimeout;
   let didSuppress = false;
   globalThis.setTimeout = (callback, delay, ...args) => {
-    if (!didSuppress && delay === undefined) {
+    // The arm wake is intentionally undelayed. Suppress every undelayed timer
+    // scheduled during this narrowly scoped arm call so coverage/runtime
+    // bookkeeping cannot consume a "next timer" interception first and let
+    // the real wake race this settlement-reservation assertion.
+    if (delay === undefined) {
       didSuppress = true;
       return 0;
     }

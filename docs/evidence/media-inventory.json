@@ -1,54 +1,10 @@
 {
   "schemaVersion": 1,
-  "status": "approved",
-  "authenticScreenshotCount": 4,
-  "demoDurationSeconds": 65,
-  "screenshots": [
-    {
-      "path": "docs/evidence/media/sitewipe-1.11.63-chrome-reviewed-handoff.png",
-      "width": 1280,
-      "height": 800,
-      "bytes": 118528,
-      "sha256": "E37146BDF46E432BDA1AC0F6C9C943220D598EE2A10D2EB92512AD94CF81F836",
-      "capturedAt": "2026-08-23T17:04:09.6393589Z",
-      "artifactSha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
-    },
-    {
-      "path": "docs/evidence/media/sitewipe-1.11.63-chrome-options.png",
-      "width": 1280,
-      "height": 800,
-      "bytes": 272000,
-      "sha256": "217EB3CC79E11CC5CC5AD33BAB82A40EDBEB8F9B4EFD8CE69AF32884AAFCF689",
-      "capturedAt": "2026-08-23T17:05:37.0096414Z",
-      "artifactSha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
-    },
-    {
-      "path": "docs/evidence/media/sitewipe-1.11.63-chrome-report.png",
-      "width": 1280,
-      "height": 800,
-      "bytes": 452600,
-      "sha256": "D25C57579DD960745E466AD6D471781A3A00153E0E068CBF52D8E3B5D0F5FF9E",
-      "capturedAt": "2026-08-23T17:06:13.8141762Z",
-      "artifactSha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
-    },
-    {
-      "path": "docs/evidence/media/sitewipe-1.11.63-chrome-popup-summary.png",
-      "width": 1280,
-      "height": 800,
-      "bytes": 136556,
-      "sha256": "C67B1AA631159270F1D5EE6932C0461BBEDCF00BC250739352F80862D323B476",
-      "capturedAt": "2026-08-23T17:06:40.2042618Z",
-      "artifactSha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
-    }
-  ],
-  "demo": {
-    "path": "docs/evidence/media/sitewipe-1.11.63-chrome-demo.mp4",
-    "durationSeconds": 65,
-    "bytes": 389061,
-    "sha256": "B9C20C6E5C383C49BF4A3AEB7554688B4CD9A011E5E40D8966A63A40B453C830",
-    "capturedAt": "2026-08-23T17:08:44.0674320Z",
-    "artifactSha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
-  },
+  "status": "pending",
+  "authenticScreenshotCount": 0,
+  "demoDurationSeconds": 0,
+  "screenshots": [],
+  "demo": null,
   "storeAssets": {
     "icon128": {
       "path": "src/assets/icons/icon128.png",
@@ -57,65 +13,10 @@
       "bytes": 10179,
       "sha256": "BFE86E44E39A9DC6C7AB800E1A4A881DD16537DD68939F0CA1F6A9BC4167AC16"
     },
-    "screenshots1280x800": [
-      {
-        "path": "docs/evidence/media/sitewipe-1.11.63-chrome-reviewed-handoff.png",
-        "width": 1280,
-        "height": 800,
-        "bytes": 118528,
-        "sha256": "E37146BDF46E432BDA1AC0F6C9C943220D598EE2A10D2EB92512AD94CF81F836",
-        "capturedAt": "2026-08-23T17:04:09.6393589Z",
-        "artifactSha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
-      },
-      {
-        "path": "docs/evidence/media/sitewipe-1.11.63-chrome-options.png",
-        "width": 1280,
-        "height": 800,
-        "bytes": 272000,
-        "sha256": "217EB3CC79E11CC5CC5AD33BAB82A40EDBEB8F9B4EFD8CE69AF32884AAFCF689",
-        "capturedAt": "2026-08-23T17:05:37.0096414Z",
-        "artifactSha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
-      },
-      {
-        "path": "docs/evidence/media/sitewipe-1.11.63-chrome-report.png",
-        "width": 1280,
-        "height": 800,
-        "bytes": 452600,
-        "sha256": "D25C57579DD960745E466AD6D471781A3A00153E0E068CBF52D8E3B5D0F5FF9E",
-        "capturedAt": "2026-08-23T17:06:13.8141762Z",
-        "artifactSha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
-      },
-      {
-        "path": "docs/evidence/media/sitewipe-1.11.63-chrome-popup-summary.png",
-        "width": 1280,
-        "height": 800,
-        "bytes": 136556,
-        "sha256": "C67B1AA631159270F1D5EE6932C0461BBEDCF00BC250739352F80862D323B476",
-        "capturedAt": "2026-08-23T17:06:40.2042618Z",
-        "artifactSha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
-      }
-    ],
-    "promotionalTile440x280": {
-      "path": "docs/evidence/media/sitewipe-1.11.63-promotional-tile-440x280.png",
-      "width": 440,
-      "height": 280,
-      "bytes": 47312,
-      "sha256": "7AAEB2863E6E1986DD17001E756DFA0527B28FCB0F48342B0B307BBE071DCFA3"
-    },
-    "marquee1400x560": {
-      "path": "docs/evidence/media/sitewipe-1.11.63-marquee-1400x560.png",
-      "width": 1400,
-      "height": 560,
-      "bytes": 138695,
-      "sha256": "126E8EFD85CA44C28F55C4CC3DEB53691932F8A59C5A26932488CC6AB4676EC2"
-    },
-    "githubSocialPreview": {
-      "path": "docs/evidence/media/sitewipe-1.11.63-github-social-preview-1280x640.png",
-      "width": 1280,
-      "height": 640,
-      "bytes": 137204,
-      "sha256": "C3CC27CBE9A8614340337B358809CD4C3DFCE55D7A55F1AEB85299419034374D"
-    }
+    "screenshots1280x800": [],
+    "promotionalTile440x280": null,
+    "marquee1400x560": null,
+    "githubSocialPreview": null
   },
   "requirements": [
     "Capture only the installed extension in disposable Chrome and Brave profiles.",
@@ -123,14 +24,31 @@
     "Do not substitute static file renders or mock results for browser evidence.",
     "Use the owner-approved SiteWipe identity and bind final media to the exact installed artifact."
   ],
-  "review": {
-    "reviewedAt": "2026-08-23T17:17:30.000Z",
-    "scope": "Exact-artifact installed Chrome screenshots and 65-second demo were visually reviewed frame-by-frame against synthetic fixtures; all retained files were checked for dimensions, hashes, extension identifiers, personal data, and private local paths. Code-native promotional assets were reviewed separately and remain unpublished."
-  },
-  "reviewerApproval": true,
-  "artifact": {
+  "priorInstalledMediaReview": {
     "version": "1.11.63",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.63.zip",
-    "sha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
+    "status": "historical_approved_not_current",
+    "claimsReboundToCurrentArtifact": false,
+    "authenticScreenshotCount": 4,
+    "demoDurationSeconds": 65,
+    "artifact": {
+      "version": "1.11.63",
+      "runtimeZip": "sitewipe-unreleased-candidate-1.11.63.zip",
+      "sha256": "2F9EFE3CD787BFCBC054934EFF720E6C3297922146FC1CC9AC26E3DD272F7D84"
+    },
+    "review": {
+      "reviewedAt": "2026-08-23T17:17:30.000Z",
+      "scope": "Historical exact-artifact SiteWipe 1.11.63 installed Chrome screenshots and 65-second demo were visually reviewed frame-by-frame against synthetic fixtures; all retained files were checked for dimensions, hashes, extension identifiers, personal data, and private local paths. Code-native promotional assets were reviewed separately and remain unpublished."
+    },
+    "limitations": [
+      "This retained review is historical 1.11.63 evidence and is not current 1.11.66 screenshot, demo, store-media, or promotional-publication approval.",
+      "No historical screenshot, demo, or reviewer approval is rebound to the current artifact."
+    ]
+  },
+  "review": null,
+  "reviewerApproval": false,
+  "artifact": {
+    "version": "1.11.66",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.66.zip",
+    "sha256": null
   }
 }
