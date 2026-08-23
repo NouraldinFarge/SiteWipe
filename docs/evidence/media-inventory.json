@@ -1,10 +1,62 @@
 {
   "schemaVersion": 1,
-  "status": "pending",
-  "authenticScreenshotCount": 0,
-  "demoDurationSeconds": 0,
-  "screenshots": [],
-  "demo": null,
+  "status": "approved",
+  "authenticScreenshotCount": 4,
+  "demoDurationSeconds": 65,
+  "screenshots": [
+    {
+      "path": "docs/evidence/media/sitewipe-1.11.67-chrome-popup-summary.png",
+      "width": 1280,
+      "height": 800,
+      "bytes": 96551,
+      "sha256": "B2EAEA0CF2E06D96025699687B068BABAFDFDDB74591EABC1E4548ACDC366599",
+      "capturedAt": "2026-08-23T22:35:59.8028782Z",
+      "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6",
+      "captureNote": "Authentic natural 380x600 installed action-popup capture centered unscaled on neutral 1280x800 padding; no browser chrome was included."
+    },
+    {
+      "path": "docs/evidence/media/sitewipe-1.11.67-chrome-reviewed-handoff.png",
+      "width": 1280,
+      "height": 800,
+      "bytes": 118137,
+      "sha256": "C651101FE52D3EA6E2C293298A5DC4835DCD47B472F6FEA56E661FF09E572706",
+      "capturedAt": "2026-08-23T22:35:35.8054012Z",
+      "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6"
+    },
+    {
+      "path": "docs/evidence/media/sitewipe-1.11.67-chrome-report.png",
+      "width": 1280,
+      "height": 800,
+      "bytes": 409334,
+      "sha256": "19C9C3B56D148FFA59BD62B6BAAB81E43DF4E20EE2CB685F510F595C61718836",
+      "capturedAt": "2026-08-23T22:35:17.0510423Z",
+      "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6"
+    },
+    {
+      "path": "docs/evidence/media/sitewipe-1.11.67-chrome-options.png",
+      "width": 1280,
+      "height": 800,
+      "bytes": 267628,
+      "sha256": "3EABA85FB12FA58A261D50979312D72D5ADF9292D716442A2653EA87419B06F6",
+      "capturedAt": "2026-08-23T22:35:36.7401292Z",
+      "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6"
+    }
+  ],
+  "demo": {
+    "path": "docs/evidence/media/sitewipe-1.11.67-chrome-demo.mp4",
+    "width": 1280,
+    "height": 720,
+    "durationSeconds": 65,
+    "frameRateFps": 15,
+    "frameCount": 975,
+    "videoCodec": "h264",
+    "audioStreamCount": 0,
+    "bytes": 534052,
+    "sha256": "5CF0238BD2AE7452AFCD50CFB5020FD61BD79318A7F223507D3486AFB3ADF89E",
+    "capturedAt": "2026-08-23T22:38:24.0330249Z",
+    "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6",
+    "captureNote": "Silent exact-window recording with one neutral right-edge pixel padded from the fixed 1279-wide browser window to 1280x720; no product state was resized or composited."
+  },
   "storeAssets": {
     "icon128": {
       "path": "src/assets/icons/icon128.png",
@@ -13,13 +65,72 @@
       "bytes": 10179,
       "sha256": "BFE86E44E39A9DC6C7AB800E1A4A881DD16537DD68939F0CA1F6A9BC4167AC16"
     },
-    "screenshots1280x800": [],
-    "promotionalTile440x280": null,
-    "marquee1400x560": null,
-    "githubSocialPreview": null
+    "screenshots1280x800": [
+      {
+        "path": "docs/evidence/media/sitewipe-1.11.67-chrome-popup-summary.png",
+        "width": 1280,
+        "height": 800,
+        "bytes": 96551,
+        "sha256": "B2EAEA0CF2E06D96025699687B068BABAFDFDDB74591EABC1E4548ACDC366599",
+        "capturedAt": "2026-08-23T22:35:59.8028782Z",
+        "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6",
+        "captureNote": "Authentic natural 380x600 installed action-popup capture centered unscaled on neutral 1280x800 padding; no browser chrome was included."
+      },
+      {
+        "path": "docs/evidence/media/sitewipe-1.11.67-chrome-reviewed-handoff.png",
+        "width": 1280,
+        "height": 800,
+        "bytes": 118137,
+        "sha256": "C651101FE52D3EA6E2C293298A5DC4835DCD47B472F6FEA56E661FF09E572706",
+        "capturedAt": "2026-08-23T22:35:35.8054012Z",
+        "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6"
+      },
+      {
+        "path": "docs/evidence/media/sitewipe-1.11.67-chrome-report.png",
+        "width": 1280,
+        "height": 800,
+        "bytes": 409334,
+        "sha256": "19C9C3B56D148FFA59BD62B6BAAB81E43DF4E20EE2CB685F510F595C61718836",
+        "capturedAt": "2026-08-23T22:35:17.0510423Z",
+        "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6"
+      },
+      {
+        "path": "docs/evidence/media/sitewipe-1.11.67-chrome-options.png",
+        "width": 1280,
+        "height": 800,
+        "bytes": 267628,
+        "sha256": "3EABA85FB12FA58A261D50979312D72D5ADF9292D716442A2653EA87419B06F6",
+        "capturedAt": "2026-08-23T22:35:36.7401292Z",
+        "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6"
+      }
+    ],
+    "promotionalTile440x280": {
+      "path": "docs/evidence/media/sitewipe-1.11.67-promotional-tile-440x280.png",
+      "width": 440,
+      "height": 280,
+      "bytes": 42042,
+      "sha256": "49AEC8800E33D32629774771A8DF26911380802EE0A1726AD815CA4A20118CD7",
+      "generatedAt": "2026-08-23T22:41:16.2229874Z"
+    },
+    "marquee1400x560": {
+      "path": "docs/evidence/media/sitewipe-1.11.67-marquee-1400x560.png",
+      "width": 1400,
+      "height": 560,
+      "bytes": 111160,
+      "sha256": "0ECC7C99B76A6B1E32F3A5264AF9F8CFAE4C465E687C60E7C79BE6AE2191063C",
+      "generatedAt": "2026-08-23T22:41:16.6130766Z"
+    },
+    "githubSocialPreview": {
+      "path": "docs/evidence/media/sitewipe-1.11.67-github-social-preview-1280x640.png",
+      "width": 1280,
+      "height": 640,
+      "bytes": 107166,
+      "sha256": "9E21C4A8E1553C1A660409F3D60C42408A0E0244FBE4037347936A517C048ED3",
+      "generatedAt": "2026-08-23T22:41:16.9813110Z"
+    }
   },
   "requirements": [
-    "Capture only the installed extension in disposable Chrome and Brave profiles.",
+    "Capture only the installed extension in a disposable Chrome or Brave profile; record the browser used and do not infer compatibility with the other browser.",
     "Use synthetic fixture data and inspect every frame for identifiers.",
     "Do not substitute static file renders or mock results for browser evidence.",
     "Use the owner-approved SiteWipe identity and bind final media to the exact installed artifact."
@@ -44,11 +155,47 @@
       "No historical screenshot, demo, or reviewer approval is rebound to the current artifact."
     ]
   },
-  "review": null,
-  "reviewerApproval": false,
+  "review": {
+    "reviewedAt": "2026-08-23T22:42:36.6618979Z",
+    "status": "approved_exact_artifact_media_only",
+    "scope": "Exact SiteWipe 1.11.67 runtime artifact installed in a disposable normal Chrome profile using only synthetic example.com fixture data and redacted report content. Approval is limited to these retained media bytes and does not authorize publication, merge, release, store submission, promotion, or any broader browser-compatibility claim.",
+    "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6",
+    "captureGeometry": {
+      "left": 1281,
+      "top": 0,
+      "width": 1279,
+      "height": 720,
+      "windowState": "normal",
+      "preserved": true
+    },
+    "privacyReview": {
+      "status": "passed",
+      "syntheticDataOnly": true,
+      "redactedReportContent": true,
+      "personalDataObserved": false,
+      "extensionIdentifiersObserved": false,
+      "localPathsObserved": false,
+      "downloadedFilePathsObserved": false
+    },
+    "demoReview": {
+      "status": "passed",
+      "decodedFrameCount": 975,
+      "sequentialContactSheetCount": 5,
+      "allFramesRepresentedSequentially": true,
+      "fullResolutionRepresentativeFramesReviewed": true,
+      "ocrUsed": false,
+      "limitation": "The frame review used five sequential contact sheets plus full-resolution representative frames; no automated OCR or OCR-completeness claim is made."
+    },
+    "limitations": [
+      "The popup screenshot preserves the authentic natural 380x600 installed popup unscaled and centers it on neutral 1280x800 padding.",
+      "The silent demo preserves the fixed 1281,0,1279x720 window geometry and adds one neutral right-edge pixel solely to produce an even 1280-pixel H.264 frame.",
+      "This approval does not rebind historical 1.11.63 media and does not approve publication or Brave compatibility."
+    ]
+  },
+  "reviewerApproval": true,
   "artifact": {
     "version": "1.11.67",
     "runtimeZip": "sitewipe-unreleased-candidate-1.11.67.zip",
-    "sha256": null
+    "sha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6"
   }
 }

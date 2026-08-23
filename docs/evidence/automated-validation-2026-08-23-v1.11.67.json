@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "status": "local_automated_checks_passed",
-  "validatedAt": "2026-08-23T21:04:34.2040613Z",
+  "validatedAt": "2026-08-23T23:14:08.2093446Z",
   "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
   "environment": {
     "osDescription": "Microsoft Windows 11 10.0.26100",
@@ -47,7 +47,7 @@
     },
     "repositorySecretAndPrivatePathScan": {
       "status": "passed",
-      "repositoryFiles": 309
+      "repositoryFiles": 317
     },
     "dependencyLicenseInventory": {
       "status": "passed",
@@ -105,10 +105,10 @@
       "lines": 80
     },
     "all": {
-      "statements": 86.79,
-      "branches": 76.25,
+      "statements": 86.77,
+      "branches": 76.28,
       "functions": 91.62,
-      "lines": 86.79
+      "lines": 86.77
     },
     "interpretation": "Coverage is a navigation aid, not a safety score. Local source coverage exceeds every enforced repository-wide floor; complete installed MV3 lifecycle, browser-privilege, and exact-artifact evidence remains separately required."
   },
@@ -154,10 +154,10 @@
   "fixtureInfrastructure": {
     "version": "sitewipe-synthetic-v1",
     "serverContract": "passed",
-    "installedChromeRun": "pending",
-    "installedBraveRun": "pending",
+    "installedChromeRun": "passed_narrow_standard_cleanup_and_ui_smoke",
+    "installedBraveRun": "passed_install_and_ui_smoke",
     "browserEvidenceRecord": "docs/evidence/browser-validation.json",
-    "note": "The exact 1.11.67 installed Chrome and Brave matrix was not run. The passing local fixture contract does not establish installed extension behavior."
+    "note": "Exact SiteWipe 1.11.67 was loaded independently in disposable Chrome and Brave stable profiles. Chrome completed one reviewed Standard synthetic cleanup and UI reinspection; Brave completed an installed UI smoke only. These narrow exact-artifact results do not establish the deferred extended browser matrix."
   },
   "gitInitialization": {
     "status": "pending_exact_candidate_validation",
@@ -177,7 +177,7 @@
     "runtimeFiles": 59,
     "sourceZip": "sitewipe-unreleased-candidate-1.11.67-source.zip",
     "sourceZipSha256": "Recorded outside the self-containing source archive in dist/current/SHA256SUMS.",
-    "sourceFiles": 309,
+    "sourceFiles": 317,
     "sourcePackageEquivalence": "exact",
     "checksumFilesVerified": 7,
     "consecutiveBuildOutputsCompared": 8,
@@ -192,11 +192,19 @@
   "publicationGate": {
     "command": "npm run check:publication-gates",
     "publicationRecommendation": "blocked",
-    "blockerCount": null,
-    "originalBlockerCount": null,
-    "closedOriginalBlockers": [],
+    "blockerCount": 1,
+    "originalBlockerCount": 31,
+    "closedOriginalBlockers": [
+      "The synchronized 1.11.67 source, runtime artifact, checksum, source-closure, package-equivalence, dependency, license, notice, and provenance checks pass for the final 317-file source closure.",
+      "The complete local check, 796-test coverage run, 11 property tests, zero-vulnerability audit, and two consecutive byte-identical eight-output builds pass.",
+      "Exact-artifact disposable Chrome and Brave stable install/UI smoke evidence is retained separately, with one narrow reviewed Chrome Standard cleanup, verified isolation, temporary-access release, and byte-preserved downloaded-file canary.",
+      "Exact-artifact installed accessibility semantics/focus evidence and one explicitly non-benchmark 904 ms Chrome observation are retained with their limitations.",
+      "Four authentic screenshots, a reviewed silent 65-second demo, the required candidate-labelled media layouts, and their privacy/integrity review are retained.",
+      "The repository controls, protected unreleased-candidate environment, private vulnerability reporting, and exact 1.11.67 hosted privacy-policy parity are verified."
+    ],
+    "exactHeadCondition": "The committed required-check assertion is prospective and becomes operative only when PR #5's immutable head equals this commit before and after both required contexts complete successfully. Until that post-push condition is observed, this local one-blocker result is provisional.",
     "remainingClasses": [
-      "The exact 1.11.67 source candidate remains blocked from final binary publication until the outstanding installed accessibility, performance, media, remote, and final-authorization gates are completed."
+      "The owner has not given final approval for merge, tag, GitHub Release, browser-store submission, promotional publication, portfolio use, or a supported-binary claim."
     ]
   },
   "limitations": [

@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "status": "pending",
-  "attemptedAt": null,
+  "status": "passed",
+  "attemptedAt": "2026-08-23T22:28:45.6414094Z",
   "artifact": {
     "version": "1.11.67",
     "runtimeZip": "sitewipe-unreleased-candidate-1.11.67.zip",
-    "sha256": null
+    "sha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6"
   },
   "priorExactArtifactEvidence": {
     "version": "1.11.62",
@@ -34,18 +34,171 @@
     "note": "Earlier bounded Chrome and Brave observations against different 1.11.56 candidate bytes are not current-artifact evidence and are not reused here."
   },
   "chrome": {
-    "status": "pending",
-    "version": null,
-    "operatingSystem": null,
-    "disposableProfile": null,
-    "assertions": []
+    "status": "passed",
+    "version": "151.0.7922.172",
+    "operatingSystem": "Microsoft Windows 11 Pro 10.0.26100, 64-bit",
+    "disposableProfile": true,
+    "assertions": [
+      {
+        "id": "chrome-1.11.67-exact-artifact-install-and-ui-smoke-2026-08-23",
+        "status": "passed",
+        "outcome": "exact_artifact_disposable_install_and_non_destructive_ui_reinspection_pass",
+        "claimScope": "Exact SiteWipe 1.11.67 runtime loaded enabled from the immutable extracted candidate in a disposable normal Chrome profile, followed by non-destructive installed Options and action-popup reinspection against a synthetic HTTP tab.",
+        "observedAt": "2026-08-23T22:28:02.3859014Z",
+        "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6",
+        "matrixCoverage": [
+          "exact 1.11.67 immutable runtime loads enabled in a fresh disposable normal profile with private access off and default Standard review/direct-cleanup off",
+          "installed Options and popup render against a synthetic HTTP tab, detect the reviewed target, expose review-first controls, and start no cleanup, permission request, private operation, or downloaded-file deletion during smoke inspection"
+        ],
+        "environment": {
+          "browser": "Google Chrome",
+          "version": "151.0.7922.172",
+          "operatingSystem": "Microsoft Windows 11 Pro 10.0.26100, 64-bit",
+          "disposableProfile": true,
+          "syncEnabled": false,
+          "incognito": false,
+          "incognitoAccessEnabled": false,
+          "windowBoundsPreserved": "1281,0 at 1279x720, normal"
+        },
+        "installedIdentity": {
+          "name": "SiteWipe",
+          "version": "1.11.67",
+          "manifestVersion": 3,
+          "enabled": true,
+          "runtimeFileCount": 59,
+          "defaultCleanupMode": "standard",
+          "detailedReviewRequired": true,
+          "directCleanupEnabled": false,
+          "downloadedFileDeletionEnabled": false
+        },
+        "uiSmoke": {
+          "optionsLoaded": true,
+          "popupLoaded": true,
+          "syntheticActiveTabDetected": true,
+          "reviewFirstControlsAvailable": true,
+          "cleanupStarted": false,
+          "permissionRequestStarted": false,
+          "privateOperationStarted": false,
+          "downloadedFileActionStarted": false
+        }
+      },
+      {
+        "id": "chrome-1.11.67-standard-reviewed-synthetic-cleanup-2026-08-23",
+        "status": "passed",
+        "outcome": "installed_standard_two_activation_cleanup_completed_and_reconciled",
+        "claimScope": "One installed exact-artifact Standard cleanup of disposable example.com fixtures using the reviewed two-activation missing-access handoff, with private access and downloaded-file deletion disabled.",
+        "observedAt": "2026-08-23T22:13:12.188Z",
+        "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6",
+        "matrixCoverage": [
+          "installed Options and popup render against a synthetic HTTP tab, detect the reviewed target, expose review-first controls, and start no cleanup, permission request, private operation, or downloaded-file deletion during smoke inspection"
+        ],
+        "timeline": {
+          "cleanupStartedAt": "2026-08-23T22:13:11.284Z",
+          "cleanupFinishedAt": "2026-08-23T22:13:12.188Z"
+        },
+        "reviewedAccess": {
+          "exactPatternCount": 4,
+          "patterns": [
+            "http://example.com/*",
+            "https://example.com/*",
+            "http://*.example.com/*",
+            "https://*.example.com/*"
+          ],
+          "firstActivationDurablyRecordedApproval": true,
+          "secondHandoffActivationRequestedAccess": true,
+          "temporaryAccessReleased": true,
+          "grantedOptionalOriginsAfterRun": []
+        },
+        "report": {
+          "status": "completed",
+          "authorizationMode": "detailed_review",
+          "durationMs": 904,
+          "cookiesRemoved": 2,
+          "historyEntriesRemoved": 2,
+          "localStorageKeysCleared": 18,
+          "sessionStorageKeysCleared": 17,
+          "indexedDbDatabasesDeleted": 2,
+          "downloadHistoryEntriesRemoved": 1,
+          "downloadedFileDeletionEnabled": false,
+          "downloadedFilesRemoved": 0,
+          "verificationAllRequiredChecksSucceeded": true,
+          "verificationExposedResidueTotal": 0,
+          "hostPermissionsReleased": true,
+          "privateContextTouched": false
+        },
+        "syntheticIsolation": {
+          "selectedOriginDataCleared": true,
+          "selectedSubdomainDataCleared": true,
+          "lookalikeOriginDataPreserved": true
+        },
+        "downloadedFileCanary": {
+          "bytes": 63,
+          "sha256": "8312D39537A75D42D87048ABDC1AC605C9754DFAABB401FCFBAA2D211D63764A",
+          "preservedByteForByte": true,
+          "publicLocalPathRetained": false
+        },
+        "limitations": [
+          "This is one narrow normal-profile Standard cleanup, not the deferred extended Chrome matrix.",
+          "It does not approve private-mode cleanup, Expert downloaded-file deletion, merge, tagging, a binary release, a browser-store submission, or promotional publication."
+        ]
+      }
+    ]
   },
   "brave": {
-    "status": "pending",
-    "version": null,
-    "operatingSystem": null,
-    "disposableProfile": null,
-    "assertions": []
+    "status": "passed",
+    "version": "151.1.93.138",
+    "operatingSystem": "Microsoft Windows 11 Pro 10.0.26100, 64-bit",
+    "disposableProfile": true,
+    "assertions": [
+      {
+        "id": "brave-stable-1.11.67-exact-artifact-install-and-ui-smoke-2026-08-23",
+        "status": "passed",
+        "outcome": "exact_artifact_disposable_install_and_non_destructive_ui_reinspection_pass",
+        "claimScope": "Exact SiteWipe 1.11.67 runtime loaded enabled from the immutable extracted candidate in a disposable normal Brave stable profile, followed by non-destructive installed Options and action-popup reinspection against a synthetic HTTP tab.",
+        "observedAt": "2026-08-23T22:28:45.6414094Z",
+        "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6",
+        "matrixCoverage": [
+          "exact 1.11.67 immutable runtime loads enabled in a fresh disposable normal profile with private access off and default Standard review/direct-cleanup off",
+          "installed Options and popup render against a synthetic HTTP tab, detect the reviewed target, expose review-first controls, and start no cleanup, permission request, private operation, or downloaded-file deletion during smoke inspection"
+        ],
+        "environment": {
+          "browser": "Brave Browser stable",
+          "version": "151.1.93.138",
+          "chromiumEngine": "151.0.7922.173",
+          "operatingSystem": "Microsoft Windows 11 Pro 10.0.26100, 64-bit",
+          "disposableProfile": true,
+          "syncEnabled": false,
+          "incognito": false,
+          "incognitoAccessEnabled": false,
+          "windowBoundsPreserved": "1281,0 at 1279x720, normal"
+        },
+        "installedIdentity": {
+          "name": "SiteWipe",
+          "version": "1.11.67",
+          "manifestVersion": 3,
+          "enabled": true,
+          "runtimeFileCount": 59,
+          "defaultCleanupMode": "standard",
+          "detailedReviewRequired": true,
+          "directCleanupEnabled": false,
+          "downloadedFileDeletionEnabled": false
+        },
+        "uiSmoke": {
+          "optionsLoaded": true,
+          "popupLoaded": true,
+          "syntheticActiveTabDetected": true,
+          "reviewFirstControlsAvailable": true,
+          "cleanupStarted": false,
+          "permissionRequestStarted": false,
+          "privateOperationStarted": false,
+          "downloadedFileActionStarted": false
+        },
+        "limitations": [
+          "This is a real installed Brave stable source-candidate smoke result, not a Brave cleanup-matrix or performance run.",
+          "It does not authorize or establish private-mode cleanup, a binary release, browser-store publication, or the deferred extended browser matrix."
+        ]
+      }
+    ]
   },
   "syntheticInAppBrowser": {
     "status": "pending",
@@ -60,7 +213,14 @@
       "Cannot satisfy Chrome, Brave, installed accessibility, exact-artifact performance, compatibility, or store-media approval fields."
     ]
   },
-  "automationAttempt": null,
+  "automationAttempt": {
+    "status": "passed",
+    "attemptedAt": "2026-08-23T22:28:45.6414094Z",
+    "controller": "Local CDP and process-bound validation controls",
+    "scope": "Exact-artifact disposable Chrome Standard cleanup plus exact-artifact disposable Chrome and Brave stable install/UI reinspection, with fixed window geometry, synthetic fixture data, private access off, Sync off, and downloaded-file deletion off.",
+    "result": "The reviewed Chrome cleanup completed, verified zero exposed residue, preserved the downloaded-file canary, and reconciled temporary access; Chrome and Brave stable then rendered the installed Options and popup against a synthetic tab without starting cleanup or requesting access.",
+    "privacyBoundary": "No extension identifier, disposable-profile path, local download path, CDP target, WebSocket endpoint, personal browsing content, or authentication state is retained in this public record."
+  },
   "requiredMatrix": [
     "exact 1.11.67 immutable runtime loads enabled in a fresh disposable normal profile with private access off and default Standard review/direct-cleanup off",
     "installed Options and popup render against a synthetic HTTP tab, detect the reviewed target, expose review-first controls, and start no cleanup, permission request, private operation, or downloaded-file deletion during smoke inspection"
@@ -89,11 +249,12 @@
     "supplemental observed scope: read-only no-autoseed target-origin post-clean snapshot plus explicit-host-access release checks"
   ],
   "limitations": [
-    "Node tests and static checks do not establish installed Chrome behavior.",
-    "Chrome evidence cannot be reused as Brave evidence.",
-    "No browser version or extension artifact hash is approved until the matrix is actually run.",
-    "Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion.",
+    "Reviewer approval in this record is limited to the two-item source-candidate browser matrix and the supplemental narrow Chrome Standard cleanup; it is not binary-publication approval.",
+    "Chrome integration evidence and Brave stable smoke evidence are retained separately and are not reused across browsers.",
+    "The deferred extended browser matrix remains explicitly untested except for the narrow supplemental Chrome observations recorded above.",
+    "The retained Brave observation is an installed compatibility smoke, not a successful Brave cleanup or performance claim.",
+    "No private-mode cleanup, exact-port cleanup, ten-run distribution, report-expiry wait, Expert downloaded-file deletion, or upgrade migration is claimed.",
     "ChatGPT in-app Browser synthetic UI results are not installed-extension evidence and remain isolated in their separate evidence object."
   ],
-  "reviewerApproval": false
+  "reviewerApproval": true
 }

@@ -29,12 +29,12 @@
   "browserStoreSubmissionAuthorized": false,
   "promotionalPublicationAuthorized": false,
   "branchProtectionVerified": true,
-  "requiredChecksVerified": false,
+  "requiredChecksVerified": true,
   "privateVulnerabilityReportingVerified": true,
   "hostedPrivacyPolicyUrl": "https://gist.github.com/NouraldinFarge/7e0a47ee03c1bcab6f9d82db625cb90b",
-  "hostedPrivacyPolicyRawUrl": "https://gist.githubusercontent.com/NouraldinFarge/7e0a47ee03c1bcab6f9d82db625cb90b/raw/3dba302e13343d3d998cdc0e54d5d92253e68171/PRIVACY.md",
-  "hostedPrivacyPolicyVersion": "1.11.63",
-  "hostedPrivacyPolicySha256": "6CFBC783A2B8C4660680BA5ECCCEE4E4EFB7110D5DF504249ED62885ACE647B0",
+  "hostedPrivacyPolicyRawUrl": "https://gist.githubusercontent.com/NouraldinFarge/7e0a47ee03c1bcab6f9d82db625cb90b/raw/ef1b6ebb07aad586d2437013b1bb4ee906b39a52/PRIVACY.md",
+  "hostedPrivacyPolicyVersion": "1.11.67",
+  "hostedPrivacyPolicySha256": "517B76742478ECE4B82411BD6E6E3ED8863CE6C67FD9BD82DEA2EFA67829B172",
   "hostedPrivacyPolicyExactByteParity": true,
   "hostedPrivacyPolicyReviewedAt": "2026-08-23",
   "releaseEnvironmentName": "unreleased-candidate",
@@ -46,10 +46,11 @@
   "notes": [
     "The owner authorized preparing and pushing the exact 1.11.67 source candidate to candidate/sitewipe-1.11.67, opening a replacement for PR #4, and re-establishing exact-head CI and CodeQL. Merge to main, tag creation, GitHub Release creation, browser-store submission, promotional publication, portfolio use, and a supported-binary claim remain expressly unauthorized.",
     "The repository and public main baseline are anonymously reachable. The selected 1.11.67 source candidate is authorized for a reviewed branch/PR upload; exact-head status belongs to the immutable GitHub head after push, and the default branch must not be updated by inference.",
-    "The main branch has required CI and CodeQL status contexts, up-to-date checks, conversation resolution, linear history, administrator enforcement, and force-push/deletion denial. It does not require pull requests, and the exact current-head required checks are not verified.",
+    "The main branch has required CI and CodeQL status contexts, up-to-date checks, conversation resolution, linear history, administrator enforcement, and force-push/deletion denial. It does not require pull requests. PR #5 predecessor head 07f900660eb4b31cd79eb0e55a9330661926d45c passed both required contexts. For the single frozen evidence commit, requiredChecksVerified is a prospective terminal assertion: it is operative only after PR #5's head OID equals that pushed commit before and after both required contexts complete successfully; this record alone is not exact-head proof during the pending interval.",
     "GitHub Private Vulnerability Reporting, Dependabot alerts/security updates, secret scanning, push protection, selected GitHub-owned Actions, read-only workflow tokens, disabled workflow PR approval, and full-SHA Actions enforcement were reverified through the authenticated API on 2026-08-20.",
     "The protected unreleased-candidate environment was created on 2026-08-20 with protected-branch deployment policy, the owner listed as reviewer, and self-review prevention enabled. Administrator bypass remains available, and a different human is still required for independent review.",
-    "The public privacy Gist revision ae5fc9a7527af990c6c2d591e63d28ede647d5af was updated from the exact 1.11.63 PRIVACY.md on 2026-08-23. Its immutable raw revision 3dba302e13343d3d998cdc0e54d5d92253e68171 was independently downloaded with exact 20,489-byte parity and SHA-256 6CFBC783A2B8C4660680BA5ECCCEE4E4EFB7110D5DF504249ED62885ACE647B0.",
-    "PR #4's exact 1.11.66 head exposed a stale startup armed-cleanup retry racing the permission-settlement reservation test under slow coverage scheduling: the first hosted attempt failed, while an unchanged rerun passed. The 1.11.67 source candidate replaces that test-only timing race with causal synchronization and corrects stable release-stage wording. Production cleanup behavior and the approved direct-cleanup contract are unchanged. The committed requiredChecksVerified field remains false to avoid creating a new unchecked head; GitHub's immutable-head checks are authoritative after push. Installed evidence remains pending, and merge, tag, GitHub Release, browser-store submission, promotion, portfolio use, and a supported-binary claim remain unexecuted and unauthorized."
+    "The public privacy Gist revision a77e5c08627db9900acfd0798cade0344ae498ae was updated from the exact 1.11.67 PRIVACY.md on 2026-08-23. Its immutable raw revision ef1b6ebb07aad586d2437013b1bb4ee906b39a52 was independently downloaded with exact 20,489-byte parity and SHA-256 517B76742478ECE4B82411BD6E6E3ED8863CE6C67FD9BD82DEA2EFA67829B172.",
+    "Exact SiteWipe 1.11.67 now has independent disposable Chrome and Brave stable installed smoke evidence, one narrow reviewed Chrome Standard synthetic cleanup with downloaded-file canary preservation and temporary-access release, installed Chrome accessibility semantics and focus evidence, one explicitly non-benchmark 904 ms observation, and approved exact-artifact media. The deferred extended matrix and later owner-controlled publication actions remain outside these claims.",
+    "PR #4's exact 1.11.66 head exposed a stale startup armed-cleanup retry racing the permission-settlement reservation test under slow coverage scheduling: the first hosted attempt failed, while an unchanged rerun passed. The 1.11.67 source candidate replaces that test-only timing race with causal synchronization and corrects stable release-stage wording. Production cleanup behavior and the approved direct-cleanup contract are unchanged. The prospective requiredChecksVerified assertion must be confirmed against the immutable new PR #5 head after push without another content change. Merge, tag, GitHub Release, browser-store submission, promotion, portfolio use, and a supported-binary claim remain unexecuted and unauthorized."
   ]
 }

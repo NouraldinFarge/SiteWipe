@@ -21,7 +21,7 @@
   "technicalEvidence": {
     "sourceClosurePrivatePathScan": {
       "status": "passed",
-      "repositoryFiles": 309
+      "repositoryFiles": 317
     },
     "runtimePackage": {
       "status": "passed",
@@ -57,7 +57,7 @@
   },
   "notes": [
     "The owner confirmation and first-party rights decision remain recorded.",
-    "The 1.11.67 source closure, 59-file runtime allowlist, 309-file source archive, locked 406-package development graph, current development SBOM, notices, PSL snapshot, icon outputs, 309-file private-path scan, exact source-package equivalence, seven-file checksum verification, and consecutive local build comparison passed.",
-    "This technical pass does not replace the remaining exact-version installed-browser, accessibility, performance, media, remote-check, or later-publication authorization gates."
+    "The 1.11.67 source closure, 59-file runtime allowlist, 317-file source archive, locked 406-package development graph, current development SBOM, notices, PSL snapshot, icon outputs, 317-file private-path scan, exact source-package equivalence, seven-file checksum verification, and consecutive local build comparison passed.",
+    "This technical pass does not replace the retained narrow exact-version installed evidence, the deferred extended browser/accessibility/performance work, exact-head remote checks, or later owner-controlled publication authorization."
   ]
 }
