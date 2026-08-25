@@ -1143,6 +1143,41 @@ body.review-active .popup-shell {
   }
 }
 
+@container popup (max-width: 120px) {
+  .popup-shell {
+    padding: 2px;
+  }
+
+  .review-card {
+    padding: 4px;
+  }
+
+  .status-strip {
+    padding-inline: 0;
+  }
+
+  .status-strip .badge {
+    gap: 3px;
+    padding-inline: 3px;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
+  .review-actions {
+    gap: 4px;
+    margin-inline: 0;
+    padding: 4px 0 0;
+  }
+
+  .review-actions .btn {
+    padding-inline: 2px;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+}
+
 @media (max-height: 570px) {
   .popup-shell {
     height: 100%;

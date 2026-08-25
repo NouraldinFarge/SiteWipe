@@ -1,16 +1,21 @@
 {
   "schemaVersion": 1,
   "status": "pending_installed_validation",
-  "reviewedAt": null,
+  "reviewedAt": "2026-08-25",
   "sourceContracts": {
-    "status": "pending",
-    "reviewedAt": null,
+    "status": "passed",
+    "reviewedAt": "2026-08-25",
     "binding": {
-      "version": "1.11.80",
-      "releaseInputFingerprintSha256": null
+      "version": "1.11.86",
+      "releaseInputFingerprintSha256": "76E28A9C3D032063F3414BF668BC9FCE3D205A6F4EDE3F8EEFE9735AB16C2BC0"
     },
-    "namedTests": null,
-    "coverage": []
+    "namedTests": 48,
+    "coverage": [
+      "Popup review semantics, status announcements, focus restoration, target sizing, narrow-layout reflow, and 400-percent whole-word source contracts.",
+      "Options labels, help relationships, grouping, safe disclosure, optional-access separation, error persistence, and compact-layout contracts.",
+      "Side-panel report semantics, responsive disclosure layout, keyboard tab behavior, export safety, status distinctions, and empty-history controls.",
+      "Forced-colors, reduced-motion, contrast, browser-neutral wording, confirmation, and settings-direct authorization source contracts."
+    ]
   },
   "installedChecks": {
     "axe": "pending",
@@ -95,8 +100,8 @@
     ]
   },
   "artifact": {
-    "version": "1.11.80",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.80.zip",
+    "version": "1.11.86",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.86.zip",
     "sha256": null
   },
   "reviewerApproval": false

@@ -5,6 +5,25 @@ import vm from 'node:vm';
 
 const popupMockSource = await readFile(new URL('./fixtures/popup-browser-mock.js', import.meta.url), 'utf8');
 
+test('popup fixture deterministically models fixed-physical-width zoom', () => {
+  for (const { zoom, scale, width } of [
+    { zoom: '200', scale: 2, width: 190 },
+    { zoom: '400', scale: 4, width: 95 }
+  ]) {
+    const fixture = loadPopupFixture(`?mode=standard&zoom=${zoom}`);
+    const root = fixture.root;
+    const body = fixture.context.document.body;
+
+    assert.equal(width * scale, 380);
+    assert.equal(root.style.width, `${width}px`);
+    assert.equal(root.style.maxWidth, `${width}px`);
+    assert.equal(body.style.width, `${width}px`);
+    assert.equal(body.style.maxWidth, `${width}px`);
+    assert.equal(body.style.zoom, String(scale));
+    assert.equal(root.dataset.fixtureSimulatedZoom, zoom);
+  }
+});
+
 test('popup fixture models the exact two-activation, four-proof permission handoff', async () => {
   const fixture = loadPopupFixture('?mode=standard');
   const prepared = await fixture.send('sitewipe.prepareCleanupReview');

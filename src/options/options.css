@@ -832,6 +832,19 @@ p {
     gap: 12px;
   }
 
+  .setting-row.status-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .permission-actions {
+    width: 100%;
+    max-width: none;
+  }
+
+  .permission-actions .btn {
+    min-width: 0;
+  }
+
   .setting-row .compact-select,
   .stack-row,
   .danger-zone {

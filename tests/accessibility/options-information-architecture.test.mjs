@@ -65,7 +65,9 @@ test('Options keeps essential cleanup decisions visible and progressively disclo
 test('Options replaces the stacked mobile menu with horizontally scrollable section chips', async () => {
   const css = await source('options.css');
   const mobile = css.slice(css.indexOf('@media (max-width: 860px)'));
-  const phone = css.slice(css.indexOf('@media (max-width: 560px)'));
+  const phoneStart = css.indexOf('@media (max-width: 560px)');
+  const phoneEnd = css.indexOf('@media (max-width: 430px)', phoneStart);
+  const phone = css.slice(phoneStart, phoneEnd);
 
   assert.ok(mobile.length > 0, 'The compact navigation breakpoint must exist');
   assert.match(mobile, /\.rail \{[\s\S]*?position: sticky;[\s\S]*?display: block;/);
@@ -80,6 +82,9 @@ test('Options replaces the stacked mobile menu with horizontally scrollable sect
   assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*?\.support-grid,[\s\S]*?grid-template-columns: 1fr;/);
   assert.ok(phone.length > 0, 'The phone status-layout breakpoint must exist');
   assert.match(phone, /\.hero-status \{\s*flex-wrap: wrap;\s*overflow: visible;/);
+  assert.match(phone, /\.setting-row\.status-row \{\s*grid-template-columns: minmax\(0, 1fr\);\s*\}/);
+  assert.match(phone, /\.permission-actions \{\s*width: 100%;\s*max-width: none;\s*\}/);
+  assert.match(phone, /\.permission-actions \.btn \{\s*min-width: 0;\s*\}/);
   assert.doesNotMatch(phone, /\.rail-nav \{[^}]*overflow-x: visible;/);
 });
 

@@ -16,10 +16,12 @@ import {
 } from '../../scripts/remote-publication-evidence.mjs';
 
 const now = '2026-08-24T21:03:00.000Z';
+// Deliberately synthetic validator identity; it must not track the package version.
+const FIXTURE_VERSION = '9.8.7';
 const expected = Object.freeze({
   repository: 'NouraldinFarge/SiteWipe',
-  version: '1.11.80',
-  candidateBranch: 'candidate/sitewipe-1.11.80',
+  version: FIXTURE_VERSION,
+  candidateBranch: `candidate/sitewipe-${FIXTURE_VERSION}`,
   candidateHeadSha: 'a'.repeat(40),
   candidateActorLogin: 'candidate-actor',
   mainBranch: 'main',
@@ -27,7 +29,7 @@ const expected = Object.freeze({
   hostedPrivacyPolicyRawUrl:
     'https://gist.githubusercontent.com/NouraldinFarge/privacy/raw/0123456789abcdef0123456789abcdef01234567/PRIVACY.md',
   hostedPrivacyPolicySha256: 'C'.repeat(64),
-  hostedPrivacyPolicyVersion: '1.11.80',
+  hostedPrivacyPolicyVersion: FIXTURE_VERSION,
   releaseEnvironmentName: 'unreleased-candidate',
   requiredChecks: Object.freeze([
     Object.freeze({
@@ -61,6 +63,28 @@ test('strict external capture validates while non-automatable human requirements
     trackedInGit: false
   });
   assert.equal(REMOTE_PUBLICATION_CAPTURE_SOURCE.captureDigestMeaning, 'integrity-only-not-source-authentication');
+});
+
+test('expected binding requires the exact version-qualified branch and privacy-policy version', async (t) => {
+  const mismatchedVersion = '9.8.6';
+  const cases = [
+    [
+      'candidate branch differs from the expected version',
+      { ...expected, candidateBranch: `candidate/sitewipe-${mismatchedVersion}` },
+      /exact version-qualified SiteWipe branch/i
+    ],
+    [
+      'hosted privacy-policy version differs from the expected version',
+      { ...expected, hostedPrivacyPolicyVersion: mismatchedVersion },
+      /hosted privacy policy must be immutable and bound to the exact version and hash/i
+    ]
+  ];
+
+  for (const [name, invalidExpected, pattern] of cases) {
+    await t.test(name, () => {
+      assert.throws(() => validateRemotePublicationCapture(validCapture(), invalidExpected, { now }), pattern);
+    });
+  }
 });
 
 test('missing capture, legacy booleans, and self-attested manual review block', () => {
@@ -254,7 +278,8 @@ test('main branch required checks bind each context to its expected GitHub App',
 
 test('CodeQL observations require exact ref query, complete pagination, and API-only dismissal metadata', async (t) => {
   const open = validCapture().observations.codeqlOpenAlerts;
-  assert.match(open.exchanges[0].request.url, /[?&]ref=refs%2Fheads%2Fcandidate%2Fsitewipe-1\.11\.80/);
+  const openUrl = new URL(open.exchanges[0].request.url);
+  assert.equal(openUrl.searchParams.get('ref'), `refs/heads/${expected.candidateBranch}`);
   const dismissedAlert = validCapture().observations.codeqlDismissedAlerts.projection.alerts[0];
   assert.equal(Object.hasOwn(dismissedAlert, 'review'), false);
 

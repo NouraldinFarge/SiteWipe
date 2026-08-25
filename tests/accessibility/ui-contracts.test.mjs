@@ -310,6 +310,26 @@ test('action popup preserves its preferred size but reflows within narrow viewpo
   }
 });
 
+test('400-percent action-popup source contract declares extreme-width whole-word reflow', async () => {
+  const css = await source('popup/popup.css');
+
+  assert.match(css, /@container popup \(max-width: 120px\) \{[\s\S]*?\.popup-shell \{\s*padding: 2px;/);
+  assert.match(css, /@container popup \(max-width: 120px\) \{[\s\S]*?\.review-card \{\s*padding: 4px;/);
+  assert.match(css, /@container popup \(max-width: 120px\) \{[\s\S]*?\.status-strip \{\s*padding-inline: 0;/);
+  assert.match(
+    css,
+    /@container popup \(max-width: 120px\) \{[\s\S]*?\.status-strip \.badge \{[\s\S]*?gap: 3px;[\s\S]*?padding-inline: 3px;[\s\S]*?overflow: visible;[\s\S]*?text-overflow: clip;[\s\S]*?overflow-wrap: normal;[\s\S]*?word-break: normal;/
+  );
+  assert.match(
+    css,
+    /@container popup \(max-width: 120px\) \{[\s\S]*?\.review-actions \{[\s\S]*?gap: 4px;[\s\S]*?margin-inline: 0;[\s\S]*?padding: 4px 0 0;/
+  );
+  assert.match(
+    css,
+    /@container popup \(max-width: 120px\) \{[\s\S]*?\.review-actions \.btn \{[\s\S]*?padding-inline: 2px;[\s\S]*?overflow-wrap: normal;[\s\S]*?word-break: normal;/
+  );
+});
+
 test('dynamic diagnostics and handoff outcomes contain long unbroken browser text', async () => {
   const [optionsCss, handoffCss] = await Promise.all([source('options/options.css'), source('handoff/handoff.css')]);
   assert.match(

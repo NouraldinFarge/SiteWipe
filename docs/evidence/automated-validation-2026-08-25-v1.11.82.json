@@ -1,0 +1,209 @@
+{
+  "schemaVersion": 1,
+  "status": "local_automated_checks_passed",
+  "validatedAt": "2026-08-25T04:03:09.9092084-05:00",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
+  "environment": {
+    "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
+    "osArchitecture": "64-bit",
+    "processArchitecture": "x64",
+    "node": "v24.18.0",
+    "npm": "11.16.0",
+    "scope": "Local source, locked-dependency, safety-mutation, coverage, and loopback fixture-contract validation. Exact installed-browser, clean-commit artifact, and remote publication evidence remain separate."
+  },
+  "baseline": {
+    "beforeState": "The 1.11.81 record remains unchanged in automated-validation-2026-08-25-v1.11.81.json.",
+    "baselineVersion": "1.11.81",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-25-v1.11.81.json"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "passed",
+    "format": "passed",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.11.82",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "8375BD95B6807C95E63251F046F75205A96E229C0474B1494B8429A683849B05",
+      "stableReleaseInputFingerprintSha256": "1DFD89E725DDD8182EF78C6B8E516AF2F0DDC42FCD7947664786F9019C133163"
+    },
+    "manifest": {
+      "status": "passed",
+      "version": "1.11.82",
+      "descriptionCharacters": 123,
+      "descriptionMaximum": 132,
+      "requiredNamedPermissions": 10,
+      "optionalNamedPermissions": 1,
+      "requiredHostPatterns": 0,
+      "optionalHostPatterns": 2
+    },
+    "syntaxModules": 173,
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "htmlValidation": "passed",
+    "cssValidation": "passed",
+    "remoteCodeAndRuntimeSecretScan": {
+      "status": "passed",
+      "runtimeFiles": 61
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 357
+    },
+    "dependencyLicenseInventory": {
+      "status": "passed",
+      "runtimeDependencies": 0,
+      "lockedDevelopmentGraph": 416,
+      "lockfileSha256": "71FFBEFEC141425B586DF548C32B1B0CB068E33CB61DB3DA43C738857594AC31",
+      "developmentSbomSha256": "E573165B013A1E0BEF957448F128509163F20D453FF693E2A0B366F56E9CB0AE",
+      "metadataExceptionsResolved": 1
+    },
+    "thirdPartyNoticeAndPslHash": "passed",
+    "iconSourceAndPngProvenance": "passed",
+    "documentation": "passed",
+    "githubActionPins": {
+      "status": "passed",
+      "references": 10
+    },
+    "runtimeAllowlist": {
+      "status": "passed",
+      "runtimeFiles": 61,
+      "sourceOnlyFiles": 3
+    },
+    "legacyReleaseSelfTest": "passed",
+    "nodeTests": {
+      "tests": 952,
+      "suites": 0,
+      "passed": 952,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "passed",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    },
+    "tests": {
+      "tests": 952,
+      "passed": 952,
+      "failed": 0,
+      "skipped": 0
+    },
+    "all": {
+      "statements": 86.65,
+      "branches": 76.51,
+      "functions": 92.18,
+      "lines": 86.65
+    },
+    "interpretation": "The unchanged required coverage command passed all 952 tests and exceeded every enforced repository-wide floor. Coverage remains a source-test navigation aid and does not replace installed MV3 lifecycle, browser-privilege, or exact-artifact evidence."
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "passed",
+    "installedPackages": 397,
+    "auditedPackagesIncludingRoot": 398,
+    "lifecycleScriptsDisabled": true,
+    "deprecationWarnings": [
+      "prebuild-install@7.1.3 is no longer maintained",
+      "glob@10.5.0 is a deprecated transitive development-tool version"
+    ],
+    "interpretation": "The warnings are confined to the development-tool graph. Installation used the exact lockfile with lifecycle scripts and automatic audit traffic disabled; the separate explicit audit found no advisory."
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=low --json",
+    "status": "passed",
+    "auditedAt": "2026-08-25T03:46:58.4765132-05:00",
+    "knownVulnerabilities": 0,
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "runtimeDependencies": 0,
+    "lockedDevelopmentGraph": 416,
+    "lockfileSha256": "71FFBEFEC141425B586DF548C32B1B0CB068E33CB61DB3DA43C738857594AC31"
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "passed",
+    "redactionCanaries": "passed",
+    "privateContextPersistenceRefusal": "passed",
+    "deterministicThirtyMinuteExpiry": "passed"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "passed",
+    "installedChromeRun": "not_run",
+    "installedBraveRun": "not_run",
+    "browserEvidenceRecord": "docs/evidence/browser-validation.json",
+    "note": "The deterministic loopback fixture server contract passed. No installed Chrome or Brave scenario is claimed because no complete trustworthy semantic executor is implemented."
+  },
+  "gitInitialization": {
+    "status": "pending_exact_candidate_validation",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "Exact candidate commit, clean checkout, remote checks, and repository state require fresh validation."
+  },
+  "artifacts": {
+    "status": "pending_rebuild",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.82.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.82-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "pending",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.82.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.82.unsigned-provenance-input.json",
+    "remoteAttestation": "pending",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "Fresh validation and exact-artifact review are required for this version."
+    ]
+  },
+  "limitations": [
+    "No automated, installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior.",
+    "These successful local checks ran before the clean immutable candidate commit; exact-commit safeguards and artifact verification remain required.",
+    "The canonical 48-cell installed Chrome and Brave matrix remains not_run because no complete trustworthy semantic executor is implemented.",
+    "Installed accessibility, performance, authentic media, hosted-policy parity, independent review, and authenticated remote-publication capture remain incomplete.",
+    "After the complete 1.11.82 source and coverage commands passed 952 of 952 tests, a bounded ChatGPT in-app Browser visual inspection reproduced a zero-width narrow Options status column in Expert optional-access state at 360 pixels. Version 1.11.82 was not committed, built, pushed, or published, and this automated record cannot certify the forward CSS repair."
+  ]
+}

@@ -6,6 +6,59 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.86 — public-source prerelease work — 2026-08-25
+
+### Forward 1.11.86 decision-binding truthfulness correction
+
+- Preserve exact 1.11.85 as superseded before complete validation. Its version contract passed, but a post-transaction audit found that SW-075 incorrectly said the mutable Direct Cleanup decision JSON should not change even though the enforced publication contract requires `reviewedVersion` to bind the exact current candidate. No clean install, complete check, property suite, coverage run, build, artifact, browser run, commit, push, or publication result exists for 1.11.85.
+- Correct SW-075 to distinguish the durable owner quotation and unchanged safety invariant set from the intentionally version-qualified mutable candidate binding. The current decision record must advance with the exact candidate while its verbatim owner statements, approval meaning, installed-evidence limits, and default-off/preflight/single-use/no-raw-route safeguards remain unchanged.
+- Keep the separate remote-publication validator fixture version-neutral and retain outcome-neutral stable-document status wording. This correction changes no runtime file, cleanup authority, permission handling, browser data, downloaded files, storage, or messaging, and it does not claim that the successor passed, was built, or was published.
+
+## 1.11.85 — public-source prerelease work — 2026-08-25
+
+### Forward 1.11.85 stable-document and test-fixture repair
+
+- Preserve exact 1.11.84 as failed local-only history. Its first complete-check attempt stopped at 953/954 because the stale mutable Direct Cleanup decision record still named the previous candidate version. The property suite and required coverage command did not run, and 1.11.84 was never built, committed, pushed, or published.
+- Replace stale version-specific current-candidate, branch, retest, artifact, and pending-status prose in stable documents with outcome-neutral references to the active automated, browser, release, and remote evidence records. Preserve exact 1.11.83 as the superseded local 952/952 pass and preserve every older installed failure in its original scope.
+- Decouple the remote-publication contract fixture from ordinary candidate-number churn by using an explicitly synthetic semantic-version identity and matching branch/policy assertions. The fixture repair is test-only and does not change cleanup authority, permission handling, browser data, downloaded files, storage, or messaging.
+- Stage these stable-input and test-fixture corrections for the next forward transaction. No current-candidate check, property, coverage, build, artifact, browser, remote, or publication pass is claimed by these notes.
+
+## 1.11.84 — public-source prerelease work — 2026-08-25
+
+### Forward 1.11.84 stable-document and synthetic 400% popup correction
+
+- Preserve exact 1.11.83 as superseded local-only history: its complete local check and required coverage command passed 952/952, but it was never built, committed, pushed, or published. Stable status documents still described that result as pending, so those bytes cannot be promoted under the forward-only policy.
+- Record SW-074 without overstating its evidence scope. A later synthetic popup run at the deterministic 400% fixture width of 95 pixels split short status and action words character by character. This was ChatGPT in-app Browser synthetic UI evidence, not an installed-extension, Chrome, Brave, native-prompt, accessibility, or supported-binary result.
+- Stage a presentation-only popup correction for the successor: at 120 pixels and below, reduce shell/card/badge/action spacing and preserve normal whole-word wrapping for critical status badges and review actions. The change does not alter cleanup authority, permission acquisition or release, settings, browser data, downloaded files, storage, or messaging.
+- Treat `docs/evidence/automated-validation-current.json` and the active browser-evidence pointer as the only current machine-status authorities. This entry records work to be validated; it does not claim that the successor passed, was built, or was published.
+
+## 1.11.83 — public-source prerelease work — 2026-08-25
+
+### Forward 1.11.83 narrow Options layout repair
+
+- Preserve the exact 1.11.82 automated result as superseded local-only history: `npm run check` and the required coverage command both passed 952/952, but 1.11.82 was never committed, built, pushed, or published.
+- Record the subsequent ChatGPT in-app Browser visual finding truthfully. At a 360-pixel viewport, the Expert **Optional embedded-frame access** status row computed as a `0px 255px` grid, collapsing its explanatory text to one character per line. This is synthetic web-UI evidence of a real narrow-layout defect, not installed-extension, accessibility, Chrome, or Brave evidence.
+- Advance the minimal CSS-only correction to 1.11.83: at 560 pixels and below, stack `.setting-row.status-row` and remove permission-action width pressure. Do not change settings values, permission acquisition or removal, cleanup authority, browser data, downloaded files, storage, messaging, or any other product behavior.
+- Require a fresh coordinated version transaction, local checks, coverage, narrow visual verification, clean exact-commit artifact build, and truthful candidate evidence before the 1.11.83 source branch or pull request proceeds.
+
+## 1.11.82 — public-source prerelease work — 2026-08-25
+
+### Deterministic lifecycle-test containment
+
+- Retain the 1.11.81 automated record as superseded local-only evidence: it checked an intermediate stable closure that still contained a diagnostic terminal-poll expansion. Final diff audit removed that non-causal expansion before any 1.11.81 commit, build, artifact, or publication claim.
+- Record the later full-file coverage result truthfully: after the expansion was removed, one 50-test lifecycle c8 run failed 49/50 at the successful grant case's terminal wait, while focused repetitions and three later isolated full-file runs passed. The combined evidence exposed cross-test contamination from escaped dynamically imported workers resolving a later replaceable global Chrome mock; host load can alter that scheduling window but is not the root cause.
+- Advance the test-only closure to 1.11.82. Register the successful-grant and denial slow-maintenance cases before any other service-worker import in their file, retain the synchronous fake-timer reset that prevents a discarded retry timer, and replace the terminal iteration poll with an explicit five-second monotonic deadline plus bounded lifecycle diagnostics. Do not change packaged runtime behavior, product timeouts, coverage floors, cleanup authority, downloaded-file protection, or terminal postconditions.
+- Keep SW-047 open for the broader dedicated-process/realm or immutable-mock binding improvement. The narrow first-registration containment is sufficient only for these release-blocking cases and is not installed-browser evidence.
+
+## 1.11.81 — public-source prerelease work — 2026-08-25
+
+### Deterministic lifecycle coverage repair
+
+- Preserve exact 1.11.80 at local checkpoint `0eedffc82b63832ac3fff6956a209a379bdac1ef` with its truthful 951/952 coverage failure, then advance the test-harness-only repair to 1.11.81 rather than rewriting the sealed fingerprint.
+- Reset the mocked clock in both slow-maintenance handoff cases in the same synchronous turn that fires the intended eight-second timeout. Promise reactions therefore create the later resume/backoff work only after real timers are restored, so reset cannot strand an awaited mocked timer and permanently block subsequent permission-grant signals.
+- Add a pre-timeout assertion proving maintenance still owns the lifecycle, and keep every product timeout plus every exact completion, nonce, review, lease, temporary-access, mutation-count, denial, and downloaded-file-preservation assertion unchanged.
+- Require fresh exact-1.11.81 targeted, complete lifecycle, full ordinary, and full coverage validation; diagnostic retries do not supersede the failed 1.11.80 gate. Keep SW-047 open as broader process/realm or immutable-mock isolation work; this narrow repair is neither production-race nor installed-browser evidence.
+
 ## 1.11.80 — public-source prerelease work — 2026-08-25
 
 ### Release-state truthfulness correction

@@ -4,8 +4,8 @@
   "measuredAt": null,
   "environment": {},
   "artifact": {
-    "version": "1.11.80",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.80.zip",
+    "version": "1.11.86",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.86.zip",
     "sha256": null
   },
   "fixtures": [],

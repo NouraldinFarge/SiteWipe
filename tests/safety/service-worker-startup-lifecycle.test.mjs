@@ -11,6 +11,21 @@ import {
   prepareCleanupReviewRequest
 } from '../../src/background/cleanup-preflight.js';
 
+// Keep the slow-maintenance grant and denial cases ahead of every other
+// dynamically imported worker in this file. Those imports can retain escaped
+// callbacks that resolve the replaceable global Chrome mock; first registration
+// contains the known harness-only cross-instance interference until SW-047
+// moves each worker into an isolated process or realm.
+test(
+  'a final approval stages before slow maintenance and exposes a fresh prompt activation after settlement',
+  exerciseFinalApprovalAfterSlowMaintenance
+);
+
+test(
+  'a conclusive native denial clears a staged arm after its lifecycle handoff times out',
+  exerciseConclusiveDenialAfterSlowMaintenance
+);
+
 test(
   'a successful readiness retry re-drives an already granted armed handoff without another popup action',
   exerciseSuccessfulReadinessRetry
@@ -615,7 +630,7 @@ async function exerciseSuccessfulReadinessRetry(t) {
   }
 }
 
-test('a final approval stages before slow maintenance and exposes a fresh prompt activation after settlement', async (t) => {
+async function exerciseFinalApprovalAfterSlowMaintenance(t) {
   const chrome = await createReadyChromeMock();
   const maintenanceReadStarted = deferred();
   const releaseMaintenanceRead = deferred();
@@ -700,7 +715,12 @@ test('a final approval stages before slow maintenance and exposes a fresh prompt
     assert.match(duplicateDocument.error, /already continuing|no longer matches/i);
 
     await flushMicrotasks(50);
+    assert.equal(armResponse, null, 'the arm must remain pending while maintenance owns the lifecycle');
     t.mock.timers.tick(8_000);
+    // The timeout callback has fired, but its Promise reactions cannot run
+    // until this synchronous test job yields. Restore real timers before the
+    // arm-rejection resume drain can schedule its retry backoffs.
+    t.mock.timers.reset();
     await flushMicrotasks(50);
     assert.ok(armResponse, 'the bounded arm handoff must return after its peer wait expires');
     assert.equal(armResponse.ok, false);
@@ -709,7 +729,6 @@ test('a final approval stages before slow maintenance and exposes a fresh prompt
     assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease]?.status, 'prompt_pending');
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
 
-    t.mock.timers.reset();
     releaseMaintenanceRead.resolve();
     await maintenance;
     await waitForWallClock(
@@ -752,12 +771,17 @@ test('a final approval stages before slow maintenance and exposes a fresh prompt
       handoff.sender
     );
     assert.equal(grantOutcome.ok, true, grantOutcome.error);
-    await waitForWallClock(
+    assert.ok(
+      grantOutcome.report || grantOutcome.approvalHandoffRunning === true,
+      JSON.stringify(cleanupLifecycleSnapshot(chrome, grantOutcome))
+    );
+    await waitForWallClockDeadline(
       () =>
         ['completed', 'failed', 'cancelled', 'interrupted'].includes(
           chrome.__state.local[STORAGE_KEYS.activeJob]?.status
         ),
-      1_000
+      5_000,
+      () => cleanupLifecycleSnapshot(chrome, grantOutcome)
     );
 
     assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob]?.status, 'completed');
@@ -782,9 +806,9 @@ test('a final approval stages before slow maintenance and exposes a fresh prompt
     releaseMaintenanceRead.resolve();
     delete globalThis.chrome;
   }
-});
+}
 
-test('a conclusive native denial clears a staged arm after its lifecycle handoff times out', async (t) => {
+async function exerciseConclusiveDenialAfterSlowMaintenance(t) {
   const chrome = await createReadyChromeMock({ permissionRequestResult: false });
   const maintenanceReadStarted = deferred();
   const releaseMaintenanceRead = deferred();
@@ -853,14 +877,17 @@ test('a conclusive native denial clears a staged arm after its lifecycle handoff
       armResponse = response;
     });
     await flushMicrotasks(50);
+    assert.equal(armResponse, null, 'the arm must remain pending while maintenance owns the lifecycle');
     t.mock.timers.tick(8_000);
+    // Reset before yielding so the rejection drain cannot inherit a mocked
+    // backoff that reset would discard.
+    t.mock.timers.reset();
     await flushMicrotasks(80);
     assert.equal(armResponse?.ok, false);
     assert.equal(armResponse?.errorCode, 'lifecycle_not_ready');
     assert.equal(chrome.__state.session['sitewipe.cleanupReview.v1']?.approvalHandoff?.status, 'arming');
     assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease]?.status, 'prompt_pending');
 
-    t.mock.timers.reset();
     releaseMaintenanceRead.resolve();
     await maintenance;
     await waitForWallClock(
@@ -926,7 +953,7 @@ test('a conclusive native denial clears a staged arm after its lifecycle handoff
     releaseMaintenanceRead.resolve();
     delete globalThis.chrome;
   }
-});
+}
 
 test('a staged activation one waits for an exact administrative peer before a fresh activation runs cleanup', async () => {
   const chrome = await createReadyChromeMock();
@@ -3017,6 +3044,73 @@ async function waitForWallClock(predicate, iterations = 200) {
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
   throw new Error('Timed out while waiting for the expected lifecycle state.');
+}
+
+async function waitForWallClockDeadline(predicate, timeoutMs = 2_000, describeState = null) {
+  const deadline = performance.now() + timeoutMs;
+  do {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  } while (performance.now() < deadline);
+  if (predicate()) return;
+  const diagnostic = typeof describeState === 'function' ? describeState() : null;
+  throw new Error(
+    `Timed out after ${timeoutMs}ms while waiting for the expected lifecycle state.` +
+      (diagnostic ? ` ${JSON.stringify(diagnostic)}` : '')
+  );
+}
+
+function cleanupLifecycleSnapshot(chrome, grantOutcome) {
+  const job = chrome.__state.local[STORAGE_KEYS.activeJob];
+  const review = chrome.__state.session['sitewipe.cleanupReview.v1'];
+  const handoff = review?.approvalHandoff;
+  const lease = chrome.__state.local[STORAGE_KEYS.permissionLease];
+  const calls = (api) => chrome.__calls.filter((call) => call.api === api).length;
+  return {
+    grantOutcome: {
+      hasReport: Boolean(grantOutcome?.report),
+      ok: grantOutcome?.ok === true,
+      cleanupStarted: grantOutcome?.cleanupStarted === true,
+      approvalHandoffRunning: grantOutcome?.approvalHandoffRunning === true,
+      approvalHandoffPending: grantOutcome?.approvalHandoffPending === true,
+      approvalHandoffUncertain: grantOutcome?.approvalHandoffUncertain === true,
+      approvalHandoffCanceled: grantOutcome?.approvalHandoffCanceled === true,
+      reportId: grantOutcome?.report?.id || null
+    },
+    activeJob: job
+      ? {
+          id: job.id,
+          status: job.status,
+          phase: job.phase,
+          admissionPhase: job.admissionPhase,
+          percent: job.percent,
+          nonce: job.approvalHandoffNonce
+        }
+      : null,
+    reviewHandoff: handoff
+      ? {
+          status: handoff.status,
+          nonce: handoff.nonce,
+          promptIntent: Boolean(handoff.promptIntent),
+          promptInvocation: Boolean(handoff.promptInvocation),
+          promptGrant: handoff.promptGrant?.complete === true,
+          promptGrantOutcome: handoff.promptGrantOutcome?.granted === true
+        }
+      : null,
+    permissionLease: lease
+      ? {
+          id: lease.id,
+          status: lease.status,
+          ownershipProof: lease.ownershipProof
+        }
+      : null,
+    calls: {
+      permissionRequest: calls('permissions.request'),
+      permissionRemove: calls('permissions.remove'),
+      browsingDataRemove: calls('browsingData.remove'),
+      downloadedFileRemove: calls('downloads.removeFile')
+    }
+  };
 }
 
 async function driveZeroDelayTimers(testContext, predicate, timeoutMs = 2_000) {

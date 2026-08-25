@@ -1,4 +1,4 @@
-# Deferred SiteWipe 1.11.80 follow-up work
+# Deferred SiteWipe current-candidate follow-up work
 
 Reviewed 2026-08-25. This register separates later engineering improvements from the gates that must still pass before any supported binary, default-branch merge, tag, GitHub Release, browser-store submission, promotional publication, or portfolio claim. Authorization for an action does not make its technical or independent-review evidence pass.
 
@@ -8,11 +8,12 @@ Reviewed 2026-08-25. This register separates later engineering improvements from
 - Complete and mechanically replay the full installed matrix. Every one of the 48 canonical Chrome/Brave cells must pass with assertion-specific raw evidence, protected downloaded-file canaries, exact artifact/browser/profile identity, and verified teardown. Missing, limited, failed, dummy, or self-authored summary evidence must remain blocking.
 - Obtain independent human review where a protected environment or publication stage requires it. The current solo-reviewer environment configuration cannot truthfully satisfy independent review or self-review prevention by itself.
 - Implement the authenticated remote collector/raw-body replayer, then refresh exact-head remote evidence after the final candidate commit exists. Required CI and CodeQL conclusions must bind to that immutable candidate head; the collector must retain ignored raw response bytes, recompute every digest, derive projections from those bytes, and bracket branch protection, private vulnerability reporting, protected-environment, privacy, and reviewer-eligibility observations with unchanged candidate/main refs.
-- Refresh exact-version hosted privacy-policy parity, authentic media, accessibility, and performance evidence wherever the applicable publication stage requires them. Historical 1.11.67, superseded local 1.11.78, and checkpointed 1.11.79 observations cannot be rebound to 1.11.80.
+- Refresh exact-version hosted privacy-policy parity, authentic media, accessibility, and performance evidence wherever the applicable publication stage requires them. Version-qualified historical, checkpointed, failed, superseded, or unbuilt observations cannot be rebound to the active candidate.
 - Preserve the distinction between an authorized public-source candidate and a supported binary. A source branch or pull request may be published when its source-specific gates pass even while installed-browser, media, reviewer, or store-release gates remain open.
 
 ## Recommended engineering improvements after the minimum candidate repair
 
+- Complete SW-047 by isolating each dynamically imported service-worker lifecycle model in a dedicated process/realm or giving every imported worker an immutable Chrome-mock binding, then add detached-callback and registration-order regressions. The synchronous fake-timer reset staged in 1.11.81 and the first-registration containment plus monotonic diagnostics in 1.11.82 do not close this broader harness issue.
 - Add direct controller-level Options UI coverage so permission-state warnings, concurrent Options pages, setting locks, import/reset behavior, and every visible/internal setting are exercised through rendered interactions rather than source contracts alone.
 - Define path-free semantic receipts for every installed-browser assertion and a decoded-content privacy validator before public replay is implemented. Full plans, raw/base64 records, screenshots, profile/download/helper paths, and capability tokens must remain outside Git; digest-only commitments must remain non-passing.
 - Continue separating the service worker and cleanup preflight into smaller ownership, permission, query-planning, data-adapter, and reporting units with explicit transactional interfaces.
@@ -22,7 +23,7 @@ Reviewed 2026-08-25. This register separates later engineering improvements from
 - Refresh development dependencies deliberately, preserving the exact lockfile, zero runtime dependencies, license inventory, ignored-lifecycle-script install, audit, and development SBOM contracts.
 - Add a Windows installed-browser job or equivalent trusted Windows validation host alongside Ubuntu CI so native Chrome/Brave and UI Automation behavior can be repeated without relying on a maintainer workstation.
 - Improve repository governance: require pull requests on `main`, retain exact required contexts, eliminate the protected-environment solo-reviewer deadlock, and keep administrator/force-push/deletion boundaries explicit.
-- Correct or replace malformed historical CodeQL dismissal metadata and review every dismissed alert against current source. Historical comments must not be presented as current independent review.
+- Preserve the exact CodeQL distinction now observed on public `main`: all seven alerts are closed through owner dismissals with a specific `used in tests` rationale and the open-alert count is zero, but every `dismissal_approved_by` value remains null. Owner dismissal is not independent approval, does not bind the active candidate head, and cannot replace exact-head CodeQL, authenticated raw-response replay, or a genuinely distinct reviewer.
 - Move version-specific browser/media/performance records into immutable external attestations or an append-only evidence archive keyed to the tested source commit, artifact hash, harness hash, and result-set hash. The current tracked browser finalization contract now accepts exactly `docs/evidence/browser-validation.json` after the tested commit; future evidence types need their own equally narrow allowlisted-delta contract and must never be described as the exact commit that was tested.
 
 ## Explicitly not defects or completed claims
