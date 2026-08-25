@@ -31,10 +31,10 @@ jobs:
           actual="$(git rev-parse HEAD)"
           test "$actual" = "$EXPECTED_SHA"
           printf 'Validated exact source commit: %s\n' "$actual"
-      - name: Use Node.js 24
+      - name: Use Node.js 24.18.1
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version: 24.18.1
           cache: npm
       - name: Install locked development tools without lifecycle scripts
         run: npm ci --ignore-scripts

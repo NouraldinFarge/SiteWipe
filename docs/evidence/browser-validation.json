@@ -3,8 +3,8 @@
   "status": "pending",
   "attemptedAt": null,
   "artifact": {
-    "version": "1.11.86",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.86.zip",
+    "version": "1.11.88",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.88.zip",
     "sha256": null
   },
   "priorExactArtifactEvidence": {
@@ -48,84 +48,16 @@
     "assertions": []
   },
   "syntheticInAppBrowser": {
-    "status": "limited",
-    "attemptedAt": "2026-08-25T07:06:32-05:00",
+    "status": "pending",
+    "attemptedAt": null,
     "environment": "ChatGPT in-app Browser",
     "fixture": "HTTP-served SiteWipe UI with synthetic browser-API mocks",
-    "assertions": [
-      {
-        "id": "options-load-failure-locked",
-        "surface": "options",
-        "fixture": "synthetic browser API fixture with one settings-load failure",
-        "state": "load-failure alert with every setting locked except retry",
-        "observedAt": "2026-08-25T07:06:32-05:00",
-        "viewport": {
-          "width": 1280,
-          "height": 720,
-          "zoomPercent": 100
-        },
-        "modes": {
-          "cleanupMode": "standard",
-          "colorScheme": "dark",
-          "directCleanup": false,
-          "forcedColors": false,
-          "privateAccess": false,
-          "reducedMotion": false
-        },
-        "checks": {
-          "accessibleNames": "limited",
-          "focus": "not_run",
-          "forcedColors": "not_run",
-          "liveRegions": "limited",
-          "overflow": "passed",
-          "reducedMotion": "not_run",
-          "scroll": "limited",
-          "wrapping": "passed"
-        },
-        "screenshotSha256": "A954EFDB82ECE5AF6936F61F38F4BAA701073F0205C5A8A85FDAAC384EE6CB38",
-        "domSha256": "A86D32CA24855171CEE92D145322F81DC51369C54A18DBD005C7D3A3778C9D63",
-        "status": "limited"
-      },
-      {
-        "id": "options-retry-standard-safe-defaults",
-        "surface": "options",
-        "fixture": "synthetic browser API fixture after successful settings retry",
-        "state": "all thirty-seven production-safe defaults matched with no writes or permission changes",
-        "observedAt": "2026-08-25T07:06:53-05:00",
-        "viewport": {
-          "width": 1280,
-          "height": 720,
-          "zoomPercent": 100
-        },
-        "modes": {
-          "cleanupMode": "standard",
-          "colorScheme": "dark",
-          "directCleanup": false,
-          "forcedColors": false,
-          "privateAccess": false,
-          "reducedMotion": false
-        },
-        "checks": {
-          "accessibleNames": "limited",
-          "focus": "not_run",
-          "forcedColors": "not_run",
-          "liveRegions": "limited",
-          "overflow": "passed",
-          "reducedMotion": "not_run",
-          "scroll": "limited",
-          "wrapping": "passed"
-        },
-        "screenshotSha256": "EF0E8CDDD8107EEDBC13904AD1DFCC076EE396AF75094A059613513551A92DE3",
-        "domSha256": "9C0C618A5DCB4842A7889C357F9F9817E32114E22F12063FFFDBD9DE14581BF2",
-        "status": "limited"
-      }
-    ],
+    "assertions": [],
     "qualifiesAsInstalledExtensionEvidence": false,
     "limitations": [
       "Does not load the runtime ZIP or a chrome-extension:// origin.",
       "Does not exercise native host-permission prompts, incognito spanning, MV3 worker lifecycle, or privileged browser-data mutation APIs.",
-      "Cannot satisfy Chrome, Brave, installed accessibility, exact-artifact performance, compatibility, or store-media approval fields.",
-      "A later settings-roundtrip attempt opened a blocking synthetic confirmation dialog and the in-app Browser session stopped responding before Standard, Expert, compact-popup, and side-panel coverage could be completed; those observations are not claimed."
+      "Cannot satisfy Chrome, Brave, installed accessibility, exact-artifact performance, compatibility, or store-media approval fields."
     ]
   },
   "automationAttempt": null,

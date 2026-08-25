@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "local_automated_checks_passed",
+  "status": "remote_ci_failed_after_local_validation",
   "validatedAt": "2026-08-25T06:55:19.7274911-05:00",
   "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
   "environment": {
@@ -205,14 +205,48 @@
     "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
     "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
   },
+  "remoteValidation": {
+    "status": "failed",
+    "repository": "NouraldinFarge/SiteWipe",
+    "pullRequest": 10,
+    "candidateBranch": "candidate/sitewipe-1.11.86",
+    "sourceCommit": "7590b41db1133b6267f6f0de27d5f3f082a7e1ff",
+    "branchHeadMatched": true,
+    "requiredChecks": {
+      "ci": {
+        "name": "Static, safety, tests, coverage, and package parity",
+        "runId": 32848276642,
+        "appId": 15368,
+        "appSlug": "github-actions",
+        "status": "failed",
+        "failedStep": "Run complete local checks",
+        "reason": "The remote development SBOM embedded npm 11.17.0 while the exact locally recorded SBOM embedded npm 11.16.0; their parsed JSON differed only at metadata.tools.components[0].version."
+      },
+      "codeql": {
+        "name": "Analyze JavaScript",
+        "runId": 32848276618,
+        "appId": 15368,
+        "appSlug": "github-actions",
+        "status": "passed"
+      }
+    },
+    "interpretation": "Exact-head CodeQL passed, but the required CI check failed and therefore 1.11.86 cannot be promoted. The two SBOMs retained the same 358 components, 417 dependency nodes, and 575813-byte length; authorization cannot turn the byte-level parity failure into a pass."
+  },
   "publicationGate": {
     "command": "npm run check:publication-gates",
-    "publicationRecommendation": "not_evaluated",
-    "blockerCount": null,
-    "originalBlockerCount": null,
-    "closedOriginalBlockers": [],
+    "publicationRecommendation": "blocked",
+    "blockerCount": 27,
+    "originalBlockerCount": 32,
+    "closedOriginalBlockers": [
+      "Local version/source/artifact integrity verification",
+      "Exact current runtime artifact presence",
+      "Canonical current-release index",
+      "Local technical provenance and source-closure audit",
+      "Automated reproducibility and package-equivalence evidence"
+    ],
     "remainingClasses": [
-      "Exact-artifact review and the remaining installed-browser, accessibility, performance, media, hosted-policy, independent-review, and remote-publication gates are required for this version."
+      "Required exact-head CI failed on development-SBOM toolchain parity; the successor must pin and revalidate the intended Node and npm versions.",
+      "Installed Chrome and Brave, installed accessibility, exact-artifact performance, authentic media, hosted-policy parity, independent review, and authenticated remote-publication capture remain pending or not_run."
     ]
   },
   "limitations": [
@@ -220,6 +254,7 @@
     "Automated tests do not prove complete erasure or installed-browser behavior.",
     "These successful local checks ran before the clean immutable candidate commit; exact-commit safeguards and artifact verification remain required.",
     "The ChatGPT in-app Browser visual lane is synthetic loopback evidence only and does not qualify as installed-extension or native browser-permission evidence.",
-    "The canonical 48-cell installed Chrome and Brave matrix, installed accessibility, performance, authentic media, exact artifacts, hosted-policy parity, independent review, and authenticated remote-publication capture remain pending or not_run."
+    "The canonical 48-cell installed Chrome and Brave matrix, installed accessibility, performance, authentic media, exact artifacts, hosted-policy parity, independent review, and authenticated remote-publication capture remain pending or not_run.",
+    "Draft PR #10's exact-head CodeQL check passed, but its required CI check failed at the development-SBOM byte comparison because the unpinned Node 24 selector advanced the embedded npm tool version; 1.11.86 remains a failed candidate."
   ]
 }

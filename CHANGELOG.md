@@ -6,13 +6,29 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.88 — public-source prerelease work — 2026-08-25
+
+### Forward 1.11.88 toolchain and release-truth correction
+
+- Preserve exact local 1.11.87 as superseded before clean installation, complete validation, coverage, build, commit, push, or publication. Its post-bump audit found both a false byte-exact claim about unchanged runtime files and a newer compatible Node security release.
+- Pin both GitHub workflows to Node 24.18.1, whose bundled npm 11.16.0 preserves the development-SBOM tool version needed for exact local/remote byte parity while incorporating the July 2026 Node security fixes. Require fresh exact-head CI and CodeQL to prove the resulting candidate.
+- State the scope precisely: the substantive repair changes only remote workflow toolchain selection. The required forward version transaction also changes version-bearing runtime metadata and resets candidate-sensitive evidence, but it changes no cleanup logic, permission authority, data scope, downloaded-file behavior, storage behavior, or messaging contract.
+
+## 1.11.87 — public-source prerelease work — 2026-08-25
+
+### Deterministic CI toolchain parity repair
+
+- Preserve exact 1.11.86 as a locally validated and reproducibly built but remotely failed source candidate. Draft PR #10 bound both required checks to exact head `7590b41db1133b6267f6f0de27d5f3f082a7e1ff`; CodeQL passed, while CI stopped during the development-SBOM check because GitHub's moving Node 24 selector supplied npm 11.17.0 instead of the locally validated npm 11.16.0.
+- The two generated SBOMs had the same 358 components, 417 dependency nodes, and 575,813 bytes. Their parsed content differed only at `metadata.tools.components[0].version`, so no dependency, source, license, or vulnerability result changed; the exact-file evidence binding correctly rejected the byte difference.
+- Stage both GitHub workflows at Node 24.18.0, whose bundled npm 11.16.0 produced the recorded SBOM bytes. The substantive repair changes only remote workflow toolchain selection, while the required version transaction changes version-bearing runtime metadata and resets candidate-sensitive evidence without changing cleanup logic, permission authority, data scope, downloaded-file behavior, storage behavior, or messaging. A post-bump audit superseded 1.11.87 before complete validation after finding the earlier byte-exact wording and the newer compatible Node 24.18.1 security release.
+
 ## 1.11.86 — public-source prerelease work — 2026-08-25
 
 ### Forward 1.11.86 decision-binding truthfulness correction
 
 - Preserve exact 1.11.85 as superseded before complete validation. Its version contract passed, but a post-transaction audit found that SW-075 incorrectly said the mutable Direct Cleanup decision JSON should not change even though the enforced publication contract requires `reviewedVersion` to bind the exact current candidate. No clean install, complete check, property suite, coverage run, build, artifact, browser run, commit, push, or publication result exists for 1.11.85.
 - Correct SW-075 to distinguish the durable owner quotation and unchanged safety invariant set from the intentionally version-qualified mutable candidate binding. The current decision record must advance with the exact candidate while its verbatim owner statements, approval meaning, installed-evidence limits, and default-off/preflight/single-use/no-raw-route safeguards remain unchanged.
-- Keep the separate remote-publication validator fixture version-neutral and retain outcome-neutral stable-document status wording. This correction changes no runtime file, cleanup authority, permission handling, browser data, downloaded files, storage, or messaging, and it does not claim that the successor passed, was built, or was published.
+- Keep the separate remote-publication validator fixture version-neutral and retain outcome-neutral stable-document status wording. The substantive correction changes no runtime logic, cleanup authority, permission handling, browser data, downloaded-file behavior, storage behavior, or messaging; the required version transaction changes only version-bearing runtime metadata and candidate-sensitive evidence. These notes do not claim that the successor passed, was built, or was published.
 
 ## 1.11.85 — public-source prerelease work — 2026-08-25
 

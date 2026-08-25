@@ -6,8 +6,8 @@
     "status": "passed",
     "reviewedAt": "2026-08-25",
     "binding": {
-      "version": "1.11.86",
-      "releaseInputFingerprintSha256": "76E28A9C3D032063F3414BF668BC9FCE3D205A6F4EDE3F8EEFE9735AB16C2BC0"
+      "version": "1.11.88",
+      "releaseInputFingerprintSha256": "7121E4C64AE7F8E137D76D000D52F47C6EFAFB99C23D936D4CBBDF77851E11E7"
     },
     "namedTests": 48,
     "coverage": [
@@ -100,8 +100,8 @@
     ]
   },
   "artifact": {
-    "version": "1.11.86",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.86.zip",
+    "version": "1.11.88",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.88.zip",
     "sha256": null
   },
   "reviewerApproval": false

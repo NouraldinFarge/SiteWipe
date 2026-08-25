@@ -21,7 +21,7 @@
   "technicalEvidence": {
     "sourceClosurePrivatePathScan": {
       "status": "passed",
-      "repositoryFiles": 361
+      "repositoryFiles": 363
     },
     "runtimePackage": {
       "status": "passed",
@@ -57,7 +57,7 @@
   },
   "notes": [
     "The owner confirmation and first-party rights decision remain recorded.",
-    "The 1.11.86 source closure, 61-file runtime allowlist, 361-file private-path scan, locked 416-package development graph, 358-component and 417-node development SBOM, notices, PSL snapshot, four icon outputs, exact source-closure controls, complete check at 957/957 plus 11/11 property tests, and required coverage run at 957/957 passed on their first attempts.",
-    "The successful local source audit does not replace installed Chrome or Brave evidence, installed accessibility or performance review, authentic media review, independent reviewer approval, exact-head remote checks, hosted-policy parity, or a remote attestation."
+    "The 1.11.88 source closure, 61-file runtime allowlist, 363-file private-path scan, locked 416-package development graph, 358-component and 417-node development SBOM, notices, PSL snapshot, four icon outputs, exact source-closure controls, complete check at 957/957 plus 11/11 property tests, required coverage run at 957/957, and 48/48 accessibility source-contract tests passed.",
+    "This local technical provenance pass does not replace installed Chrome/Brave, installed accessibility, exact-artifact performance, authentic media, independent review, hosted-policy parity, exact-head remote checks, or remote attestation evidence."
   ]
 }
