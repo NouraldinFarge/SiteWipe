@@ -12,7 +12,7 @@
     "scope": "Local source, locked-dependency, safety-mutation, coverage, accessibility-source, and loopback fixture-contract validation. Exact installed-browser, clean-commit artifact, and remote publication evidence remain separate."
   },
   "baseline": {
-    "beforeState": "The 1.11.88 record remains unchanged in automated-validation-2026-08-25-v1.11.88.json.",
+    "beforeState": "The exact 1.11.88 record is retained as failed remote-CI history after its local pass; no 1.11.88 result is inherited by 1.11.89.",
     "baselineVersion": "1.11.88",
     "baselineRecord": "docs/evidence/automated-validation-2026-08-25-v1.11.88.json"
   },
