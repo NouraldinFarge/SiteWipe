@@ -18,8 +18,8 @@ import {
 const now = '2026-08-24T21:03:00.000Z';
 const expected = Object.freeze({
   repository: 'NouraldinFarge/SiteWipe',
-  version: '1.11.78',
-  candidateBranch: 'candidate/sitewipe-1.11.78',
+  version: '1.11.79',
+  candidateBranch: 'candidate/sitewipe-1.11.79',
   candidateHeadSha: 'a'.repeat(40),
   candidateActorLogin: 'candidate-actor',
   mainBranch: 'main',
@@ -27,7 +27,7 @@ const expected = Object.freeze({
   hostedPrivacyPolicyRawUrl:
     'https://gist.githubusercontent.com/NouraldinFarge/privacy/raw/0123456789abcdef0123456789abcdef01234567/PRIVACY.md',
   hostedPrivacyPolicySha256: 'C'.repeat(64),
-  hostedPrivacyPolicyVersion: '1.11.78',
+  hostedPrivacyPolicyVersion: '1.11.79',
   releaseEnvironmentName: 'unreleased-candidate',
   requiredChecks: Object.freeze([
     Object.freeze({
@@ -254,7 +254,7 @@ test('main branch required checks bind each context to its expected GitHub App',
 
 test('CodeQL observations require exact ref query, complete pagination, and API-only dismissal metadata', async (t) => {
   const open = validCapture().observations.codeqlOpenAlerts;
-  assert.match(open.exchanges[0].request.url, /[?&]ref=refs%2Fheads%2Fcandidate%2Fsitewipe-1\.11\.78/);
+  assert.match(open.exchanges[0].request.url, /[?&]ref=refs%2Fheads%2Fcandidate%2Fsitewipe-1\.11\.79/);
   const dismissedAlert = validCapture().observations.codeqlDismissedAlerts.projection.alerts[0];
   assert.equal(Object.hasOwn(dismissedAlert, 'review'), false);
 

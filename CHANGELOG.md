@@ -6,6 +6,14 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.79 — public-source prerelease work — 2026-08-25
+
+### Fixture and release-state correction
+
+- Serve the complete Options synthetic-module import closure, including `storage.js` and its `state-schema.js` dependency, and regression-test those exact routes so the visual/settings fixture cannot silently remain locked behind a 404.
+- Supersede the locally committed and twice-reproduced 1.11.78 attempt with a forward-only 1.11.79 transaction instead of rebinding one version to two stable source closures.
+- Correct current-candidate documentation and publication bindings for the 1.11.79 successor while retaining installed-browser, accessibility, performance, media, hosted-policy, independent-review, and authenticated remote-capture gates as pending.
+
 ## 1.11.78 — public-source prerelease work — 2026-08-24
 
 ### Fail-closed settings and scope repair

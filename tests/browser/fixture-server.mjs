@@ -79,6 +79,14 @@ const popupAssets = new Map([
     { file: resolve(sourceDirectory, 'shared', 'report-integrity.js'), type: 'text/javascript; charset=utf-8' }
   ],
   [
+    '/shared/storage.js',
+    { file: resolve(sourceDirectory, 'shared', 'storage.js'), type: 'text/javascript; charset=utf-8' }
+  ],
+  [
+    '/shared/state-schema.js',
+    { file: resolve(sourceDirectory, 'shared', 'state-schema.js'), type: 'text/javascript; charset=utf-8' }
+  ],
+  [
     '/shared/side-panel-report-binding.js',
     {
       file: resolve(sourceDirectory, 'shared', 'side-panel-report-binding.js'),

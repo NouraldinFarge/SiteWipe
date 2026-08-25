@@ -101,7 +101,7 @@
     "privateSourceRequiresPreexistingExactTargetAccess": true,
     "privateSourceMayRequestMissingTargetAccess": false
   },
-  "reviewedVersion": "1.11.78",
+  "reviewedVersion": "1.11.79",
   "carryForwardAt": "2026-08-24",
   "carryForwardOwnerStatement": "I authorize a truthful carry-forward of the existing owner decision to version 1.11.78 only if the exact safety invariant set is unchanged and the repaired contract tests prove that fact.",
   "reviewedArtifactSha256": null,
@@ -121,6 +121,7 @@
     "Exact installed 1.11.62 exposed SW-049: browser-level origin-list storage cleanup follows Chrome's selected-top-level-site partition semantics and cannot preserve a reviewed exact-origin port boundary. The 1.11.63 source keeps the approved activation contract unchanged, adds the required detailed/direct disclosure for registrable-site cleanup, skips browser-level closed-page storage/cache for exact-origin-only scope while retaining exact live-page cleanup and the disclosed host-scoped cookie behavior, and resets an older saved direct opt-in to false so the current material warning must be acknowledged before direct mode is re-enabled.",
     "The exact-head 1.11.63 coverage run exposed only a deterministic test-harness timer-interception race. Its first test-only correction advanced through the forward-only 1.11.64–1.11.66 integrity transactions and PR #4. PR #4's first exact-head coverage attempt exposed the remaining stale startup-retry race, while an unchanged rerun passed. Exact 1.11.67 applies a causal test-harness synchronization repair and corrects stable release-stage wording only; production cleanup behavior and this direct-cleanup contract were unchanged at that historical stage.",
     "The 2026-08-24 1.11.78 invariant comparison retains every checked activation, preflight, setting, context, expiry, private-scope, permission-provenance, file-identity, single-use, truthful-report, and no-raw-route field in this record. The 1.11.78 runtime changes concern Options transaction ownership, associated-scope validation, IPv6 URL construction, and responsive presentation; they do not broaden Direct Cleanup authority. The semantic publication contract accepts the actual version-matched record and still detects removal-poison and observed-removal regrant mutations. Installed-browser evidence remains pending and the reviewed artifact hash remains null until an exact run produces them.",
+    "The forward 1.11.79 successor changes only stable synthetic fixture coverage, release-state documentation, and ordinary version markers after 1.11.78 was already fingerprinted. It does not alter the Direct Cleanup runtime or the verbatim owner statements. reviewedVersion records the current source-candidate binding, while the unchanged owner quotation remains preserved above.",
     "The owner's later 2026-08-24 instruction authorizes GitHub and public-release actions, but does not convert pending installed, reviewer, media, performance, accessibility, remote-policy, or exact-artifact evidence into approval and does not establish a supported binary."
   ]
 }

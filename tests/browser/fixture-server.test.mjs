@@ -201,6 +201,17 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
     assert.match(options.body, /options-browser-defaults\.js/);
     assert.match(options.body, /options-browser-mock\.js/);
     assert.match(options.body, /<script type="module" src="options\.js"><\/script>/);
+    const optionsModule = await readFixture(fixture.port, '/options/options.js', '127.0.0.1');
+    assert.equal(optionsModule.status, 200);
+    assert.match(optionsModule.headers['content-type'], /^text\/javascript/);
+    assert.match(optionsModule.body, /from '\.\.\/shared\/storage\.js'/);
+    const storageModule = await readFixture(fixture.port, '/shared/storage.js', '127.0.0.1');
+    assert.equal(storageModule.status, 200);
+    assert.match(storageModule.headers['content-type'], /^text\/javascript/);
+    assert.match(storageModule.body, /from '\.\/state-schema\.js'/);
+    const stateSchemaModule = await readFixture(fixture.port, '/shared/state-schema.js', '127.0.0.1');
+    assert.equal(stateSchemaModule.status, 200);
+    assert.match(stateSchemaModule.headers['content-type'], /^text\/javascript/);
     const permissionLifecycle = await readFixture(fixture.port, '/options/permission-lifecycle.js', '127.0.0.1');
     assert.equal(permissionLifecycle.status, 200);
     assert.match(permissionLifecycle.body, /await permissionsApi\.request\(request\)/);
