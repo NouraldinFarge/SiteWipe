@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "previousVersion": "1.11.78",
-  "currentVersion": "1.11.79",
+  "previousVersion": "1.11.79",
+  "currentVersion": "1.11.80",
   "updatedAt": "2026-08-25",
   "policy": "Every change to an allowlisted runtime file or stable release input requires a new extension version and changelog entry. Mutable post-build evidence and owner-approval records are excluded to prevent circular invalidation.",
   "runtimeFileCount": 61,
-  "runtimeFingerprintSha256": "3A77B85AA1B1404F38CB9E32B0515DC1A0042098BFFFD95C73AE6B6FD73C039A",
+  "runtimeFingerprintSha256": "61DE78F20D65A13ECED18F51BF72BCA8D8EDB5211517D11B0A1AB1921F432F25",
   "releaseInputFileCount": 265,
-  "releaseInputFingerprintSha256": "ED89BC5973B552E936191B814EDAE01226C7D2BC1E1852FF4397F6D5E0D5A634"
+  "releaseInputFingerprintSha256": "23A3C431C797578D6763C7E791C6387E3831AFD3DB1EF724947346399918E99E"
 }

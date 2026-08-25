@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "status": "local_automated_validation_failed",
+  "validatedAt": "2026-08-25T02:27:55.6642942-05:00",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
+  "environment": {
+    "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
+    "osArchitecture": "64-bit",
+    "processArchitecture": "x64",
+    "node": "v24.18.0",
+    "npm": "11.16.0",
+    "scope": "Local source, locked-dependency, safety-mutation, coverage, and loopback fixture-contract validation. Exact installed-browser, clean-commit artifact, and remote publication evidence remain separate."
+  },
+  "baseline": {
+    "beforeState": "The 1.11.79 record remains unchanged in automated-validation-2026-08-25-v1.11.79.json.",
+    "baselineVersion": "1.11.79",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-25-v1.11.79.json"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "passed",
+    "format": "passed",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.11.80",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "61DE78F20D65A13ECED18F51BF72BCA8D8EDB5211517D11B0A1AB1921F432F25",
+      "stableReleaseInputFingerprintSha256": "23A3C431C797578D6763C7E791C6387E3831AFD3DB1EF724947346399918E99E"
+    },
+    "manifest": {
+      "status": "passed",
+      "version": "1.11.80",
+      "descriptionCharacters": 123,
+      "descriptionMaximum": 132,
+      "requiredNamedPermissions": 10,
+      "optionalNamedPermissions": 1,
+      "requiredHostPatterns": 0,
+      "optionalHostPatterns": 2
+    },
+    "syntaxModules": 173,
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "htmlValidation": "passed",
+    "cssValidation": "passed",
+    "remoteCodeAndRuntimeSecretScan": {
+      "status": "passed",
+      "runtimeFiles": 61
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 355
+    },
+    "dependencyLicenseInventory": {
+      "status": "passed",
+      "runtimeDependencies": 0,
+      "lockedDevelopmentGraph": 416,
+      "lockfileSha256": "B6047C9019D8381E461B501401401930D614E1A944349C35A0AA620512E99E6E",
+      "developmentSbomSha256": "9E48934BB5D198DB12C1C1470E8FE2F11C001E8A01E36A51825833C530BC41611",
+      "metadataExceptionsResolved": 1
+    },
+    "thirdPartyNoticeAndPslHash": "passed",
+    "iconSourceAndPngProvenance": "passed",
+    "documentation": "passed",
+    "githubActionPins": {
+      "status": "passed",
+      "references": 10
+    },
+    "runtimeAllowlist": {
+      "status": "passed",
+      "runtimeFiles": 61,
+      "sourceOnlyFiles": 3
+    },
+    "legacyReleaseSelfTest": "passed",
+    "nodeTests": {
+      "tests": 952,
+      "suites": 0,
+      "passed": 952,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "failed",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    },
+    "tests": {
+      "tests": 952,
+      "passed": 951,
+      "failed": 1,
+      "skipped": 0
+    },
+    "observedCoverageNotAcceptedAsPassingEvidence": {
+      "statements": 86.66,
+      "branches": 76.55,
+      "functions": 92.18,
+      "lines": 86.66
+    },
+    "failure": {
+      "file": "tests/safety/service-worker-startup-lifecycle.test.mjs",
+      "test": "a final approval stages before slow maintenance and exposes a fresh prompt activation after settlement",
+      "reason": "The full coverage-instrumented run exhausted the test harness's 1,000-iteration wall-clock polling budget before the active job reached a terminal state.",
+      "ordinaryFullCheckResult": "passed",
+      "targetedReproduction": "Five ordinary selected-case repeats passed. Multiple selected-case coverage runs also passed in about three seconds, while one separately coordinated coverage attempt produced no TAP result and was interrupted after more than 30 seconds.",
+      "interpretation": "This is a release-blocking coverage-run failure. The emitted percentages and passing targeted samples are retained for diagnosis only and are not recorded as a coverage pass."
+    }
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "passed",
+    "installedPackages": 397,
+    "auditedPackagesIncludingRoot": 398,
+    "lifecycleScriptsDisabled": true,
+    "deprecationWarnings": [
+      "prebuild-install@7.1.3 is no longer maintained",
+      "glob@10.5.0 is a deprecated transitive development-tool version"
+    ],
+    "interpretation": "The warnings are confined to the development-tool graph. Installation used the exact lockfile with lifecycle scripts and automatic audit traffic disabled; the separate explicit audit found no advisory."
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=moderate --json",
+    "status": "passed",
+    "auditedAt": "2026-08-25T02:27:55.6642942-05:00",
+    "knownVulnerabilities": 0,
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "runtimeDependencies": 0,
+    "lockedDevelopmentGraph": 416,
+    "lockfileSha256": "B6047C9019D8381E461B501401401930D614E1A944349C35A0AA620512E99E6E"
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "passed",
+    "redactionCanaries": "passed",
+    "privateContextPersistenceRefusal": "passed",
+    "deterministicThirtyMinuteExpiry": "passed"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "passed",
+    "installedChromeRun": "not_run",
+    "installedBraveRun": "not_run",
+    "browserEvidenceRecord": "docs/evidence/browser-validation.json",
+    "note": "The deterministic loopback fixture server contract passed. No installed Chrome or Brave scenario is claimed because no complete trustworthy semantic executor is implemented."
+  },
+  "gitInitialization": {
+    "status": "pending_exact_candidate_validation",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "Exact candidate commit, clean checkout, remote checks, and repository state require fresh validation."
+  },
+  "artifacts": {
+    "status": "pending_rebuild",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.80.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.80-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "pending",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.80.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.80.unsigned-provenance-input.json",
+    "remoteAttestation": "pending",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "The exact 1.11.80 coverage run failed one lifecycle test after exhausting a test-only polling budget.",
+      "Installed-browser, exact-artifact, accessibility, performance, media, independent-review, and remote evidence remain incomplete."
+    ]
+  },
+  "limitations": [
+    "No automated, installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior.",
+    "The ordinary full check passed 952 of 952 tests, but the separate required coverage command failed 1 of 952 and therefore blocks 1.11.80.",
+    "The coverage percentages emitted by the failed process are diagnostic only and are not passing evidence.",
+    "No clean exact-commit artifact, installed Chrome or Brave matrix, accessibility, performance, media, independent-review, or remote publication result is claimed for 1.11.80."
+  ]
+}

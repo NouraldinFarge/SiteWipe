@@ -2,7 +2,7 @@
 
 > **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-Last reviewed: 2026-08-25 against the manifest and current runtime call sites, while preserving the frozen 1.11.42 first-party ledger at [`docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json`](./evidence/policy-source-ledger-2026-08-21-v1.11.42.json) as historical source evidence. Exact installed 1.11.61 is retained as failure evidence under SW-048, and exact installed 1.11.62 is retained as a separate selected-site partition-scope failure under SW-049. The 1.11.79 corrective successor is bound by its deliberate version transaction; active automated evidence governs complete local validation and reproducible artifacts, while fresh exact-artifact policy/native-warning checks remain a separate installed gate. This is a technical assessment, not store approval.
+Last reviewed: 2026-08-25 against the manifest and current runtime call sites, while preserving the frozen 1.11.42 first-party ledger at [`docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json`](./evidence/policy-source-ledger-2026-08-21-v1.11.42.json) as historical source evidence. Exact installed 1.11.61 is retained as failure evidence under SW-048, and exact installed 1.11.62 is retained as a separate selected-site partition-scope failure under SW-049. The 1.11.80 corrective successor is bound by its deliberate version transaction; fresh active automated evidence will govern complete local validation and reproducible artifacts, while exact-artifact policy/native-warning checks remain a separate installed gate. This is a technical assessment, not store approval.
 
 ## Consent model shared by privileged features
 

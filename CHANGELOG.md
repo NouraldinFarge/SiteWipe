@@ -6,6 +6,14 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.80 — public-source prerelease work — 2026-08-25
+
+### Release-state truthfulness correction
+
+- Preserve exact 1.11.79 at local checkpoint `8bef3391553689df14bd8a3db936611e895379c4` and advance the corrected stable closure to 1.11.80 instead of rebinding the checkpointed version.
+- Narrow the synthetic visual record to what was actually observed: repaired Options initialization and fail-once recovery were seen, but no complete canonical Options assertion, all-settings interaction pass, installed-extension run, or accessibility pass was retained.
+- Correct stale transaction tense, the August 24 repair-versus-August 25 publication-authorization chronology, and current review dates before the next candidate fingerprint is created.
+
 ## 1.11.79 — public-source prerelease work — 2026-08-25
 
 ### Fixture and release-state correction
@@ -32,7 +40,7 @@ This log distinguishes private engineering candidates from public releases. No v
 - Build runtime and source archives from one clean exact Git commit, bind runtime bytes to committed blobs, keep builds side-effect-free, reject PATH-shadowed Git, verify two consecutive builds byte for byte, and validate a concrete reproducible development SBOM.
 - Define and hash an immutable 24-case Chrome/Brave matrix, derive fixture defaults from production, constrain synthetic fixture hosts/routes/methods with per-run capabilities, and retain only mechanically derived `passed`, `failed`, `limited`, or `not_run` results.
 - Carry the unchanged default-off Direct Cleanup owner decision forward to 1.11.78 only after the semantic contract accepts the actual version-matched decision and continues to reject permission-removal poison and stale-regrant mutations.
-- Record the owner's 2026-08-24 authorization for GitHub and public-release actions as permission to execute only when the corresponding exact-artifact, reviewer, remote-policy, and publication gates genuinely pass. The authorization does not convert pending, limited, failed, or unreviewed evidence into approval and does not itself establish a supported binary.
+- Record the owner's 2026-08-24 authorization for the exact 1.11.78 audit, repair, build, and browser-validation work separately from the later 2026-08-25 authorization for GitHub and public-release actions. The later authorization permits execution only when the corresponding exact-artifact, reviewer, remote-policy, and publication gates genuinely pass; it does not convert pending, limited, failed, or unreviewed evidence into approval and does not itself establish a supported binary.
 
 ## 1.11.77 — public-source prerelease work — 2026-08-24
 

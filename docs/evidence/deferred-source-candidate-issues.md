@@ -1,6 +1,6 @@
-# Deferred SiteWipe 1.11.79 follow-up work
+# Deferred SiteWipe 1.11.80 follow-up work
 
-Reviewed 2026-08-24. This register separates later engineering improvements from the gates that must still pass before any supported binary, default-branch merge, tag, GitHub Release, browser-store submission, promotional publication, or portfolio claim. Authorization for an action does not make its technical or independent-review evidence pass.
+Reviewed 2026-08-25. This register separates later engineering improvements from the gates that must still pass before any supported binary, default-branch merge, tag, GitHub Release, browser-store submission, promotional publication, or portfolio claim. Authorization for an action does not make its technical or independent-review evidence pass.
 
 ## Required before a supported binary or equivalent public-release claim
 
@@ -8,7 +8,7 @@ Reviewed 2026-08-24. This register separates later engineering improvements from
 - Complete and mechanically replay the full installed matrix. Every one of the 48 canonical Chrome/Brave cells must pass with assertion-specific raw evidence, protected downloaded-file canaries, exact artifact/browser/profile identity, and verified teardown. Missing, limited, failed, dummy, or self-authored summary evidence must remain blocking.
 - Obtain independent human review where a protected environment or publication stage requires it. The current solo-reviewer environment configuration cannot truthfully satisfy independent review or self-review prevention by itself.
 - Implement the authenticated remote collector/raw-body replayer, then refresh exact-head remote evidence after the final candidate commit exists. Required CI and CodeQL conclusions must bind to that immutable candidate head; the collector must retain ignored raw response bytes, recompute every digest, derive projections from those bytes, and bracket branch protection, private vulnerability reporting, protected-environment, privacy, and reviewer-eligibility observations with unchanged candidate/main refs.
-- Refresh exact-version hosted privacy-policy parity, authentic media, accessibility, and performance evidence wherever the applicable publication stage requires them. Historical 1.11.67 and superseded local 1.11.78 observations cannot be rebound to 1.11.79.
+- Refresh exact-version hosted privacy-policy parity, authentic media, accessibility, and performance evidence wherever the applicable publication stage requires them. Historical 1.11.67, superseded local 1.11.78, and checkpointed 1.11.79 observations cannot be rebound to 1.11.80.
 - Preserve the distinction between an authorized public-source candidate and a supported binary. A source branch or pull request may be published when its source-specific gates pass even while installed-browser, media, reviewer, or store-release gates remain open.
 
 ## Recommended engineering improvements after the minimum candidate repair
