@@ -159,10 +159,21 @@ export async function validateVersionContract({
         digest,
         evidenceRequiresHash(media)
       );
-      requireValue(automated.artifacts?.runtimeZipSha256 === digest, 'automated evidence artifact hash is stale');
-      requireValue(
-        automated.artifacts?.runtimeZipBytes === runtimeBytes.length,
-        'automated evidence artifact size is stale'
+      const automatedEvidenceIsFinal =
+        evidenceRequiresHash(automated) || ['passed', 'approved'].includes(automated.fullCheck?.status);
+      validateOptionalEvidenceHash(
+        errors,
+        'automated evidence',
+        automated.artifacts?.runtimeZipSha256,
+        digest,
+        automatedEvidenceIsFinal
+      );
+      validateOptionalEvidenceSize(
+        errors,
+        'automated evidence',
+        automated.artifacts?.runtimeZipBytes,
+        runtimeBytes.length,
+        automatedEvidenceIsFinal
       );
     }
   }
@@ -199,4 +210,10 @@ function validateOptionalEvidenceHash(errors, label, recorded, actual, required)
   if (recorded == null && !required) return;
   if (!/^[0-9A-F]{64}$/.test(String(recorded || ''))) errors.push(`${label} artifact hash is missing or malformed`);
   if (recorded !== actual) errors.push(`${label} artifact hash is stale`);
+}
+
+function validateOptionalEvidenceSize(errors, label, recorded, actual, required) {
+  if (recorded == null && !required) return;
+  if (!Number.isInteger(recorded) || recorded <= 0) errors.push(`${label} artifact size is missing or malformed`);
+  if (recorded !== actual) errors.push(`${label} artifact size is stale`);
 }

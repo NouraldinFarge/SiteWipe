@@ -1,9 +1,24 @@
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
+import os from 'node:os';
 import { resolve } from 'node:path';
 
 import { RUNTIME_FILES } from './release-files.mjs';
-import { collectSourceArchiveEntries } from './source-archive.mjs';
+import {
+  createCurrentReleaseIndex,
+  createReleaseNotes,
+  createRuntimeSbom,
+  createSourcePackageEquivalence,
+  createUnsignedProvenance,
+  parsePublicSuffixMetadata,
+  serializeReleaseJson
+} from './release-metadata.mjs';
+import {
+  assertGitWorktreeClean,
+  collectCommittedSourceArchiveEntries,
+  selectCommittedRuntimeEntries
+} from './source-archive.mjs';
+import { resolveTrustedGitExecutable } from './trusted-git.mjs';
 import { validateArtifactDirectory, validateVersionContract } from './version-contract-check.mjs';
 import { projectRoot, runtimeArtifactBase } from './versioning.mjs';
 import { readZipEntries } from './zip-utils.mjs';
@@ -12,7 +27,23 @@ export async function verifyReleaseCandidate({
   root = projectRoot,
   artifactDirectory = resolve(root, 'dist', 'current')
 } = {}) {
-  const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
+  const sourceCommit = assertGitWorktreeClean(root);
+  const trustedGit = resolveTrustedGitExecutable({ root });
+  const committedSource = await collectCommittedSourceArchiveEntries(root, { ref: sourceCommit });
+  if (committedSource.commit !== sourceCommit)
+    throw new Error('Committed source snapshot changed during verification.');
+  const expectedSourceEntries = committedSource.entries;
+  const committedSourceByPath = new Map(expectedSourceEntries.map((entry) => [entry.path, entry]));
+  const packageBytes = committedSourceByPath.get('package.json')?.bytes;
+  const manifestBytes = committedSourceByPath.get('src/manifest.json')?.bytes;
+  if (!packageBytes) throw new Error('Committed package.json is missing.');
+  if (!manifestBytes) throw new Error('Committed src/manifest.json is missing.');
+  const pkg = JSON.parse(packageBytes.toString('utf8'));
+  const manifest = JSON.parse(manifestBytes.toString('utf8'));
+  if (pkg.version !== manifest.version) throw new Error('Committed package/manifest version parity is invalid.');
+  const publicSuffixMetadata = parsePublicSuffixMetadata(
+    committedSourceByPath.get('src/shared/public-suffix-data.js')?.bytes
+  );
   const base = runtimeArtifactBase(pkg.version);
   const releaseDirectory = validateArtifactDirectory(root, artifactDirectory);
   const zipPath = resolve(releaseDirectory, `${base}.zip`);
@@ -63,6 +94,9 @@ export async function verifyReleaseCandidate({
   if (currentRelease.version !== pkg.version || currentRelease.artifactBase !== base) {
     throw new Error('Current release index points to a stale version.');
   }
+  if (currentRelease.sourceCommit !== sourceCommit) {
+    throw new Error(`Current release source commit mismatch: ${currentRelease.sourceCommit} != ${sourceCommit}`);
+  }
   if (currentRelease.runtimeArtifact !== `${base}.zip` || currentRelease.sourceArtifact !== `${base}-source.zip`) {
     throw new Error('Current release index artifact names are stale.');
   }
@@ -85,14 +119,19 @@ export async function verifyReleaseCandidate({
   }
 
   const entries = (await readZipEntries(zipPath)).sort((a, b) => a.path.localeCompare(b.path));
+  const runtimeZipBytes = await readFile(zipPath);
+  const runtimeArtifactSha256 = sha256(runtimeZipBytes);
+  const expectedRuntimeEntries = selectCommittedRuntimeEntries(expectedSourceEntries, RUNTIME_FILES);
   const expectedPaths = [...RUNTIME_FILES].sort();
   if (entries.length !== expectedPaths.length) {
     throw new Error(`Unexpected ZIP file count: ${entries.length}/${expectedPaths.length}`);
   }
   for (let index = 0; index < entries.length; index += 1) {
     if (entries[index].path !== expectedPaths[index]) throw new Error(`Unexpected ZIP path: ${entries[index].path}`);
-    const source = await readFile(resolve(root, 'src', entries[index].path));
-    if (!source.equals(entries[index].bytes)) throw new Error(`Source/package mismatch: ${entries[index].path}`);
+    const source = committedSourceByPath.get(`src/${entries[index].path}`)?.bytes;
+    if (!source?.equals(entries[index].bytes)) {
+      throw new Error(`Committed source/package mismatch: ${entries[index].path}`);
+    }
     if (entries[index].modifiedAt !== '1980-01-01T00:00:00.000Z') {
       throw new Error(`Non-normalized ZIP timestamp: ${entries[index].path} ${entries[index].modifiedAt}`);
     }
@@ -107,7 +146,6 @@ export async function verifyReleaseCandidate({
       throw new Error(`Source archive is missing required file: ${required}`);
     }
   }
-  const expectedSourceEntries = await collectSourceArchiveEntries(root);
   if (sourceEntries.length !== expectedSourceEntries.length) {
     throw new Error(`Unexpected source ZIP file count: ${sourceEntries.length}/${expectedSourceEntries.length}`);
   }
@@ -124,16 +162,81 @@ export async function verifyReleaseCandidate({
     }
   }
 
+  await assertExactGeneratedFile(
+    releaseDirectory,
+    `${base}.source-package-equivalence.json`,
+    serializeReleaseJson(
+      createSourcePackageEquivalence({
+        base,
+        runtimeArtifactSha256,
+        sourceCommit,
+        runtimeEntries: expectedRuntimeEntries,
+        packagedFileCount: entries.length,
+        manifestAtZipRoot: entries.some((entry) => entry.path === 'manifest.json')
+      })
+    )
+  );
+  await assertExactGeneratedFile(
+    releaseDirectory,
+    `${base}.runtime-sbom.cdx.json`,
+    serializeReleaseJson(createRuntimeSbom({ name: manifest.name, version: manifest.version, publicSuffixMetadata }))
+  );
+  await assertExactGeneratedFile(
+    releaseDirectory,
+    `${base}.release-notes.md`,
+    createReleaseNotes({ name: manifest.name, version: manifest.version })
+  );
+  await assertExactGeneratedFile(
+    releaseDirectory,
+    `${base}.unsigned-provenance-input.json`,
+    serializeReleaseJson(
+      createUnsignedProvenance({
+        base,
+        runtimeArtifactSha256,
+        version: pkg.version,
+        sourceCommit,
+        runtimeEntries: expectedRuntimeEntries,
+        nodeVersion: process.version,
+        platform: os.platform(),
+        architecture: os.arch(),
+        gitVersion: trustedGit.version,
+        gitExecutableSha256: trustedGit.sha256
+      })
+    )
+  );
+  await assertExactGeneratedFile(
+    releaseDirectory,
+    'current-release.json',
+    serializeReleaseJson(
+      createCurrentReleaseIndex({
+        base,
+        version: pkg.version,
+        sourceCommit,
+        outputs: currentRelease.outputs
+      })
+    )
+  );
+  assertGitWorktreeClean(root, { expectedCommit: sourceCommit });
+
   return {
     artifact: `${base}.zip`,
-    sha256: sha256(await readFile(zipPath)),
+    sha256: runtimeArtifactSha256,
     files: entries.length,
     sourceArtifact: `${base}-source.zip`,
     sourceFiles: sourceEntries.length,
+    sourceCommit,
     sourceArchiveCompression: 'stored',
     checksumFilesVerified: checksums.size,
     sourcePackageEquivalence: 'exact'
   };
+}
+
+export async function assertExactGeneratedFile(directory, name, expectedText) {
+  const actual = await readFile(resolve(directory, name));
+  const expected = Buffer.from(expectedText, 'utf8');
+  if (!actual.equals(expected)) {
+    throw new Error(`Generated release metadata does not match its canonical derivation: ${name}`);
+  }
 }
 
 function sha256(value) {

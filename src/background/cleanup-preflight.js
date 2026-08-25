@@ -1,6 +1,11 @@
-import { normalizeSiteInput, applyAssociatedDomainGroups } from './domain.js';
+import {
+  normalizeSiteInput,
+  applyAssociatedDomainGroups,
+  parseAssociatedDomainGroups,
+  validateAssociatedDomainGroups
+} from './domain.js';
 import { findProtectedBrowserServiceTargets } from '../shared/safety.js';
-import { getEffectiveCleanupSettings } from '../shared/cleanup-mode.js';
+import { getEffectiveCleanupSettings, isExpertCleanupMode } from '../shared/cleanup-mode.js';
 import { buildCleanupReview, validateCleanupReviewApproval } from '../shared/cleanup-review.js';
 import { normalizeStoredSettings } from '../shared/storage.js';
 import {
@@ -681,6 +686,97 @@ export async function assertLeaseOwnedCleanupPermissionInventory(record, depende
     );
   }
   return inventory;
+}
+
+/**
+ * Validates both associated-domain syntax and the same count-independent
+ * structural query budget that cleanup preflight enforces. Browser-observed
+ * counts remain a preflight responsibility, but a saved scope that can never
+ * pass structural admission must not be presented as accepted in Options.
+ */
+export function validateAssociatedDomainGroupsForCleanup(groupsText, storedSettings = {}) {
+  /** @type {Record<string, any>} */
+  const effectiveSettings = {
+    ...getEffectiveCleanupSettings(normalizeStoredSettings(storedSettings)),
+    // This is live browser state, not a persisted setting, so the settings
+    // normalizer intentionally drops it. Restore only the strict boolean used
+    // by the real preflight capacity plan.
+    incognitoAccess: storedSettings?.incognitoAccess === true
+  };
+  const domainOptions = { allowLocalTargets: effectiveSettings.allowLocalTargets === true };
+  const validation = validateAssociatedDomainGroups(groupsText, domainOptions);
+  const capacityErrors = [];
+  const capacityPlans = [];
+
+  // Associated targets are inactive in Standard mode. Validate their syntax so
+  // the saved text remains understandable, then defer capacity until Expert
+  // mode makes the scope executable, matching resolveCleanupReviewScope().
+  if (isExpertCleanupMode(effectiveSettings.cleanupMode)) {
+    const parsed = parseAssociatedDomainGroups(groupsText, domainOptions);
+    const checkedPrimaries = new Set();
+
+    for (const group of parsed.groups) {
+      const primary = group.primary;
+      const primaryIdentity =
+        primary.matchMode === 'exact_origin'
+          ? `origin:${String(primary.exactOrigin || '').toLowerCase()}`
+          : `domain:${String(primary.domain || '').toLowerCase()}`;
+      if (!primaryIdentity || checkedPrimaries.has(primaryIdentity)) continue;
+      checkedPrimaries.add(primaryIdentity);
+
+      const merged = applyAssociatedDomainGroups(primary, groupsText, domainOptions).target || primary;
+      try {
+        const plan = assertCleanupQueryStructure(merged, effectiveSettings);
+        capacityPlans.push(describeAssociatedDomainCapacityPlan(primary, plan));
+      } catch (error) {
+        const plan = error?.capacityPlan || null;
+        const primaryLabel = primary.displayName || primary.domain || primary.exactOrigin || 'configured primary';
+        capacityErrors.push({
+          capacity: true,
+          input: primaryLabel,
+          message: describeAssociatedDomainCapacityError(primaryLabel, plan, error),
+          cleanupPlannedQueries: normalizeCapacityDiagnosticCount(plan?.cleanupPlannedQueries),
+          cleanupAdmissionLimit: normalizeCapacityDiagnosticCount(plan?.cleanupAdmissionLimit),
+          preflightPlannedQueries: normalizeCapacityDiagnosticCount(plan?.preflightPlannedQueries),
+          preflightQueryLimit: normalizeCapacityDiagnosticCount(plan?.preflightQueryLimit)
+        });
+      }
+    }
+  }
+
+  const errors = [...validation.errors, ...capacityErrors];
+  return {
+    ...validation,
+    ok: errors.length === 0,
+    errors,
+    capacityChecked: isExpertCleanupMode(effectiveSettings.cleanupMode),
+    capacityErrors,
+    capacityPlans
+  };
+}
+
+function describeAssociatedDomainCapacityPlan(primary, plan) {
+  return {
+    primary: primary.displayName || primary.domain || primary.exactOrigin || 'configured primary',
+    associatedTargetCount: normalizeCapacityDiagnosticCount(plan?.associatedTargetCount),
+    cleanupPlannedQueries: normalizeCapacityDiagnosticCount(plan?.cleanupPlannedQueries),
+    cleanupAdmissionLimit: normalizeCapacityDiagnosticCount(plan?.cleanupAdmissionLimit),
+    preflightPlannedQueries: normalizeCapacityDiagnosticCount(plan?.preflightPlannedQueries),
+    preflightQueryLimit: normalizeCapacityDiagnosticCount(plan?.preflightQueryLimit)
+  };
+}
+
+function describeAssociatedDomainCapacityError(primaryLabel, plan, error) {
+  if (plan) {
+    return `The merged scope for ${primaryLabel} cannot pass cleanup's structural preflight: it plans ${plan.cleanupPlannedQueries} cleanup queries against the ${plan.cleanupAdmissionLimit}-query admission limit and ${plan.preflightPlannedQueries} preflight queries against the ${plan.preflightQueryLimit}-query limit. Remove associated targets or disable optional Expert discovery features.`;
+  }
+  return `The merged scope for ${primaryLabel} cannot pass cleanup's structural preflight. ${
+    error?.message || 'Remove associated targets or disable optional Expert discovery features.'
+  }`;
+}
+
+function normalizeCapacityDiagnosticCount(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
 export function resolveCleanupReviewScope(input, storedSettings = {}) {

@@ -481,6 +481,15 @@ p {
   padding-top: 12px;
 }
 
+.permission-actions {
+  justify-content: flex-end;
+  max-width: 360px;
+}
+
+.permission-actions .btn {
+  flex: 1 1 150px;
+}
+
 .high-impact-panel {
   margin-top: 12px;
   padding: 2px 12px;

@@ -27,7 +27,7 @@ import {
   normalizeStoredSettings,
   withStorageMutation
 } from '../shared/storage.js';
-import { normalizeSiteInput, validateAssociatedDomainGroups, runDomainSelfTests } from './domain.js';
+import { normalizeSiteInput, runDomainSelfTests } from './domain.js';
 import { addError, addSection, finishReport } from './report.js';
 import { initializeReviewedCleanupReport, isCleanupCancellationError } from './cleanup-authorization.js';
 import { runDeepClean, getSiteWipeDnrDiagnostics, inspectCleanupImpact } from './cleanup.js';
@@ -57,7 +57,8 @@ import {
   getGrantedHostPermissionOrigins,
   assertLeaseOwnedCleanupPermissionInventory,
   assertCleanupReviewPopupBinding,
-  digestCleanupPopupPreparationCapability
+  digestCleanupPopupPreparationCapability,
+  validateAssociatedDomainGroupsForCleanup
 } from './cleanup-preflight.js';
 import { validateMessageEnvelope } from '../shared/message-contracts.js';
 import { redactReport } from '../shared/report-redaction.js';
@@ -1191,10 +1192,11 @@ async function handleMessage(message, sender, internalContext = {}) {
       return { activeTab: await getActiveTabTarget() };
     }
     case MESSAGE_TYPES.validateAssociatedGroups: {
-      const settings = await getSettings();
+      const [settings, incognitoAccess] = await Promise.all([getSettings(), isIncognitoAllowed()]);
       return {
-        validation: validateAssociatedDomainGroups(payload.groupsText ?? settings.associatedDomainGroups, {
-          allowLocalTargets: settings.allowLocalTargets
+        validation: validateAssociatedDomainGroupsForCleanup(payload.groupsText ?? settings.associatedDomainGroups, {
+          ...settings,
+          incognitoAccess
         })
       };
     }
@@ -1915,6 +1917,8 @@ async function handleMessage(message, sender, internalContext = {}) {
         await invalidatePendingCleanupReview();
         const currentSettings = await getSettings();
         const permissionAwarePatch = { ...(payload.settings || {}) };
+        const currentFrameDiscoveryEnabled =
+          getEffectiveCleanupSettings(currentSettings).embeddedFrameDiscovery === true;
         const requestedSettings = getEffectiveCleanupSettings({ ...currentSettings, ...permissionAwarePatch });
         const enteringExpertMode =
           currentSettings.cleanupMode !== 'expert' && requestedSettings.cleanupMode === 'expert';
@@ -1928,7 +1932,10 @@ async function handleMessage(message, sender, internalContext = {}) {
           permissionAwarePatch.embeddedFrameDiscovery = false;
         }
         const settings = await saveSettings(permissionAwarePatch);
-        if (!getEffectiveCleanupSettings(settings).embeddedFrameDiscovery) {
+        // Revoke this optional access only when this transaction actually
+        // disables an already-enabled feature. Unrelated saves while the
+        // feature was already off preserve ambiguous or pre-existing access.
+        if (currentFrameDiscoveryEnabled && !getEffectiveCleanupSettings(settings).embeddedFrameDiscovery) {
           await removeNamedPermission('webNavigation');
         }
         queueMaintenanceAlarmRefresh();

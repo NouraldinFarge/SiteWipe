@@ -6,6 +6,7 @@ import {
   buildPartitionRemovalKeys,
   classifyCookieStorePrivateScope,
   cookieKey,
+  cookieRemovalUrlHost,
   describeCookieDiscoveryQueryDemand,
   discoverCookiesOnly,
   MAX_COOKIE_DISCOVERY_QUERIES,
@@ -546,6 +547,31 @@ test('cookie removal counts only a matching structured browser confirmation', as
   );
   assert.equal(confirmed.removed, true);
   assert.equal(confirmed.failures, 0);
+});
+
+test('cookie removal brackets IPv6 authorities without double-bracketing browser variants', async () => {
+  for (const domain of ['::1', '[::1]', '2001:db8::5', '[2001:db8::5]']) {
+    const expectedHost = domain.includes('2001:db8') ? '[2001:db8::5]' : '[::1]';
+    const expectedUrl = `https://${expectedHost}/session`;
+    const calls = [];
+    const cookie = { name: 'session', domain, path: '/session', secure: true };
+
+    assert.equal(cookieRemovalUrlHost(cookie), expectedHost);
+    const stats = await withChrome(
+      {
+        cookies: {
+          async remove(details) {
+            calls.push(details);
+            return { name: details.name, url: details.url, storeId: details.storeId };
+          }
+        }
+      },
+      () => removeCookie(cookie, '0', null)
+    );
+
+    assert.equal(stats.removed, true);
+    assert.deepEqual(calls, [{ url: expectedUrl, name: 'session', storeId: '0' }]);
+  }
 });
 
 test('malformed resolved cookie values keep preflight incomplete and verification out of verified zero', async () => {

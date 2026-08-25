@@ -43,10 +43,8 @@ jobs:
           npm audit --audit-level=moderate
           npm run check
           npm run test:coverage
-      - name: Build and verify deterministic artifacts
-        run: |
-          npm run build:release-candidate
-          npm run verify:release-candidate
+      - name: Build twice and verify deterministic exact-source artifacts
+        run: npm run verify:reproducible-release-candidate
       - name: Require every recorded publication gate for the rebuilt bytes
         run: npm run check:publication-gates
       - name: Attest exact ZIP artifacts
@@ -59,4 +57,6 @@ jobs:
           name: manually-approved-unreleased-candidate-${{ github.sha }}
           if-no-files-found: error
           retention-days: 30
-          path: dist/current/
+          path: |
+            dist/current/
+            validation-output/sitewipe-development-sbom.cdx.json

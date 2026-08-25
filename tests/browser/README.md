@@ -4,19 +4,22 @@
 
 This loopback-only fixture seeds synthetic browser data without touching a daily profile. It is fixture infrastructure, not retained Chrome/Brave evidence and not a browser automation result.
 
-Start it with `npm run browser:fixture`. The default endpoint is `http://127.0.0.1:43819`. A disposable browser launch may map these synthetic hosts to `127.0.0.1` without editing the operating-system hosts file:
+Start it with `npm run browser:fixture`. The default endpoint is `http://127.0.0.1:43819`. Startup prints a fresh 32-byte hexadecimal run token; retain it only for that disposable run. Cookie seed/reset requests require the token in `X-SiteWipe-Fixture-Token`, and fixture pages propagate it from their `runToken` query parameter. A disposable browser launch may map these synthetic hosts to `127.0.0.1` without editing the operating-system hosts file:
 
 - `selected.example.com` and `sub.selected.example.com` for registrable/subdomain behavior;
 - `selected.example.com.evil.invalid` for lookalike rejection;
 - `alice.blogspot.com` and `bob.blogspot.com` for PRIVATE-suffix sibling isolation;
 - `chips.localhost` for a third-party partitioned-cookie attempt;
 - `127.0.0.1` on two ports for exact-origin scheme/port checks.
+- `[::1]` from a separately bound IPv6-loopback fixture lane for bracketed-authority and cookie-removal URL checks.
 
-Use `?scale=small`, `?scale=medium`, or `?scale=large`; these seed 8, 64, or 256 bounded records in localStorage, sessionStorage, IndexedDB, and Cache Storage where supported. Add `&autoseed=1`; add `&embed=1` to include and automatically seed the `chips.localhost` frame. The page also attempts service-worker, Storage Bucket, and OPFS fixtures only when the browser exposes those APIs and provides a harmless synthetic download.
+The server rejects an unapproved Host or listener port, a non-GET method, and every route outside its exported exact allowlist. Production UI mock routes are accepted only on direct loopback Hosts. The request ledger records allow/deny decisions without retaining the plaintext run token.
+
+Use `?scale=small`, `?scale=medium`, or `?scale=large`; these seed 8, 64, or 256 bounded records in localStorage, sessionStorage, IndexedDB, and Cache Storage where supported. Add `&runToken=<startup-token>&autoseed=1`; add `&embed=1` to include and automatically seed the `chips.localhost` frame. The page also attempts service-worker, Storage Bucket, and OPFS fixtures only when the browser exposes those APIs and provides a harmless synthetic download.
 
 ### Non-reseeding partition-observation probe
 
-Use two distinct URLs for a valid before/after observation of the embedded `chips.localhost` fixture. Before cleanup, open `http://selected.example.com:43819/?scale=small&autoseed=1&embed=1` to seed the target origin and the embedded partition. After cleanup, do **not** reopen that seed URL. Open `http://selected.example.com:43819/partition-probe?scale=small` instead.
+Use two distinct URLs for a valid before/after observation of the embedded `chips.localhost` fixture. Before cleanup, open `http://selected.example.com:43819/?scale=small&runToken=<startup-token>&autoseed=1&embed=1` to seed the target origin and the embedded partition. After cleanup, do **not** reopen that seed URL. Open `http://selected.example.com:43819/partition-probe?scale=small&runToken=<startup-token>` instead.
 
 The `/partition-probe` route embeds `http://chips.localhost:43819/partition-probe/frame` under the same top-level scheme, site, and port, then automatically snapshots the child's existing exposed state. Neither probe route includes or honors `autoseed=1`, and their controls for seeding, resetting, and downloading are suppressed. Keep the top-level scheme, registrable site, and fixture port identical between the seed and probe visits so the browser uses the same partition key. A no-cleanup control must retain persistent LocalStorage and IndexedDB, proving that a later zero was caused by cleanup rather than reseeding or navigation.
 

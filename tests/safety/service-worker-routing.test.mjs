@@ -855,6 +855,7 @@ test('Standard mode persists frame discovery off and releases webNavigation unti
     assert.equal(chrome.__state.local[STORAGE_KEYS.settings].embeddedFrameDiscovery, false);
     assert.equal(chrome.__state.namedPermissions.has('webNavigation'), false);
 
+    await chrome.permissions.request({ permissions: ['webNavigation'] });
     const enteringExpert = await dispatchRuntimeMessage(
       chrome,
       {
@@ -866,8 +867,12 @@ test('Standard mode persists frame discovery off and releases webNavigation unti
     assert.equal(enteringExpert.ok, true, enteringExpert.error);
     assert.equal(enteringExpert.settings.cleanupMode, 'expert');
     assert.equal(enteringExpert.settings.embeddedFrameDiscovery, false);
+    assert.equal(
+      chrome.__state.namedPermissions.has('webNavigation'),
+      true,
+      'an unrelated mode save while frame discovery was already off must preserve optional access'
+    );
 
-    await chrome.permissions.request({ permissions: ['webNavigation'] });
     const explicitlyEnabled = await dispatchRuntimeMessage(
       chrome,
       {
@@ -934,6 +939,10 @@ test('settings, shield, maintenance, and local reset routes reject a live cleanu
       documentUrl: chrome.runtime.getURL('popup/popup.html'),
       documentId: 'popup-document-live-job-guard'
     };
+    await chrome.permissions.request({ permissions: ['webNavigation'] });
+    const namedPermissionRemovalsBefore = chrome.__calls.filter(
+      (call) => call.api === 'permissions.remove' && call.args?.[0]?.permissions?.includes('webNavigation')
+    ).length;
     const guardedMessages = [
       {
         type: MESSAGE_TYPES.cancelCleanupReview,
@@ -972,6 +981,14 @@ test('settings, shield, maintenance, and local reset routes reject a live cleanu
           : /cleanup is still running/i
       );
     }
+    assert.equal(
+      chrome.__calls.filter(
+        (call) => call.api === 'permissions.remove' && call.args?.[0]?.permissions?.includes('webNavigation')
+      ).length,
+      namedPermissionRemovalsBefore,
+      'a rejected settings save must preserve ambiguous optional access'
+    );
+    assert.equal(chrome.__state.namedPermissions.has('webNavigation'), true);
   } finally {
     delete globalThis.chrome;
   }

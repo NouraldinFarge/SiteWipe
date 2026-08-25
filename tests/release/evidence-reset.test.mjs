@@ -5,6 +5,8 @@ import {
   resetAccessibilityEvidence,
   resetAutomatedValidationEvidence,
   resetDependencyLicenseInventoryEvidence,
+  resetMediaEvidence,
+  resetPerformanceEvidence,
   resetProvenanceTechnicalEvidence
 } from '../../scripts/evidence-reset.mjs';
 import { RUNTIME_FILES } from '../../scripts/release-files.mjs';
@@ -101,6 +103,10 @@ test('version reset invalidates accessibility source and installed evidence incl
         coverage: ['old result']
       },
       installedChecks: { axe: 'passed', keyboardOnly: 'passed' },
+      installedEvidence: {
+        status: 'passed',
+        environment: 'Exact prior-version installed browser'
+      },
       browserVersions: { chrome: '151' },
       artifact: { version: '2.0.0', runtimeZip: 'old.zip', sha256: 'OLD' },
       reviewerApproval: true
@@ -118,11 +124,94 @@ test('version reset invalidates accessibility source and installed evidence incl
     coverage: []
   });
   assert.deepEqual(reset.installedChecks, { axe: 'pending', keyboardOnly: 'pending' });
+  assert.equal(reset.installedEvidence, null);
   assert.deepEqual(reset.browserVersions, {});
   assert.deepEqual(reset.artifact, {
     version: '2.0.1',
     runtimeZip: 'sitewipe-unreleased-candidate-2.0.1.zip',
     sha256: null
+  });
+  assert.equal(reset.reviewerApproval, false);
+});
+
+test('version reset removes prior performance observations and uses neutral current requirements', () => {
+  const reset = resetPerformanceEvidence(
+    {
+      schemaVersion: 1,
+      status: 'passed',
+      measuredAt: '2026-08-23T00:00:00.000Z',
+      environment: { browser: 'prior Chrome' },
+      artifact: { version: '2.0.0', runtimeZip: 'old.zip', sha256: 'OLD' },
+      fixtures: [{ durationMs: 904 }],
+      limitations: ['The current 904 ms result passed.'],
+      reviewerApproval: true
+    },
+    { version: '2.0.1', artifactBase: 'sitewipe-unreleased-candidate-2.0.1' }
+  );
+
+  assert.equal(reset.status, 'pending');
+  assert.equal(reset.measuredAt, null);
+  assert.deepEqual(reset.environment, {});
+  assert.deepEqual(reset.fixtures, []);
+  assert.deepEqual(reset.artifact, {
+    version: '2.0.1',
+    runtimeZip: 'sitewipe-unreleased-candidate-2.0.1.zip',
+    sha256: null
+  });
+  assert.equal(
+    reset.limitations.some((entry) => /904|passed/i.test(entry)),
+    false
+  );
+  assert.equal(
+    reset.limitations.every((entry) => !/current .* result/i.test(entry)),
+    true
+  );
+  assert.equal(reset.reviewerApproval, false);
+});
+
+test('version reset clears active media review while preserving explicitly historical media fields', () => {
+  const historical = { version: '1.9.0', status: 'historical_approved_not_current' };
+  const reset = resetMediaEvidence(
+    {
+      schemaVersion: 1,
+      status: 'approved',
+      authenticScreenshotCount: 4,
+      demoDurationSeconds: 65,
+      screenshots: [{ path: 'old.png' }],
+      demo: { path: 'old.mp4' },
+      priorInstalledMediaReview: historical,
+      review: { status: 'approved_exact_artifact_media_only', scope: 'Exact prior-version artifact' },
+      artifact: { version: '2.0.0', runtimeZip: 'old.zip', sha256: 'OLD' },
+      storeAssets: {
+        icon128: { path: 'src/assets/icons/icon128.png' },
+        screenshots1280x800: ['old.png'],
+        promotionalTile440x280: 'old-promo.png',
+        marquee1400x560: 'old-marquee.png',
+        githubSocialPreview: 'old-social.png'
+      },
+      reviewerApproval: true
+    },
+    { version: '2.0.1', artifactBase: 'sitewipe-unreleased-candidate-2.0.1' }
+  );
+
+  assert.equal(reset.status, 'pending');
+  assert.equal(reset.authenticScreenshotCount, 0);
+  assert.equal(reset.demoDurationSeconds, 0);
+  assert.deepEqual(reset.screenshots, []);
+  assert.equal(reset.demo, null);
+  assert.equal(reset.review, null);
+  assert.deepEqual(reset.priorInstalledMediaReview, historical);
+  assert.deepEqual(reset.artifact, {
+    version: '2.0.1',
+    runtimeZip: 'sitewipe-unreleased-candidate-2.0.1.zip',
+    sha256: null
+  });
+  assert.deepEqual(reset.storeAssets, {
+    icon128: { path: 'src/assets/icons/icon128.png' },
+    screenshots1280x800: [],
+    promotionalTile440x280: null,
+    marquee1400x560: null,
+    githubSocialPreview: null
   });
   assert.equal(reset.reviewerApproval, false);
 });
@@ -150,6 +239,7 @@ test('version reset preserves reviewed dependency tuples but invalidates audit a
         sha256: 'OLD',
         generatedAt: '2026-08-21T00:00:00.000Z'
       },
+      controls: ['npm audit reported zero vulnerabilities for the prior candidate.'],
       ownerApproval: true
     },
     { version: '2.0.1', currentLockfileSha256: 'CURRENT' }
@@ -170,7 +260,7 @@ test('version reset preserves reviewed dependency tuples but invalidates audit a
   });
   assert.deepEqual(reset.developmentSbom, {
     status: 'pending',
-    path: 'dist/sitewipe-development-sbom.cdx.json',
+    path: 'validation-output/sitewipe-development-sbom.cdx.json',
     bomFormat: 'CycloneDX',
     specVersion: '1.6',
     componentVersion: '2.0.1',
@@ -181,5 +271,17 @@ test('version reset preserves reviewed dependency tuples but invalidates audit a
     generatedAt: null
   });
   assert.equal(reset.lockedDevelopmentGraphCount, 406);
+  assert.equal(
+    reset.controls.some((entry) => /reported zero|passed/i.test(entry)),
+    false
+  );
+  assert.equal(
+    reset.controls.some((entry) => /fresh vulnerability audit/i.test(entry)),
+    true
+  );
+  assert.equal(
+    reset.controls.some((entry) => /current candidate/i.test(entry)),
+    true
+  );
   assert.equal(reset.ownerApproval, true);
 });

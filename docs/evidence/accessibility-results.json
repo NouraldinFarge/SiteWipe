@@ -6,7 +6,7 @@
     "status": "pending",
     "reviewedAt": null,
     "binding": {
-      "version": "1.11.77",
+      "version": "1.11.78",
       "releaseInputFingerprintSha256": null
     },
     "namedTests": null,
@@ -29,79 +29,7 @@
     "keyboardOnly": "Native action popup and installed full-page extension surfaces; live bound-handoff keyboard traversal remains deferred."
   },
   "browserVersions": {},
-  "installedEvidence": {
-    "observedAt": "2026-08-23T22:32:08.408Z",
-    "environment": "Exact SiteWipe 1.11.67 runtime in a disposable normal Chrome profile on Microsoft Windows 11 Pro 10.0.26100, 64-bit; private access and Sync off; window bounds preserved at 1281,0 and 1279x720 normal; temporary inspection tabs closed and zoom and media state restored.",
-    "methodBinding": "A local process-bound CDP wrapper was dynamically bound to exact SiteWipe 1.11.67 and the exact installed Chrome session before inspecting genuine installed extension documents.",
-    "wcagAxe": {
-      "status": "passed",
-      "engine": "axe-core 4.13.0",
-      "scope": "WCAG 2, 2.1, and 2.2 Level A/AA rules on installed popup, handoff, report, and Options documents",
-      "normativeViolationCount": 0
-    },
-    "keyboardAndFocus": {
-      "status": "passed",
-      "method": "Actual Tab and Shift+Tab sequences on the installed direct-open popup, report, and Options surfaces plus a separate native action-popup probe; no control was activated and only Tab and Shift+Tab input was sent.",
-      "observations": {
-        "nativeActionPopupObservedAt": "2026-08-23T22:32:08.408Z",
-        "nativeActionPopupUniqueStops": 5,
-        "nativeActionPopupForwardCycleTabs": 6,
-        "nativeActionPopupStopsVisibleInViewportNamedFocusVisibleAndOutlined": true,
-        "nativeActionPopupShiftTabReachedLastStop": true,
-        "nativeActionPopupTabRestoredFirstStop": true,
-        "nativeActionPopupSettingsUnchanged": true,
-        "nativeActionPopupPermissionsUnchanged": true,
-        "directOpenPopupSequentialStops": 5,
-        "reportSequentialStops": 16,
-        "optionsSequentialStops": 38,
-        "liveBoundHandoffObservedDuringCleanup": true,
-        "liveBoundHandoffKeyboardSequenceRun": false
-      },
-      "supportingSourceContract": "The exact-artifact source suite separately covers native popup/review focus restoration and bound-handoff accessible action and focus semantics.",
-      "limitation": "The genuine bound handoff was observed during cleanup, but its keyboard sequence was not run; this narrow result combines installed full-page and native action-popup traversal with the separately passing bound-handoff source contract and does not claim a live-handoff keyboard run."
-    },
-    "screenReaderAnnouncements": {
-      "status": "passed",
-      "method": "Assistive-technology semantics only: installed DOM live-region configuration plus Chrome Accessibility.getFullAXTree status and alert roles and accessible current text.",
-      "limitation": "No audible screen-reader speech capture was performed. This result does not claim that audible announcements were heard or validated."
-    },
-    "zoom": {
-      "status": "passed",
-      "normativeSurfaces": [
-        "handoff",
-        "report",
-        "options"
-      ],
-      "levelsPercent": [
-        125,
-        150,
-        200,
-        400
-      ],
-      "horizontalOverflow": false,
-      "requiredControlsAvailable": true,
-      "resetTo100Percent": true
-    },
-    "forcedColors": {
-      "status": "passed",
-      "mediaMatched": true,
-      "computedControlsPresent": true,
-      "horizontalOverflow": false,
-      "resetToOriginal": true
-    },
-    "reducedMotion": {
-      "status": "passed",
-      "mediaMatched": true,
-      "longMotionCount": 0,
-      "horizontalOverflow": false,
-      "resetToOriginal": true
-    },
-    "advisories": [
-      "A helper-created direct-open popup tab overflowed horizontally at 400% tab zoom; Chrome tab zoom is not the native action-popup surface, so this is retained as a non-normative follow-up rather than omitted.",
-      "The genuine bound handoff was observed during the installed Standard cleanup, but its keyboard sequence was not run; the narrow keyboard result relies on the installed full-page and native action-popup probes plus the separately passing bound-handoff source contract.",
-      "Installed live-region and Chrome accessibility-tree semantics passed, but no audible screen-reader speech capture was performed or claimed."
-    ]
-  },
+  "installedEvidence": null,
   "priorInstalledEvidence": {
     "version": "1.11.63",
     "status": "historical_not_current",
@@ -167,8 +95,8 @@
     ]
   },
   "artifact": {
-    "version": "1.11.77",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.77.zip",
+    "version": "1.11.78",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.78.zip",
     "sha256": null
   },
   "reviewerApproval": false

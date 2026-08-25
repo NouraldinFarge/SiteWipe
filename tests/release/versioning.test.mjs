@@ -107,7 +107,7 @@ test('release evidence remains bound to tested bytes and approval runs after reb
   assert.match(bump, /resetProvenanceTechnicalEvidence/);
   assert.match(evidenceReset, /coverage:[\s\S]*status: 'pending'/);
   assert.match(evidenceReset, /dependencyAudit:[\s\S]*lockfileSha256: null/);
-  assert.match(bump, /performance\.status = 'pending'/);
+  assert.match(bump, /resetPerformanceEvidence/);
   assert.match(bump, /resetAccessibilityEvidence/);
   assert.match(evidenceReset, /status: 'pending_installed_validation'/);
   assert.match(evidenceReset, /sourceContracts:[\s\S]*releaseInputFingerprintSha256: null/);
@@ -118,15 +118,15 @@ test('release evidence remains bound to tested bytes and approval runs after reb
   assert.match(publicationGate, /dependencyInventory\?\.lockfileSha256 !== sha256\(packageLock\)/);
   assert.match(publicationGate, /lockedDevelopmentGraphCount !== lockedDevelopmentPackages\.length/);
   assert.doesNotMatch(publicationGate, /lockedDevelopmentGraphCount !== 406/);
-  assert.match(publicationGate, /requiredChecksVerified/);
-  assert.match(publicationGate, /hostedPrivacyPolicyUrl/);
+  assert.doesNotMatch(publicationGate, /remote\?\.requiredChecksVerified/);
+  assert.doesNotMatch(publicationGate, /remote\?\.branchProtectionVerified/);
   assert.match(publicationGate, /findRemotePublicationFindings/);
   assert.match(publicationGate, /findBrowserEvidenceFindings/);
   assert.match(publicationGate, /findPerformanceEvidenceFindings/);
   assert.match(publicationGate, /findMediaEvidenceFindings/);
   assert.match(publicationGate, /findAccessibilitySourceContractFindings/);
   assert.match(publicationGate, /findDependencyCandidateAuditFindings/);
-  assert.match(publicationGate, /releaseEnvironmentVerified/);
+  assert.match(publicationGate, /findRemotePublicationCaptureFindings/);
   assert.match(publicationGate, /findDirectCleanupPublicationContractFindings/);
   assert.match(publicationGate, /direct-cleanup-owner-decision\.json/);
   assert.match(publicationGate, /publicationGateDirectCleanupContract/);

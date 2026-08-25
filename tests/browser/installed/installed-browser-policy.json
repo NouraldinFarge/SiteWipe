@@ -1,0 +1,23 @@
+{
+  "schema": "sitewipe.installed-browser-policy.v1",
+  "browsers": [
+    {
+      "name": "brave",
+      "executablePath": "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+      "version": "151.1.93.138",
+      "executableSha256": "5765ED474E75FD3C69A418CD6F8A0EC13F4B269459ABF4245674A83355657293"
+    },
+    {
+      "name": "chrome",
+      "executablePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "version": "151.0.7922.174",
+      "executableSha256": "B6D40F55E48E61760335D18F46ABCEC929E1A11B8330E7F2B501037584AF4AA4"
+    }
+  ],
+  "transport": {
+    "pipe": true,
+    "remoteDebuggingPortAllowed": false,
+    "attachToExistingBrowserAllowed": false,
+    "existingProfileAllowed": false
+  }
+}

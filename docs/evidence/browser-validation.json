@@ -3,8 +3,8 @@
   "status": "pending",
   "attemptedAt": null,
   "artifact": {
-    "version": "1.11.77",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.77.zip",
+    "version": "1.11.78",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.78.zip",
     "sha256": null
   },
   "priorExactArtifactEvidence": {
@@ -61,9 +61,37 @@
     ]
   },
   "automationAttempt": null,
+  "installedEvidence": {
+    "schema": "sitewipe.private-installed-browser-run-commitment.v1",
+    "status": "not_run"
+  },
+  "matrixVersion": "sitewipe.installed-browser-matrix.v1",
+  "matrixSha256": "29161C9604160D7C7CE71A7F5D6A6FC564715F88FC3E53548A3DA22FE3A6A543",
   "requiredMatrix": [
-    "exact 1.11.67 immutable runtime loads enabled in a fresh disposable normal profile with private access off and default Standard review/direct-cleanup off",
-    "installed Options and popup render against a synthetic HTTP tab, detect the reviewed target, expose review-first controls, and start no cleanup, permission request, private operation, or downloaded-file deletion during smoke inspection"
+    "ART-01",
+    "SMOKE-01",
+    "UPG-01",
+    "REV-01",
+    "PERM-01",
+    "WEBNAV-01",
+    "HANDOFF-01",
+    "SW036-01",
+    "DIRECT-01",
+    "SCOPE-01",
+    "IPV6-01",
+    "PART-01",
+    "PRIV-01",
+    "SETTINGS-01",
+    "DATA-01",
+    "FILE-01",
+    "LIFE-01",
+    "FAIL-01",
+    "REPEAT-01",
+    "A11Y-01",
+    "VIS-01",
+    "PERF-01",
+    "NETWORK-01",
+    "TEARDOWN-01"
   ],
   "deferredBinaryPublicationMatrix": [
     "fresh install and upgrade migration",
@@ -90,6 +118,7 @@
   ],
   "limitations": [
     "Node tests and static checks do not establish installed Chrome behavior.",
+    "Canonical per-assertion installed-browser semantic validators are not implemented, so the mechanical 48-cell aggregate is required to remain not_run.",
     "Chrome evidence cannot be reused as Brave evidence.",
     "No browser version or extension artifact hash is approved until the matrix is actually run.",
     "Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion.",

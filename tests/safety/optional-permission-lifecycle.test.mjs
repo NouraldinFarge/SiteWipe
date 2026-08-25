@@ -4,67 +4,39 @@ import { readFile } from 'node:fs/promises';
 
 import {
   observeOptionalPermission,
-  reconcileNewOptionalPermissionGrant,
-  requestOptionalPermissionWithProvenance
+  removeOptionalPermission,
+  requestOptionalPermission
 } from '../../src/options/permission-lifecycle.js';
 
-test('optional permission request is the first browser API call in the user-gesture path', async () => {
+test('optional permission request is the first asynchronous browser API call in its dedicated action', async () => {
   const granted = new Set();
   const calls = [];
-  const permissions = createPermissionsAdapter(granted, calls);
+  const result = await requestOptionalPermission('webNavigation', createPermissionsAdapter(granted, calls));
 
-  const result = await requestOptionalPermissionWithProvenance('webNavigation', {
-    observedBeforeGesture: false,
-    permissionsApi: permissions
-  });
-
-  assert.deepEqual(result, {
-    permission: 'webNavigation',
-    granted: true,
-    observedBeforeGesture: false,
-    grantProvenance: 'unknown'
-  });
+  assert.deepEqual(result, { permission: 'webNavigation', granted: true });
   assert.deepEqual(calls, ['request']);
+  assert.equal(granted.has('webNavigation'), true);
 });
 
-test('request helper source never awaits contains before the native permission prompt', async () => {
+test('request source never inspects state, infers ownership, subscribes to events, or removes access', async () => {
   const source = await readFile(new URL('../../src/options/permission-lifecycle.js', import.meta.url), 'utf8');
-  const requestStart = source.indexOf('export async function requestOptionalPermissionWithProvenance');
-  const reconcileStart = source.indexOf('export async function reconcileNewOptionalPermissionGrant', requestStart);
-  const requestBody = source.slice(requestStart, reconcileStart);
+  const requestStart = source.indexOf('export async function requestOptionalPermission');
+  const removeStart = source.indexOf('export async function removeOptionalPermission', requestStart);
+  const requestEnd = source.indexOf('\n}\n', requestStart) + 2;
+  const requestBody = source.slice(requestStart, requestEnd);
 
-  assert.ok(requestStart >= 0 && reconcileStart > requestStart);
+  assert.ok(requestStart >= 0 && requestEnd > requestStart && removeStart > requestEnd);
   assert.match(requestBody, /await permissionsApi\.request\(request\)/);
-  assert.doesNotMatch(requestBody, /permissionsApi\.contains\(request\)/);
+  assert.doesNotMatch(requestBody, /permissionsApi\.(?:contains|remove)\(request\)/);
+  assert.doesNotMatch(requestBody, /onAdded|addListener|removeListener|newly_granted|provenance|ownership/i);
 });
 
-test('a preloaded positive observation preserves known pre-existing access without another inspection', async () => {
-  const granted = new Set(['webNavigation']);
-  const calls = [];
-  const permissions = createPermissionsAdapter(granted, calls);
-
-  const result = await requestOptionalPermissionWithProvenance('webNavigation', {
-    observedBeforeGesture: true,
-    permissionsApi: permissions
-  });
-
-  assert.equal(result.grantProvenance, 'preexisting_observed');
-  assert.deepEqual(calls, ['request']);
-
-  const reconciliation = await reconcileNewOptionalPermissionGrant(
-    {
-      ...result,
-      authoritativeStateKnown: true,
-      authoritativeFeatureEnabled: false
-    },
-    permissions
-  );
-  assert.equal(reconciliation.reason, 'preexisting_observed');
-  assert.equal(reconciliation.preserved, true);
-  assert.deepEqual(calls, ['request']);
+test('only a literal-true browser request result is treated as granted', async () => {
+  const result = await requestOptionalPermission('webNavigation', { request: async () => 1 });
+  assert.deepEqual(result, { permission: 'webNavigation', granted: false });
 });
 
-test('permission observation happens outside request and returns null when inspection is unavailable', async () => {
+test('permission observation is separate and returns null when inspection is unavailable', async () => {
   const granted = new Set(['webNavigation']);
   const calls = [];
   assert.equal(await observeOptionalPermission('webNavigation', createPermissionsAdapter(granted, calls)), true);
@@ -72,110 +44,22 @@ test('permission observation happens outside request and returns null when inspe
   assert.equal(await observeOptionalPermission('webNavigation', {}), null);
 });
 
-test('an ambiguous successful request is preserved when authoritative settings are off', async () => {
-  for (const observedBeforeGesture of [false, null]) {
-    const granted = new Set(['webNavigation']);
-    const calls = [];
-    const result = await reconcileNewOptionalPermissionGrant(
-      {
-        permission: 'webNavigation',
-        granted: true,
-        grantProvenance: 'unknown',
-        observedBeforeGesture,
-        authoritativeStateKnown: true,
-        authoritativeFeatureEnabled: false
-      },
-      createPermissionsAdapter(granted, calls)
-    );
-    assert.equal(result.reason, 'grant_provenance_unknown');
-    assert.equal(result.preserved, true);
-    assert.equal(granted.has('webNavigation'), true);
-    assert.deepEqual(calls, []);
-  }
-});
-
-test('authoritative enablement preserves an optional grant after a response race', async () => {
+test('explicit removal calls remove directly without an ownership or presence inference', async () => {
   const granted = new Set(['webNavigation']);
   const calls = [];
-  const result = await reconcileNewOptionalPermissionGrant(
-    {
-      permission: 'webNavigation',
-      granted: true,
-      grantProvenance: 'unknown',
-      authoritativeStateKnown: true,
-      authoritativeFeatureEnabled: true
-    },
-    createPermissionsAdapter(granted, calls)
-  );
+  const result = await removeOptionalPermission('webNavigation', createPermissionsAdapter(granted, calls));
 
-  assert.equal(result.preserved, true);
-  assert.equal(result.reason, 'authoritative_feature_enabled');
-  assert.equal(granted.has('webNavigation'), true);
-  assert.deepEqual(calls, []);
-});
-
-test('only independently proven new access can be rolled back after authoritative disablement', async () => {
-  const granted = new Set(['webNavigation']);
-  const calls = [];
-  const result = await reconcileNewOptionalPermissionGrant(
-    {
-      permission: 'webNavigation',
-      granted: true,
-      grantProvenance: 'newly_granted',
-      authoritativeStateKnown: true,
-      authoritativeFeatureEnabled: false
-    },
-    createPermissionsAdapter(granted, calls)
-  );
-
-  assert.equal(result.released, true);
-  assert.equal(result.reason, 'absence_proved');
+  assert.deepEqual(result, { permission: 'webNavigation', removed: true });
+  assert.deepEqual(calls, ['remove']);
   assert.equal(granted.has('webNavigation'), false);
-  assert.deepEqual(calls, ['contains', 'remove', 'contains']);
 });
 
-test('unknown authoritative state preserves even independently proven new access', async () => {
-  const granted = new Set(['webNavigation']);
-  const calls = [];
-  const result = await reconcileNewOptionalPermissionGrant(
-    {
-      permission: 'webNavigation',
-      granted: true,
-      grantProvenance: 'newly_granted',
-      authoritativeStateKnown: false,
-      authoritativeFeatureEnabled: false
-    },
-    createPermissionsAdapter(granted, calls)
-  );
-
-  assert.equal(result.reason, 'authoritative_state_unknown');
-  assert.equal(result.preserved, true);
-  assert.equal(granted.has('webNavigation'), true);
-  assert.deepEqual(calls, []);
+test('only a literal-true browser removal result is treated as removed', async () => {
+  const result = await removeOptionalPermission('webNavigation', { remove: async () => 1 });
+  assert.deepEqual(result, { permission: 'webNavigation', removed: false });
 });
 
-test('failed revocation remains explicitly uncertain instead of claiming release', async () => {
-  const granted = new Set(['webNavigation']);
-  const calls = [];
-  const permissions = createPermissionsAdapter(granted, calls, { retainOnRemove: true });
-  const result = await reconcileNewOptionalPermissionGrant(
-    {
-      permission: 'webNavigation',
-      granted: true,
-      grantProvenance: 'newly_granted',
-      authoritativeStateKnown: true,
-      authoritativeFeatureEnabled: false
-    },
-    permissions
-  );
-
-  assert.equal(result.released, false);
-  assert.equal(result.preserved, true);
-  assert.equal(result.reason, 'release_not_confirmed');
-  assert.equal(granted.has('webNavigation'), true);
-});
-
-function createPermissionsAdapter(granted, calls, { retainOnRemove = false, requestResult = true } = {}) {
+function createPermissionsAdapter(granted, calls, { requestResult = true, removeResult = true } = {}) {
   return {
     async contains({ permissions }) {
       calls.push('contains');
@@ -189,9 +73,8 @@ function createPermissionsAdapter(granted, calls, { retainOnRemove = false, requ
     },
     async remove({ permissions }) {
       calls.push('remove');
-      if (!retainOnRemove) {
-        for (const permission of permissions) granted.delete(permission);
-      }
+      if (!removeResult) return false;
+      for (const permission of permissions) granted.delete(permission);
       return true;
     }
   };

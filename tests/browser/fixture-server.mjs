@@ -1,12 +1,27 @@
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { optionsFixtureDefaultsScript } from './options-fixture-defaults.mjs';
+
 const directory = dirname(fileURLToPath(import.meta.url));
 const fixtureDirectory = resolve(directory, 'fixtures');
 const sourceDirectory = resolve(directory, '..', '..', 'src');
 const fixtureVersion = 'sitewipe-synthetic-v1';
+export const SYNTHETIC_FIXTURE_HOSTS = Object.freeze([
+  '127.0.0.1',
+  '::1',
+  'alice.blogspot.com',
+  'bob.blogspot.com',
+  'chips.localhost',
+  'localhost',
+  'selected.example.com',
+  'selected.example.com.evil.invalid',
+  'sub.selected.example.com'
+]);
+const loopbackUiHosts = new Set(['127.0.0.1', '::1', 'localhost']);
 const assets = new Map([
   ['/', { file: 'fixture.html', type: 'text/html; charset=utf-8' }],
   ['/partition-probe', { file: 'fixture.html', type: 'text/html; charset=utf-8' }],
@@ -139,14 +154,54 @@ const popupAssets = new Map([
   ]
 ]);
 
-export async function startFixtureServer({ host = '127.0.0.1', port = 0 } = {}) {
+const dataRoutes = new Set([
+  ...assets.keys(),
+  '/health',
+  '/seed-cookies',
+  '/clear-cookies',
+  '/fixture-download.txt',
+  '/fixture-worker-payload.txt'
+]);
+const uiRoutes = new Set([
+  ...popupAssets.keys(),
+  '/popup/popup.html',
+  '/options/options.html',
+  '/handoff/handoff.html',
+  '/sidepanel/sidepanel.html',
+  '/options-browser-defaults.js'
+]);
+export const FIXTURE_ALLOWED_METHODS = Object.freeze(['GET']);
+export const FIXTURE_ALLOWED_ROUTES = Object.freeze([...new Set([...dataRoutes, ...uiRoutes])].sort());
+
+export async function startFixtureServer({
+  host = '127.0.0.1',
+  port = 0,
+  allowedHosts = SYNTHETIC_FIXTURE_HOSTS,
+  runToken = randomBytes(32).toString('hex')
+} = {}) {
+  const bindHost = validatedBindHost(host);
+  const exactAllowedHosts = validatedAllowedHosts(allowedHosts);
+  const exactRunToken = validatedRunToken(runToken);
   const requestCounts = new Map();
+  const requestLedger = [];
+  let boundPort = null;
   const server = createServer(async (request, response) => {
     try {
-      const url = new URL(request.url || '/', `http://${request.headers.host || 'fixture.invalid'}`);
-      const requestHost = normalizedHost(request.headers.host);
-      requestCounts.set(requestHost, (requestCounts.get(requestHost) || 0) + 1);
       applySecurityHeaders(response);
+      const authorization = authorizeFixtureRequest({
+        request,
+        boundPort,
+        allowedHosts: exactAllowedHosts,
+        runToken: exactRunToken
+      });
+      requestLedger.push(authorization.evidence);
+      if (!authorization.ok) {
+        if (authorization.allow) response.setHeader('Allow', authorization.allow);
+        sendJson(response, authorization.status, { ok: false, error: authorization.error });
+        return;
+      }
+      const { url, requestHost } = authorization;
+      requestCounts.set(requestHost, (requestCounts.get(requestHost) || 0) + 1);
 
       if (url.pathname === '/health') {
         sendJson(response, 200, {
@@ -209,9 +264,16 @@ export async function startFixtureServer({ host = '127.0.0.1', port = 0 } = {}) 
         response.end(
           optionsPage.replace(
             '<script type="module" src="options.js"></script>',
-            '<script src="/options-browser-mock.js"></script>\n    <script type="module" src="options.js"></script>'
+            '<script src="/options-browser-defaults.js"></script>\n    <script src="/options-browser-mock.js"></script>\n    <script type="module" src="options.js"></script>'
           )
         );
+        return;
+      }
+
+      if (url.pathname === '/options-browser-defaults.js') {
+        response.statusCode = 200;
+        response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
+        response.end(optionsFixtureDefaultsScript());
         return;
       }
 
@@ -258,38 +320,60 @@ export async function startFixtureServer({ host = '127.0.0.1', port = 0 } = {}) 
       response.setHeader('Content-Type', asset.type);
       response.end(await readFile(resolve(fixtureDirectory, asset.file)));
     } catch (error) {
+      requestLedger.push({
+        method: String(request.method || ''),
+        host: null,
+        pathname: null,
+        authorized: false,
+        status: 500,
+        reason: 'handler_error'
+      });
       sendJson(response, 500, { ok: false, error: error?.message || String(error) });
     }
   });
 
   await new Promise((resolveListen, rejectListen) => {
     server.once('error', rejectListen);
-    server.listen(port, host, () => {
+    server.listen(port, bindHost, () => {
       server.off('error', rejectListen);
       resolveListen();
     });
   });
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Synthetic fixture server did not expose a TCP port.');
+  boundPort = address.port;
   return {
     server,
-    host,
+    host: bindHost,
     port: address.port,
     fixtureVersion,
-    url: `http://${host}:${address.port}`,
+    runToken: exactRunToken,
+    runTokenSha256: sha256(exactRunToken),
+    url: `http://${formatHostForUrl(bindHost)}:${address.port}`,
+    policy: Object.freeze({
+      allowedHosts: Object.freeze([...exactAllowedHosts]),
+      allowedMethods: FIXTURE_ALLOWED_METHODS,
+      allowedRoutes: FIXTURE_ALLOWED_ROUTES
+    }),
+    requestLedger: () => requestLedger.map((entry) => ({ ...entry })),
     close: () =>
       new Promise((resolveClose, rejectClose) => server.close((error) => (error ? rejectClose(error) : resolveClose())))
   };
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  const fixture = await startFixtureServer({ port: Number(process.env.SITEWIPE_FIXTURE_PORT) || 43819 });
+  const fixture = await startFixtureServer({
+    port: Number(process.env.SITEWIPE_FIXTURE_PORT) || 43819,
+    runToken: process.env.SITEWIPE_FIXTURE_TOKEN || undefined
+  });
   console.log(
     JSON.stringify(
       {
         status: 'ready',
         fixtureVersion: fixture.fixtureVersion,
         loopbackUrl: fixture.url,
+        fixtureRunToken: fixture.runToken,
+        fixtureRunTokenSha256: fixture.runTokenSha256,
         note: 'Use only with a disposable browser profile and the documented synthetic host-resolver rules.'
       },
       null,
@@ -320,14 +404,119 @@ function sendJson(response, status, value) {
   response.end(JSON.stringify(value));
 }
 
-function normalizedHost(value) {
-  return String(value || 'fixture.invalid')
-    .replace(/:\d+$/, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9.:[\]-]/g, '')
-    .slice(0, 253);
-}
-
 function normalizedScale(value) {
   return ['small', 'medium', 'large'].includes(value) ? value : 'small';
+}
+
+function authorizeFixtureRequest({ request, boundPort, allowedHosts, runToken }) {
+  const method = String(request.method || '').toUpperCase();
+  let host = null;
+  let pathname = null;
+  const reject = (status, reason, error, allow = null) => ({
+    ok: false,
+    status,
+    error,
+    allow,
+    evidence: { method, host, pathname, authorized: false, status, reason }
+  });
+  if (!Number.isInteger(boundPort)) {
+    return reject(503, 'fixture_not_ready', 'Synthetic fixture is not ready.');
+  }
+  try {
+    host = parseExactFixtureHostHeader(request.headers.host, boundPort);
+  } catch {
+    return reject(400, 'invalid_host_header', 'Synthetic fixture Host header is invalid.');
+  }
+  if (!allowedHosts.includes(host)) {
+    return reject(421, 'host_not_allowed', 'Synthetic fixture Host is not allowlisted.');
+  }
+  const requestTarget = String(request.url || '');
+  if (!requestTarget.startsWith('/') || requestTarget.startsWith('//')) {
+    return reject(400, 'invalid_request_target', 'Synthetic fixture requires an origin-form request target.');
+  }
+  let url;
+  try {
+    url = new URL(requestTarget, `http://${formatHostForUrl(host)}:${boundPort}`);
+    pathname = url.pathname;
+  } catch {
+    return reject(400, 'invalid_request_target', 'Synthetic fixture request target is invalid.');
+  }
+  if (!FIXTURE_ALLOWED_ROUTES.includes(pathname)) {
+    return reject(404, 'route_not_allowed', 'Synthetic fixture route is not allowlisted.');
+  }
+  if (!FIXTURE_ALLOWED_METHODS.includes(method)) {
+    return reject(405, 'method_not_allowed', 'Synthetic fixture method is not allowlisted.', 'GET');
+  }
+  if (uiRoutes.has(pathname) && !loopbackUiHosts.has(host)) {
+    return reject(421, 'ui_host_not_allowed', 'Synthetic UI routes require an exact loopback Host.');
+  }
+  if (pathname === '/partition-probe/frame' && host !== 'chips.localhost') {
+    return reject(421, 'partition_frame_host_not_allowed', 'Partition frame route requires chips.localhost.');
+  }
+  if (['/seed-cookies', '/clear-cookies'].includes(pathname)) {
+    const supplied = request.headers['x-sitewipe-fixture-token'];
+    if (!sameToken(supplied, runToken)) {
+      return reject(403, 'fixture_token_rejected', 'Synthetic fixture mutation token is missing or incorrect.');
+    }
+  }
+  return {
+    ok: true,
+    url,
+    requestHost: host,
+    evidence: { method, host, pathname, authorized: true, status: 200, reason: 'allowlisted' }
+  };
+}
+
+export function parseExactFixtureHostHeader(value, expectedPort) {
+  const input = String(value || '');
+  if (!input || /[\s,/@\\]/.test(input)) throw new Error('Invalid Host header.');
+  const parsed = new URL(`http://${input}/`);
+  if (parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) {
+    throw new Error('Invalid Host header authority.');
+  }
+  if (parsed.port !== String(expectedPort)) throw new Error('Host header port differs from the fixture listener.');
+  const hostname = parsed.hostname.toLowerCase();
+  if (hostname.startsWith('[') && hostname.endsWith(']')) return hostname.slice(1, -1);
+  return hostname.endsWith('.') ? hostname.slice(0, -1) : hostname;
+}
+
+function validatedBindHost(value) {
+  const host = String(value || '').toLowerCase();
+  if (!['127.0.0.1', '::1'].includes(host)) {
+    throw new Error('Synthetic fixture listener must bind an exact IPv4 or IPv6 loopback address.');
+  }
+  return host;
+}
+
+function validatedAllowedHosts(values) {
+  if (!Array.isArray(values) || !values.length) throw new Error('Synthetic fixture requires an exact Host allowlist.');
+  const normalized = values.map((value) => String(value || '').toLowerCase());
+  if (
+    new Set(normalized).size !== normalized.length ||
+    normalized.some((host) => !SYNTHETIC_FIXTURE_HOSTS.includes(host))
+  ) {
+    throw new Error('Synthetic fixture Host allowlist contains a duplicate or noncanonical host.');
+  }
+  return Object.freeze([...normalized]);
+}
+
+function validatedRunToken(value) {
+  const token = String(value || '');
+  if (!/^[A-Fa-f0-9]{64}$/.test(token)) {
+    throw new Error('Synthetic fixture run token must contain exactly 32 random bytes encoded as hexadecimal.');
+  }
+  return token.toLowerCase();
+}
+
+function sameToken(left, right) {
+  if (typeof left !== 'string' || left.length !== right.length) return false;
+  return timingSafeEqual(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
+}
+
+function formatHostForUrl(host) {
+  return host.includes(':') ? `[${host}]` : host;
+}
+
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex').toUpperCase();
 }

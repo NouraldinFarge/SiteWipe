@@ -44,47 +44,11 @@
       "No historical screenshot, demo, or reviewer approval is rebound to the current artifact."
     ]
   },
-  "review": {
-    "reviewedAt": "2026-08-23T22:42:36.6618979Z",
-    "status": "approved_exact_artifact_media_only",
-    "scope": "Exact SiteWipe 1.11.67 runtime artifact installed in a disposable normal Chrome profile using only synthetic example.com fixture data and redacted report content. Approval is limited to these retained media bytes and does not authorize publication, merge, release, store submission, promotion, or any broader browser-compatibility claim.",
-    "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6",
-    "captureGeometry": {
-      "left": 1281,
-      "top": 0,
-      "width": 1279,
-      "height": 720,
-      "windowState": "normal",
-      "preserved": true
-    },
-    "privacyReview": {
-      "status": "passed",
-      "syntheticDataOnly": true,
-      "redactedReportContent": true,
-      "personalDataObserved": false,
-      "extensionIdentifiersObserved": false,
-      "localPathsObserved": false,
-      "downloadedFilePathsObserved": false
-    },
-    "demoReview": {
-      "status": "passed",
-      "decodedFrameCount": 975,
-      "sequentialContactSheetCount": 5,
-      "allFramesRepresentedSequentially": true,
-      "fullResolutionRepresentativeFramesReviewed": true,
-      "ocrUsed": false,
-      "limitation": "The frame review used five sequential contact sheets plus full-resolution representative frames; no automated OCR or OCR-completeness claim is made."
-    },
-    "limitations": [
-      "The popup screenshot preserves the authentic natural 380x600 installed popup unscaled and centers it on neutral 1280x800 padding.",
-      "The silent demo preserves the fixed 1281,0,1279x720 window geometry and adds one neutral right-edge pixel solely to produce an even 1280-pixel H.264 frame.",
-      "This approval does not rebind historical 1.11.63 media and does not approve publication or Brave compatibility."
-    ]
-  },
+  "review": null,
   "reviewerApproval": false,
   "artifact": {
-    "version": "1.11.77",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.77.zip",
+    "version": "1.11.78",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.78.zip",
     "sha256": null
   }
 }

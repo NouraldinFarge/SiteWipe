@@ -14,9 +14,51 @@ import {
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const testParser = new Linter({ configType: 'flat' });
 
-test('publication contract accepts the exact owner-amended source-candidate design', async () => {
+test('publication contract accepts the exact current owner-amended source-candidate design', async () => {
   const fixture = await currentFixture();
   assert.deepEqual(findDirectCleanupPublicationContractFindings(fixture), []);
+});
+
+test('split permission-removal routing still detects poison and regrant safety mutations', async (t) => {
+  const baseline = await currentFixture();
+  baseline.decision.reviewedVersion = baseline.version;
+  const cases = [
+    ['external removal poison deleted', removeOnRemovedPoisonBeforeQueue],
+    ['external-only return moved before self-removal reconciliation', moveExternalOnlyReturnBeforeSelfReconciliation],
+    [
+      'self-removal reconciliation bypasses serialized state mutation',
+      (source) =>
+        source.replace(
+          'void serializeCleanupReviewStateMutation(() => reconcileObservedSelfPermissionRemoval(selfRemovedOrigins)).catch(',
+          'void reconcileObservedSelfPermissionRemoval(selfRemovedOrigins).catch('
+        )
+    ],
+    [
+      'self-removal reconciliation guard disabled',
+      (source) => source.replace('  if (selfRemovedOrigins.length) {', '  if (false && selfRemovedOrigins.length) {')
+    ],
+    [
+      'observed removal regrant barrier deleted',
+      (source) => source.replace('      reservation.regrantedOrigins.add(origin);', '      void reservation;')
+    ]
+  ];
+  for (const [name, mutate] of cases) {
+    await t.test(name, () => {
+      const fixture = {
+        ...baseline,
+        sources: { ...baseline.sources },
+        decision: structuredClone(baseline.decision)
+      };
+      const before = fixture.sources['src/background/service-worker.js'];
+      fixture.sources['src/background/service-worker.js'] = mutate(before);
+      assert.notEqual(fixture.sources['src/background/service-worker.js'], before);
+      assert.ok(
+        findDirectCleanupPublicationContractFindings(fixture).some((finding) =>
+          finding.includes('intersecting onRemoved must serially revoke proof')
+        )
+      );
+    });
+  }
 });
 
 test('publication contract rejects an incomplete or stale one-versus-two activation owner amendment', async (t) => {
@@ -1241,11 +1283,7 @@ test('publication contract catches semantic direct-cleanup safety mutations', as
     {
       name: 'onAdded may reuse a grant after an observed owned-origin removal',
       path: 'src/background/service-worker.js',
-      mutate: (source) =>
-        source.replace(
-          '      if (reservation.observedOrigins.has(origin)) reservation.regrantedOrigins.add(origin);',
-          '      void reservation;'
-        ),
+      mutate: (source) => source.replace('      reservation.regrantedOrigins.add(origin);', '      void reservation;'),
       finding: 'intersecting onRemoved must serially revoke proof'
     },
     {
@@ -1814,12 +1852,37 @@ function removeOnRemovedPoisonBeforeQueue(source) {
   );
   const queueCall = findNode(
     listener.body,
-    (node) => node.type === 'CallExpression' && memberPath(node.callee) === 'serializeCleanupReviewStateMutation'
+    (node) =>
+      node.type === 'CallExpression' &&
+      node.start > poisonStatement?.end &&
+      memberPath(node.callee) === 'serializeCleanupReviewStateMutation'
   );
   assert.ok(poisonStatement, 'permissions.onRemoved poison fixture statement must exist');
   assert.ok(queueCall, 'permissions.onRemoved serialized invalidation fixture must exist');
   assert.ok(poisonStatement.end <= queueCall.start, 'permissions.onRemoved poison must precede its queue fixture');
   return replaceRanges(source, [[poisonStatement.start, poisonStatement.end, '']]);
+}
+
+function moveExternalOnlyReturnBeforeSelfReconciliation(source) {
+  const listener = findChromePermissionListener(source, 'onRemoved');
+  const statements = listener.body.body;
+  const selfReconciliation = statements.find((statement) =>
+    source.slice(statement.start, statement.end).startsWith('if (selfRemovedOrigins.length)')
+  );
+  const externalOnlyReturn = statements.find((statement) =>
+    source.slice(statement.start, statement.end).startsWith('if (!externalRemovedOrigins.length) return')
+  );
+  assert.ok(selfReconciliation, 'self-removal reconciliation guard fixture must exist');
+  assert.ok(externalOnlyReturn, 'external-only early return fixture must exist');
+  assert.ok(
+    selfReconciliation.start < externalOnlyReturn.start,
+    'self-removal reconciliation must initially precede the external-only return'
+  );
+  const returnText = source.slice(externalOnlyReturn.start, externalOnlyReturn.end);
+  return replaceRanges(source, [
+    [externalOnlyReturn.start, externalOnlyReturn.end, ''],
+    [selfReconciliation.start, selfReconciliation.start, `${returnText}\n  `]
+  ]);
 }
 
 function findChromePermissionListener(source, eventName) {

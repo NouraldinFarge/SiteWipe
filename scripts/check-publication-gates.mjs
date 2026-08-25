@@ -4,8 +4,14 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyReleaseCandidate } from './release-artifact-verification.mjs';
 import { RUNTIME_FILES } from './release-files.mjs';
+import {
+  computeCommittedBrowserHarnessManifestSha256,
+  listCommittedBrowserEvidenceDeltaPaths
+} from './browser-validation-policy.mjs';
+import { collectCommittedSourceArchiveEntries } from './source-archive.mjs';
 import { resolveCurrentValidationEvidence } from './validation-evidence.mjs';
-import { runtimeArtifactBase } from './versioning.mjs';
+import { isMutableReleaseRecord, runtimeArtifactBase } from './versioning.mjs';
+import { assertTrustedGitRepository, runTrustedGit } from './trusted-git.mjs';
 import {
   DIRECT_CLEANUP_CONTRACT_FILES,
   findDirectCleanupPublicationContractFindings
@@ -18,6 +24,7 @@ import {
   findPerformanceEvidenceFindings,
   findRemotePublicationFindings
 } from './publication-evidence-contract.mjs';
+import { findRemotePublicationCaptureFindings } from './remote-publication-evidence.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const blockers = [];
@@ -152,7 +159,16 @@ for (const [name, evidence] of [
   }
 }
 requireExactArtifactEvidence('Browser evidence', browser?.artifact, runtimeArtifactSha256);
-blockers.push(...findBrowserEvidenceFindings({ browser, runtimeArtifactSha256 }));
+const browserFinalSource = await captureBrowserFinalSource(root, browser?.installedEvidence?.identity?.sourceCommitSha);
+blockers.push(
+  ...findBrowserEvidenceFindings({
+    browser,
+    runtimeArtifactSha256,
+    runtimeFingerprintSha256: versionState?.runtimeFingerprintSha256,
+    releaseInputFingerprintSha256: versionState?.releaseInputFingerprintSha256,
+    finalSource: browserFinalSource
+  })
+);
 const performance = await optionalJson('docs/evidence/performance-results.json');
 if (
   performance?.status !== 'passed' ||
@@ -236,14 +252,6 @@ blockers.push(...(await findMediaEvidenceFindings({ media, root, runtimeArtifact
 const remote = await optionalJson('docs/decisions/remote-publication.json');
 if (!remote?.ownerApproved || !remote?.repositoryUrl)
   blockers.push('The intended remote and public-source authorization are not recorded.');
-if (!remote?.branchProtectionVerified) blockers.push('Required remote branch checks and protection are not verified.');
-if (!remote?.requiredChecksVerified) blockers.push('The required remote CI and CodeQL checks are not verified.');
-if (!remote?.privateVulnerabilityReportingVerified)
-  blockers.push('GitHub private vulnerability reporting is not verified.');
-if (!remote?.hostedPrivacyPolicyUrl) blockers.push('A stable hosted privacy-policy URL is not recorded.');
-if (!remote?.releaseEnvironmentVerified || remote?.releaseEnvironmentName !== 'unreleased-candidate') {
-  blockers.push('The protected unreleased-candidate remote environment is not verified.');
-}
 if (!remote?.finalPublicationApproval)
   blockers.push(
     'The owner has not given final approval for merge, tag, GitHub Release, browser-store submission, or professional-profile promotion.'
@@ -255,6 +263,11 @@ blockers.push(
     privacyBytes
   })
 );
+// Tracked decision booleans are authorization/history fields, never technical
+// proof. A tracked or self-authored digest cannot authenticate live GitHub
+// state. The collector/raw-response replayer is intentionally not implemented
+// yet, so the exact-head remote capture remains an explicit publication block.
+blockers.push(...findRemotePublicationCaptureFindings({ capture: null }));
 const directCleanupDecision = await optionalJson('docs/decisions/direct-cleanup-owner-decision.json');
 const directCleanupSources = Object.fromEntries(
   await Promise.all(DIRECT_CLEANUP_CONTRACT_FILES.map(async (path) => [path, await optionalText(path)]))
@@ -298,6 +311,80 @@ async function optionalBytes(relative) {
 async function optionalText(relative) {
   try {
     return await readFile(resolve(root, relative), 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+async function captureBrowserFinalSource(repositoryRoot, testedCommitSha) {
+  if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(String(testedCommitSha || ''))) return null;
+  try {
+    assertTrustedGitRepository(repositoryRoot);
+    const commitSha = runTrustedGit({
+      root: repositoryRoot,
+      args: ['rev-parse', '--verify', 'HEAD^{commit}'],
+      encoding: 'utf8'
+    })
+      .trim()
+      .toLowerCase();
+    const treeSha = runTrustedGit({
+      root: repositoryRoot,
+      args: ['rev-parse', '--verify', 'HEAD^{tree}'],
+      encoding: 'utf8'
+    })
+      .trim()
+      .toLowerCase();
+    const testedTreeSha = runTrustedGit({
+      root: repositoryRoot,
+      args: ['rev-parse', '--verify', `${testedCommitSha}^{tree}`],
+      encoding: 'utf8'
+    })
+      .trim()
+      .toLowerCase();
+    let testedCommitIsAncestor = true;
+    try {
+      runTrustedGit({
+        root: repositoryRoot,
+        args: ['merge-base', '--is-ancestor', testedCommitSha, commitSha],
+        encoding: 'utf8'
+      });
+    } catch {
+      testedCommitIsAncestor = false;
+    }
+    const changedPaths = listCommittedBrowserEvidenceDeltaPaths(repositoryRoot, testedCommitSha, commitSha);
+    const committed = await collectCommittedSourceArchiveEntries(repositoryRoot, { ref: testedCommitSha });
+    if (committed.commit !== testedCommitSha) throw new Error('Tested source commit changed during publication.');
+    const byPath = new Map(committed.entries.map((entry) => [entry.path, entry.bytes]));
+    const runtimeHash = createHash('sha256');
+    for (const path of RUNTIME_FILES) {
+      const bytes = byPath.get(`src/${path}`);
+      if (!bytes) throw new Error(`Tested runtime source is missing: ${path}`);
+      runtimeHash.update(path, 'utf8');
+      runtimeHash.update('\0', 'utf8');
+      runtimeHash.update(bytes);
+      runtimeHash.update('\0', 'utf8');
+    }
+    const releaseInputHash = createHash('sha256');
+    for (const entry of committed.entries) {
+      if (isMutableReleaseRecord(entry.path)) continue;
+      releaseInputHash.update(entry.path, 'utf8');
+      releaseInputHash.update('\0', 'utf8');
+      releaseInputHash.update(entry.bytes);
+      releaseInputHash.update('\0', 'utf8');
+    }
+    const packageLockBytes = byPath.get('package-lock.json');
+    if (!packageLockBytes) throw new Error('Tested package-lock.json is missing.');
+    return Object.freeze({
+      commitSha,
+      treeSha,
+      testedCommitIsAncestor,
+      testedTreeSha,
+      testedHarnessManifestSha256: computeCommittedBrowserHarnessManifestSha256(repositoryRoot, testedCommitSha),
+      testedPackageLockSha256: sha256(packageLockBytes),
+      testedRuntimeFingerprintSha256: runtimeHash.digest('hex').toUpperCase(),
+      testedReleaseInputFingerprintSha256: releaseInputHash.digest('hex').toUpperCase(),
+      changedPaths: Object.freeze(changedPaths)
+    });
   } catch {
     return null;
   }

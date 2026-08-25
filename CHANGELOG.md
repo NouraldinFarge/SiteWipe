@@ -6,6 +6,26 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.78 — public-source prerelease work — 2026-08-24
+
+### Fail-closed settings and scope repair
+
+- Separate optional `webNavigation` access from settings saves: an explicit **Grant optional access** action opens the browser prompt, leaves embedded-frame discovery off, and requires a later setting enable. A rejected save never requests or revokes access. An explicit **Remove access** action first persists the feature off, while ordinary saves preserve access whenever the feature was already off; no permission-event ownership is inferred.
+- Validate merged Expert associated-domain groups with the same structural capacity planner used by cleanup preflight, including live private-access cost, normalized duplicates, exact local origins, and Unicode/punycode scope.
+- Construct cookie-removal URLs with valid bracketed IPv6 authorities while preserving domain, IPv4, path, store, secure, and partition-key behavior.
+
+### Responsive and truthful UI
+
+- Let the action popup shrink to the real viewport with one internal scroll owner, coherent long-text wrapping, and no character-by-character stacking while retaining the preferred 380×600 surface.
+- Lock every settings control during an active job and state the request shield's effective profile-spanning, normal-only-suppressed, disabled, or unavailable behavior without promising protection that is not active.
+
+### Release, evidence, and browser-harness integrity
+
+- Build runtime and source archives from one clean exact Git commit, bind runtime bytes to committed blobs, keep builds side-effect-free, reject PATH-shadowed Git, verify two consecutive builds byte for byte, and validate a concrete reproducible development SBOM.
+- Define and hash an immutable 24-case Chrome/Brave matrix, derive fixture defaults from production, constrain synthetic fixture hosts/routes/methods with per-run capabilities, and retain only mechanically derived `passed`, `failed`, `limited`, or `not_run` results.
+- Carry the unchanged default-off Direct Cleanup owner decision forward to 1.11.78 only after the semantic contract accepts the actual version-matched decision and continues to reject permission-removal poison and stale-regrant mutations.
+- Record the owner's 2026-08-24 authorization for GitHub and public-release actions as permission to execute only when the corresponding exact-artifact, reviewer, remote-policy, and publication gates genuinely pass. The authorization does not convert pending, limited, failed, or unreviewed evidence into approval and does not itself establish a supported binary.
+
 ## 1.11.77 — public-source prerelease work — 2026-08-24
 
 ### Bounded cleanup and truthful outcomes

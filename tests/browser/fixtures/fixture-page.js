@@ -10,6 +10,7 @@ const VERSION = 'sitewipe-synthetic-v1';
 const SCALE_COUNTS = Object.freeze({ small: 8, medium: 64, large: 256 });
 const params = new URLSearchParams(location.search);
 const scale = Object.hasOwn(SCALE_COUNTS, params.get('scale')) ? params.get('scale') : 'small';
+const runToken = params.get('runToken') || '';
 const count = SCALE_COUNTS[scale];
 const prefix = `${VERSION}:${location.hostname}:${location.port || 'default'}`;
 const result = document.querySelector('#result');
@@ -46,7 +47,8 @@ if (partitionMode && location.hostname !== 'chips.localhost') {
   document.querySelector('#partitionFrame').src = partitionFrameUrl({
     mode: partitionMode,
     port: location.port,
-    scale
+    scale,
+    runToken
   });
 }
 const startupAction = fixtureStartupAction({ pathname: location.pathname, autoseed: params.get('autoseed') });
@@ -83,7 +85,7 @@ async function seedFixture() {
   await seedServiceWorker();
   await seedOpfs();
   await seedStorageBucket();
-  await fetch('/seed-cookies', { credentials: 'include' });
+  await fetch('/seed-cookies', { credentials: 'include', headers: fixtureMutationHeaders() });
   return snapshotFixture();
 }
 
@@ -142,7 +144,7 @@ async function resetFixture() {
       if (name.startsWith('sitewipe-fixture-')) await navigator.storageBuckets.delete(name);
     }
   }
-  await fetch('/clear-cookies', { credentials: 'include' });
+  await fetch('/clear-cookies', { credentials: 'include', headers: fixtureMutationHeaders() });
   return snapshotFixture();
 }
 
@@ -229,6 +231,13 @@ function matchingStorageKeys(storage) {
 
 function databaseName() {
   return `${prefix}:indexeddb`;
+}
+
+function fixtureMutationHeaders() {
+  if (!/^[A-Fa-f0-9]{64}$/.test(runToken)) {
+    throw new Error('This synthetic fixture page has no valid per-run mutation token.');
+  }
+  return { 'X-SiteWipe-Fixture-Token': runToken };
 }
 
 function requestResult(request, upgrade) {

@@ -1858,6 +1858,17 @@ function validateDurablePermissionOwnershipProvenance(preflightSource, leaseSour
       reconcileLease.includes("if(!['reviewed_prompt_grant','admitted_cleanup'].includes(lease.ownershipProof))")) &&
     reconcileLease.indexOf('permissionsPreserved:true') < reconcileLease.indexOf('awaitreleaseHostPermissions(')
   );
+  const externalRemovalInvalidationIndex = onRemovedRoute.indexOf(
+    'invalidateRemovedCleanupPermissionOwnership({origins:externalRemovedOrigins})'
+  );
+  const externalRemovalSerializationIndex = onRemovedRoute.lastIndexOf(
+    'serializeCleanupReviewStateMutation',
+    externalRemovalInvalidationIndex
+  );
+  const serializedSelfRemovalReconciliation =
+    'serializeCleanupReviewStateMutation(()=>reconcileObservedSelfPermissionRemoval(selfRemovedOrigins))';
+  const selfRemovalReconciliationIndex = onRemovedRoute.indexOf(serializedSelfRemovalReconciliation);
+  const externalOnlyEarlyReturnIndex = onRemovedRoute.indexOf('if(!externalRemovedOrigins.length)return');
   const removalInvalidatesAuthority = Boolean(
     /const\s+cleanupPermissionRemovalPoisonOrigins\s*=\s*new\s+Set\(\)\s*;/.test(workerSource) &&
     /const\s+cleanupPermissionSelfRemovalReservations\s*=\s*new\s+Set\(\)\s*;/.test(workerSource) &&
@@ -1866,14 +1877,23 @@ function validateDurablePermissionOwnershipProvenance(preflightSource, leaseSour
     /const\s+MISSING_OWNED_ACCESS_TOMBSTONE_REASON\s*=\s*['"]owned_exact_access_missing_on_recovery['"]\s*;/.test(
       workerSource
     ) &&
-    onRemovedRoute.includes('constexternalRemovedOrigins=observePermissionRemovalEvent(removedPermissions)') &&
+    onRemovedRoute.includes(
+      'const{externalRemovedOrigins,selfRemovedOrigins}=observePermissionRemovalEvent(removedPermissions)'
+    ) &&
+    onRemovedRoute.includes('if(selfRemovedOrigins.length)') &&
+    onRemovedRoute.includes(serializedSelfRemovalReconciliation) &&
     onRemovedRoute.includes('if(!externalRemovedOrigins.length)return') &&
+    selfRemovalReconciliationIndex >= 0 &&
+    externalOnlyEarlyReturnIndex >= 0 &&
+    selfRemovalReconciliationIndex < externalOnlyEarlyReturnIndex &&
     onRemovedRoute.includes('reserveExternalCleanupPermissionInvalidation(externalRemovedOrigins)') &&
     onRemovedRoute.indexOf('reserveExternalCleanupPermissionInvalidation(externalRemovedOrigins)') <
-      onRemovedRoute.indexOf('serializeCleanupReviewStateMutation') &&
+      externalRemovalSerializationIndex &&
     onRemovedRoute.includes('rememberRemovedCleanupPermissionOrigins({origins:externalRemovedOrigins})') &&
     onRemovedRoute.indexOf('rememberRemovedCleanupPermissionOrigins({origins:externalRemovedOrigins})') <
-      onRemovedRoute.indexOf('serializeCleanupReviewStateMutation') &&
+      externalRemovalSerializationIndex &&
+    externalRemovalSerializationIndex >= 0 &&
+    externalRemovalSerializationIndex < externalRemovalInvalidationIndex &&
     onRemovedRoute.includes('invalidateRemovedCleanupPermissionOwnership({origins:externalRemovedOrigins})') &&
     onAddedRoute.includes('reservation.regrantedOrigins.add(origin)') &&
     onAddedRoute.includes('cleanupPermissionRemovalPoisonOrigins.has(origin)') &&

@@ -93,10 +93,9 @@ test('Options provides concise save, cleanup-mode, review-mode, and active-job s
   assert.match(script, /function renderSettingsSummary\(settings\)/);
   assert.match(script, /Review: skipped by setting/);
   assert.match(script, /setSettingsState\('Saving…', 'working'\)/);
-  assert.match(
-    script,
-    /setSettingsState\(framePermissionDenied \|\| permissionWarning \? 'Saved · check access' : 'Saved'/
-  );
+  assert.match(script, /setSettingsState\('Saved · enable needs access', 'success'\)/);
+  assert.match(script, /setSettingsState\('Saved', 'success'\)/);
+  assert.doesNotMatch(script, /framePermissionDenied|permissionWarning/);
   assert.match(script, /job\.detail/);
   assert.match(script, /formatDateTime\(job\.updatedAt\)/);
 });

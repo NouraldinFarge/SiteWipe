@@ -2,7 +2,7 @@
 
 > **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-`SiteWipe` is the owner-approved custom product identity for a local-first Chrome/Brave Manifest V3 extension that coordinates guarded, target-scoped cleanup across browser APIs. The exact name is already used by unrelated browser extensions, so this selection is not represented as unique or legally cleared. It is not a promise to erase every trace. The first-party source is MIT-licensed and intended for public review, while the current candidate version `1.11.77` remains an unreleased prerelease with no supported binary or browser-store listing.
+`SiteWipe` is the owner-approved custom product identity for a local-first Chrome/Brave Manifest V3 extension that coordinates guarded, target-scoped cleanup across browser APIs. The exact name is already used by unrelated browser extensions, so this selection is not represented as unique or legally cleared. It is not a promise to erase every trace. The first-party source is MIT-licensed and intended for public review, while the current candidate version `1.11.78` remains an unreleased prerelease with no supported binary or browser-store listing.
 
 The interesting engineering problem is destructive scope control: a cleanup request must remain inside an authorized registrable site or exact local origin while Chrome exposes cookies, tabs, origin storage, history, downloads, scripting, and network rules through different APIs and lifecycle semantics. Chrome/Brave browser-level storage deletion is keyed differently from cookies and live-page cleanup: a registrable-site origin list also selects third-party page storage partitioned beneath that top-level site, while a schemeful-site partition key does not preserve an exact-origin port boundary.
 
@@ -85,8 +85,7 @@ Requirements: Node.js 24 or later and npm 11 or later.
 npm ci --ignore-scripts
 npm run check
 npm run test:coverage
-npm run build:release-candidate
-npm run verify:release-candidate
+npm run verify:reproducible-release-candidate
 ```
 
 `npm run check:publication-gates` is expected to fail until every human, browser, remote-repository, media, and provenance decision has evidence. A passing unit suite is not publication approval.

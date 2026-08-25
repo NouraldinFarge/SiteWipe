@@ -17,9 +17,16 @@ import {
   resetAccessibilityEvidence,
   resetAutomatedValidationEvidence,
   resetDependencyLicenseInventoryEvidence,
+  resetMediaEvidence,
+  resetPerformanceEvidence,
   resetProvenanceTechnicalEvidence
 } from './evidence-reset.mjs';
 import { transactionalWriteFiles } from './transactional-files.mjs';
+import {
+  BROWSER_MATRIX_VERSION,
+  CANONICAL_BROWSER_MATRIX_IDS,
+  CANONICAL_BROWSER_MATRIX_SHA256
+} from './browser-validation-policy.mjs';
 import {
   planValidationEvidenceVersionTransition,
   stageValidationEvidenceVersionTransition
@@ -95,12 +102,17 @@ browser.status = 'pending';
 browser.attemptedAt = null;
 delete browser.attemptedAtApproximate;
 browser.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sha256: null };
+browser.matrixVersion = BROWSER_MATRIX_VERSION;
+browser.matrixSha256 = CANONICAL_BROWSER_MATRIX_SHA256;
+browser.requiredMatrix = [...CANONICAL_BROWSER_MATRIX_IDS];
 browser.chrome = emptyBrowserEvidence();
 browser.brave = emptyBrowserEvidence();
 browser.syntheticInAppBrowser = emptySyntheticInAppBrowserEvidence();
 browser.automationAttempt = null;
+browser.installedEvidence = emptyInstalledBrowserEvidence();
 browser.limitations = [
   'Node tests and static checks do not establish installed Chrome behavior.',
+  'Canonical per-assertion installed-browser semantic validators are not implemented, so the mechanical 48-cell aggregate is required to remain not_run.',
   'Chrome evidence cannot be reused as Brave evidence.',
   'No browser version or extension artifact hash is approved until the matrix is actually run.',
   'Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion.',
@@ -109,13 +121,10 @@ browser.limitations = [
 browser.reviewerApproval = false;
 queueJson('docs/evidence/browser-validation.json', browser);
 
-const performance = await json('docs/evidence/performance-results.json');
-performance.status = 'pending';
-performance.measuredAt = null;
-performance.environment = {};
-performance.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sha256: null };
-performance.fixtures = [];
-performance.reviewerApproval = false;
+const performance = resetPerformanceEvidence(await json('docs/evidence/performance-results.json'), {
+  version: nextVersion,
+  artifactBase
+});
 queueJson('docs/evidence/performance-results.json', performance);
 
 const accessibility = resetAccessibilityEvidence(await json('docs/evidence/accessibility-results.json'), {
@@ -124,21 +133,10 @@ const accessibility = resetAccessibilityEvidence(await json('docs/evidence/acces
 });
 queueJson('docs/evidence/accessibility-results.json', accessibility);
 
-const media = await json('docs/evidence/media-inventory.json');
-media.status = 'pending';
-media.authenticScreenshotCount = 0;
-media.demoDurationSeconds = 0;
-media.screenshots = [];
-media.demo = null;
-media.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sha256: null };
-media.storeAssets = {
-  ...media.storeAssets,
-  screenshots1280x800: [],
-  promotionalTile440x280: null,
-  marquee1400x560: null,
-  githubSocialPreview: null
-};
-media.reviewerApproval = false;
+const media = resetMediaEvidence(await json('docs/evidence/media-inventory.json'), {
+  version: nextVersion,
+  artifactBase
+});
 queueJson('docs/evidence/media-inventory.json', media);
 
 const validationEvidenceTransition = await planValidationEvidenceVersionTransition(projectRoot, {
@@ -288,5 +286,12 @@ function emptySyntheticInAppBrowserEvidence() {
       'Does not exercise native host-permission prompts, incognito spanning, MV3 worker lifecycle, or privileged browser-data mutation APIs.',
       'Cannot satisfy Chrome, Brave, installed accessibility, exact-artifact performance, compatibility, or store-media approval fields.'
     ]
+  };
+}
+
+function emptyInstalledBrowserEvidence() {
+  return {
+    schema: 'sitewipe.private-installed-browser-run-commitment.v1',
+    status: 'not_run'
   };
 }

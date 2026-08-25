@@ -7,6 +7,7 @@ import {
   assertDirectDevelopmentDependencyTuplesMatchEvidence,
   assertDependencyInventoryMatchesLockfile
 } from './dependency-license-contract.mjs';
+import { assertDevelopmentSbomEvidenceMatches, inspectDevelopmentSbom } from './development-sbom.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packageBytes = await readFile(resolve(root, 'package.json'));
@@ -41,7 +42,7 @@ requireValue(
   `non-development package entries found: ${nonDevelopmentPackages.map(([path]) => path).join(', ')}`
 );
 
-validateCandidateAuditState();
+await validateCandidateAuditState();
 
 const licenseCounts = {};
 const missingLicenseDeclarations = [];
@@ -101,8 +102,14 @@ function requireValue(condition, message) {
   if (!condition) failures.push(message);
 }
 
-function validateCandidateAuditState() {
+async function validateCandidateAuditState() {
   requireValue(evidence.candidateVersion === pkg.version, 'dependency evidence candidate version is stale');
+  requireValue(
+    evidence.developmentSbom?.path === 'validation-output/sitewipe-development-sbom.cdx.json',
+    'development SBOM path is stale'
+  );
+  requireValue(evidence.developmentSbom?.bomFormat === 'CycloneDX', 'development SBOM format is stale');
+  requireValue(evidence.developmentSbom?.specVersion === '1.6', 'development SBOM spec version is stale');
   if (evidence.status === 'pending_current_candidate_audit') {
     requireValue(evidence.inventoriedAt === null, 'pending dependency inventory must not retain an inventory date');
     requireValue(evidence.lastAuditAt === null, 'pending dependency inventory must not retain an audit date');
@@ -149,6 +156,17 @@ function validateCandidateAuditState() {
   requireValue(Number.isInteger(sbom.bytes) && sbom.bytes > 0, 'development SBOM byte count is invalid');
   requireValue(/^[A-F0-9]{64}$/.test(sbom.sha256 || ''), 'development SBOM SHA-256 is missing or malformed');
   requireValue(isIsoTimestamp(sbom.generatedAt), 'development SBOM generation timestamp is missing or malformed');
+  try {
+    const inspection = await inspectDevelopmentSbom({
+      root,
+      path: sbom.path,
+      expectedName: pkg.name,
+      expectedVersion: pkg.version
+    });
+    assertDevelopmentSbomEvidenceMatches(sbom, inspection);
+  } catch (error) {
+    failures.push(error?.message || String(error));
+  }
 }
 
 function isCalendarDate(value) {

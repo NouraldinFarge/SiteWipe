@@ -68,13 +68,19 @@ test('Options explains alarms and mirrors running-cleanup safeguards accessibly'
     assert.match(script, new RegExp(`'${id}'`));
   }
   assert.match(script, /cleanupJobRunning = job\?\.status === 'running'/);
+  assert.match(script, /const SETTINGS_CONTROL_IDS = Object\.freeze\(\[[\s\S]*?'embeddedFrameDiscovery'/);
+  assert.match(
+    script,
+    /for \(const id of SETTINGS_CONTROL_IDS\) \{[\s\S]*?control\.disabled = stateLocked \|\| cleanupJobRunning/
+  );
   assert.match(script, /control\.setAttribute\('aria-disabled', String\(control\.disabled\)\)/);
   assert.match(script, /document\.querySelector\('#activeJobText'\)\.focus\(\)/);
-  assert.match(script, /manual maintenance are disabled until this cleanup stops/);
+  assert.match(script, /All settings,[\s\S]*?manual maintenance are disabled until this cleanup stops/);
 });
 
-test('Options makes embedded-frame discovery a fresh Expert-only permission choice', async () => {
-  const [script, permissionLifecycle] = await Promise.all([
+test('Options separates optional access from the Expert-only embedded-frame setting', async () => {
+  const [html, script, permissionLifecycle] = await Promise.all([
+    source('options/options.html'),
     source('options/options.js'),
     source('options/permission-lifecycle.js')
   ]);
@@ -82,26 +88,56 @@ test('Options makes embedded-frame discovery a fresh Expert-only permission choi
   assert.match(script, /setValue\('overlayScope', 'target_tabs'\)/);
   assert.match(script, /'overlayScope',\s*'resetMutedTabs'/);
   assert.match(script, /if \(!isExpertCleanupMode\(settings\.cleanupMode\)\)/);
-  assert.match(script, /settings\.embeddedFrameDiscovery && currentSettings\?\.embeddedFrameDiscovery !== true/);
-  assert.match(script, /requestOptionalPermissionWithProvenance\('webNavigation', \{/);
-  assert.match(script, /observedBeforeGesture: webNavigationPermissionObservation/);
-  assert.match(script, /observeOptionalPermission\('webNavigation'\)/);
-  assert.match(script, /reconcileNewOptionalPermissionGrant\(\{/);
-  assert.doesNotMatch(script, /chrome\.permissions\.remove\(/);
-  const requestStart = permissionLifecycle.indexOf('export async function requestOptionalPermissionWithProvenance');
-  const reconcileStart = permissionLifecycle.indexOf(
-    'export async function reconcileNewOptionalPermissionGrant',
-    requestStart
+  assert.match(html, /id="webNavigationAccessStatus" role="status" aria-live="polite"/);
+  assert.match(html, /id="grantWebNavigationAccess"[\s\S]*?Grant optional access/);
+  assert.match(html, /id="removeWebNavigationAccess"[\s\S]*?Remove access/);
+  const saveStart = script.indexOf('async function saveFromForm');
+  const saveEnd = script.indexOf('function renderActiveShield', saveStart);
+  const grantStart = script.indexOf('async function grantWebNavigationAccess');
+  const requestStart = script.indexOf("requestOptionalPermission('webNavigation')", grantStart);
+  const grantLiveJobGuard = script.indexOf('if (cleanupJobRunning)', grantStart);
+  const removeActionStart = script.indexOf('async function removeWebNavigationAccess');
+  const removeSaveStart = script.indexOf('sendMessage(MESSAGE_TYPES.saveSettings', removeActionStart);
+  const removePermissionStart = script.indexOf("removeOptionalPermission('webNavigation')", removeActionStart);
+  assert.ok(
+    saveStart >= 0 &&
+      saveEnd > saveStart &&
+      grantStart >= 0 &&
+      requestStart > grantLiveJobGuard &&
+      grantLiveJobGuard > grantStart &&
+      removeSaveStart > removeActionStart &&
+      removePermissionStart > removeSaveStart
   );
-  const requestBody = permissionLifecycle.slice(requestStart, reconcileStart);
-  assert.ok(requestStart >= 0 && reconcileStart > requestStart);
+  assert.doesNotMatch(script.slice(saveStart, saveEnd), /requestOptionalPermission|permissions\.request/);
+  assert.match(script.slice(grantLiveJobGuard, requestStart), /No browser permission was requested/);
+  assert.match(script, /observeOptionalPermission\('webNavigation'\)/);
+  assert.match(script, /removeOptionalPermission\('webNavigation'\)/);
+  assert.match(script, /embedded-frame discovery is still off; enable its setting separately/i);
+  assert.doesNotMatch(script, /reconcileOptionalPermissionGrant|grantProvenance|newly_granted/);
+  assert.doesNotMatch(script, /chrome\.permissions\.remove\(/);
+  const lifecycleRequestStart = permissionLifecycle.indexOf('export async function requestOptionalPermission');
+  const lifecycleRemoveStart = permissionLifecycle.indexOf('export async function removeOptionalPermission');
+  const requestBody = permissionLifecycle.slice(lifecycleRequestStart, lifecycleRemoveStart);
+  assert.ok(lifecycleRequestStart >= 0 && lifecycleRemoveStart > lifecycleRequestStart);
   assert.match(requestBody, /await permissionsApi\.request\(request\)/);
   assert.doesNotMatch(requestBody, /permissionsApi\.contains\(request\)/);
   assert.match(permissionLifecycle, /permissionsApi\.contains\(request\)/);
-  assert.match(permissionLifecycle, /grantProvenance/);
-  assert.match(permissionLifecycle, /grant_provenance_unknown/);
-  assert.match(permissionLifecycle, /authoritativeFeatureEnabled/);
-  assert.match(permissionLifecycle, /permissionsApi\.remove\(request\)/);
+  assert.match(permissionLifecycle, /await permissionsApi\.remove\(request\)/);
+  assert.doesNotMatch(permissionLifecycle, /onAdded|addListener|removeListener|newly_granted|grantProvenance/);
+});
+
+test('Options states the request shield effective scope instead of promising a normal-only block', async () => {
+  const [html, script] = await Promise.all([source('options/options.html'), source('options/options.js')]);
+
+  assert.match(
+    html,
+    /id="temporaryDnrShieldHelp"[^>]+role="status"[^>]+aria-live="polite"[\s\S]*?availability is being checked/
+  );
+  assert.match(script, /function renderRequestShieldEffectiveState\(\)/);
+  assert.match(script, /Configured on, but normal-only cleanup skips the shield/);
+  assert.match(script, /browser session rules cannot be limited to normal windows/);
+  assert.match(script, /reviewed scope includes normal and private windows/);
+  assert.match(script, /Normal-only cleanup skips these shared rules so private traffic is never affected/);
 });
 
 test('Options operational refreshes preserve unsaved settings-panel drafts', async () => {
@@ -223,18 +259,21 @@ test('popup exposes required and invalid states for destructive approval control
   );
 });
 
-test('action popup preserves a definite width while a direct tab reflows long review content', async () => {
+test('action popup preserves its preferred size but reflows within narrow viewport bounds', async () => {
   const [css, browserFixture] = await Promise.all([
     source('popup/popup.css'),
     source('../tests/browser/fixtures/popup-browser-mock.js')
   ]);
 
-  assert.match(css, /html,\s*body \{\s*width: 380px;\s*max-width: 380px;/);
-  assert.match(css, /html\.popup-opened-in-tab,\s*html\.popup-opened-in-tab body \{\s*width: min\(380px, 100vw\);/);
-  assert.match(css, /html\.popup-opened-in-tab body \{\s*container: popup-document \/ inline-size;\s*\}/);
   assert.match(
     css,
-    /\.popup-shell \{[\s\S]*?width: 100%;[\s\S]*?max-width: 380px;[\s\S]*?overflow: hidden auto;[\s\S]*?container: popup \/ inline-size;/
+    /html,\s*body \{\s*width: 380px;\s*max-width: 100vw;\s*min-width: 0;\s*height: 600px;\s*min-height: 0;\s*max-height: 100vh;/
+  );
+  assert.match(css, /html\.popup-opened-in-tab,\s*html\.popup-opened-in-tab body \{\s*width: min\(380px, 100vw\);/);
+  assert.match(css, /body \{\s*container: popup-document \/ inline-size;\s*\}/);
+  assert.match(
+    css,
+    /\.popup-shell \{[\s\S]*?width: 100%;[\s\S]*?max-width: 100%;[\s\S]*?overflow: hidden auto;[\s\S]*?container: popup \/ inline-size;/
   );
   assert.match(
     css,
@@ -256,8 +295,9 @@ test('action popup preserves a definite width while a direct tab reflows long re
   assert.match(css, /\.check-row \{\s*grid-template-columns: minmax\(0, 1fr\);/);
   assert.match(
     css,
-    /\.help-text,\s*\.error-text \{\s*min-width: 0;\s*max-width: 100%;\s*overflow-wrap: anywhere;\s*word-break: break-all;/
+    /\.help-text,\s*\.error-text \{\s*min-width: 0;\s*max-width: 100%;\s*overflow-wrap: anywhere;\s*word-break: normal;/
   );
+  assert.doesNotMatch(css, /word-break:\s*break-all/);
   for (const [selector, block] of [
     ['review facts', css.match(/\.review-facts dd \{[^}]+\}/)?.[0]],
     ['review list', css.match(/\.review-list li \{[^}]+\}/)?.[0]],
@@ -432,11 +472,9 @@ test('cleanup review defaults on and the explicit direct-cleanup option is discl
   assert.match(optionsScript, /setChecked\('skipCleanupReview', settings\.skipCleanupReview\)/);
   assert.match(optionsScript, /skipCleanupReview: isChecked\('skipCleanupReview'\)/);
   assert.match(optionsScript, /function confirmSkipCleanupReview\(\)/);
-  assert.match(optionsScript, /'skipCleanupReview',[\s\S]*?'importSettings'/);
-  assert.match(
-    optionsScript,
-    /for \(const id of \[\s*'skipCleanupReview',\s*'importSettings',[\s\S]*?control\.disabled = stateLocked \|\| cleanupJobRunning/
-  );
+  assert.match(optionsScript, /const SETTINGS_CONTROL_IDS = Object\.freeze\(\[[\s\S]*?'skipCleanupReview'/);
+  assert.match(optionsScript, /const JOB_GUARDED_CONTROL_IDS = Object\.freeze\(\[\s*\.\.\.SETTINGS_CONTROL_IDS,/);
+  assert.match(optionsScript, /for \(const id of SETTINGS_CONTROL_IDS\) \{[\s\S]*?cleanupJobRunning/);
   assert.match(optionsScript, /if \(cleanupJobRunning\) \{[\s\S]*?Settings cannot be imported while a cleanup job/);
   assert.match(optionsScript, /cleanup-review preference cannot change while a cleanup job is running/i);
   assert.match(popupHtml, /Required before cleanup/);

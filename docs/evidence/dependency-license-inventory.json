@@ -3,21 +3,21 @@
   "status": "pending_current_candidate_audit",
   "inventoriedAt": null,
   "lastAuditAt": null,
-  "lockfileSha256": "C776BF46A9067A538EF6F9158930CA518C6864BB0B26A1BF5C8EFCA06C716F11",
+  "lockfileSha256": "A2A6E1C52D4EFF8339D95878A5C93A80004218D8BE9C3B453DAC34697CD8B32D",
   "runtimeDependencyCount": 0,
-  "lockedDevelopmentGraphCount": 406,
+  "lockedDevelopmentGraphCount": 416,
   "licenseCounts": {
     "(BSD-2-Clause OR MIT OR Apache-2.0)": 1,
     "(MIT OR WTFPL)": 1,
-    "Apache-2.0": 41,
+    "Apache-2.0": 45,
     "BSD-2-Clause": 8,
-    "BSD-3-Clause": 9,
+    "BSD-3-Clause": 10,
     "BlueOak-1.0.0": 14,
     "CC-BY-3.0": 1,
     "CC0-1.0": 3,
     "ISC": 53,
     "MISSING": 1,
-    "MIT": 269,
+    "MIT": 274,
     "MIT-0": 3,
     "MPL-2.0": 1,
     "Python-2.0": 1
@@ -72,10 +72,10 @@
   },
   "developmentSbom": {
     "status": "pending",
-    "path": "dist/sitewipe-development-sbom.cdx.json",
+    "path": "validation-output/sitewipe-development-sbom.cdx.json",
     "bomFormat": "CycloneDX",
     "specVersion": "1.6",
-    "componentVersion": "1.11.77",
+    "componentVersion": "1.11.78",
     "components": null,
     "dependencyNodes": null,
     "bytes": null,
@@ -139,6 +139,11 @@
       "license": "MIT"
     },
     {
+      "name": "puppeteer-core",
+      "version": "25.8.0",
+      "license": "Apache-2.0"
+    },
+    {
       "name": "stylelint",
       "version": "17.14.1",
       "license": "MIT"
@@ -165,12 +170,12 @@
     }
   ],
   "controls": [
-    "Every direct dependency is pinned to an exact version in package.json and package-lock.json.",
-    "Installation and CI use npm ci --ignore-scripts.",
-    "scripts/check-dependency-licenses.mjs binds this inventory to the lockfile hash, exact license counts, metadata exceptions, installed license text, and install-script package inventory.",
-    "npm audit reported zero known vulnerabilities at every severity for the exact 1.11.67 lockfile on 2026-08-23.",
-    "The 59-file runtime allowlist contains no npm runtime dependency files.",
-    "The CycloneDX 1.6 development-graph SBOM was regenerated and integrity-bound for 1.11.67."
+    "Pin every direct dependency to the exact version recorded in package.json and package-lock.json.",
+    "Install the locked development graph with lifecycle scripts disabled.",
+    "Bind the reviewed dependency inventory to the current lockfile hash, exact license counts, metadata exceptions, installed license text, and install-script package inventory.",
+    "Run a fresh vulnerability audit for the current lockfile and record its exact result before publication.",
+    "Keep the runtime allowlist free of npm runtime dependency files.",
+    "Regenerate and integrity-bind the CycloneDX development-graph SBOM for the current candidate before publication."
   ],
   "limitations": [
     "Registry/package metadata and license text are evidence inputs, not a legal license conclusion.",
@@ -179,5 +184,5 @@
   ],
   "ownerApproval": true,
   "ownerApprovedAt": "2026-08-17",
-  "candidateVersion": "1.11.77"
+  "candidateVersion": "1.11.78"
 }

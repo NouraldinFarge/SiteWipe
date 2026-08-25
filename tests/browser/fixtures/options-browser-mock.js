@@ -1,4 +1,8 @@
 (() => {
+  const productionDefaults = globalThis.__SITEWIPE_OPTIONS_FIXTURE_DEFAULTS__;
+  if (!productionDefaults || typeof productionDefaults !== 'object') {
+    throw new Error('Synthetic Options fixture did not receive exact production settings defaults.');
+  }
   const fixtureParams = new URLSearchParams(globalThis.location?.search || '');
   let optionsLoadFailuresRemaining = fixtureParams.get('load') === 'fail-once' ? 1 : 0;
   const showFixtureControls = fixtureParams.get('fixtureControls') === '1';
@@ -13,44 +17,7 @@
     permissionCalls: [],
     lastPermissionRequestHadUserActivation: false,
     activeJob: null,
-    settings: {
-      cleanupMode: 'standard',
-      keepHistory: false,
-      reportRetentionDays: 7,
-      latestReportRetentionMinutes: 30,
-      aggressiveCookieSweep: true,
-      includeProtectedWebOrigins: false,
-      pageScriptScrub: true,
-      storageBucketScrub: false,
-      embeddedFrameDiscovery: false,
-      probePartitionedCookiesWithEmbeddingSites: false,
-      exhaustiveCookieStoreScan: false,
-      downloadRecentFallback: false,
-      broadDiscoveryFallback: false,
-      verificationPass: true,
-      temporaryDnrShield: true,
-      progressOverlay: true,
-      progressOverlayCancelButton: true,
-      overlayScope: 'target_tabs',
-      postWipeSessionBlock: false,
-      postWipeShieldExpiresMinutes: 0,
-      autoRepairOrphanedShields: true,
-      resetZoom: true,
-      resetMutedTabs: false,
-      unpinTargetTabs: false,
-      opfsScrub: false,
-      serviceWorkerExtraScrub: false,
-      appBadgeClear: false,
-      permissionAudit: true,
-      redactReports: true,
-      deleteDownloadedFiles: false,
-      allowLocalTargets: false,
-      blockOnAssociatedGroupErrors: true,
-      associatedDomainGroups: '',
-      reducedMotion: false,
-      highContrast: false,
-      debugLog: false
-    }
+    settings: structuredClone(productionDefaults)
   };
 
   const syncEvidence = () => {
@@ -80,7 +47,7 @@
   });
   const maintenanceStatus = () => ({
     alarmsAvailable: true,
-    autoRepairOrphanedShields: true,
+    autoRepairOrphanedShields: state.settings.autoRepairOrphanedShields === true,
     shieldDiagnostics: { orphanRuleIds: [] },
     temporaryHostAccess: { state: 'none', recoveryPending: false },
     alarms: [],
@@ -113,11 +80,12 @@
         });
       case 'sitewipe.saveSettings': {
         const previousMode = state.settings.cleanupMode;
+        const previousFrameDiscovery = state.settings.embeddedFrameDiscovery === true;
         state.settings = { ...state.settings, ...structuredClone(request.payload.settings || {}) };
         if (state.settings.cleanupMode !== 'expert' || previousMode !== 'expert') {
           state.settings.embeddedFrameDiscovery = false;
         }
-        if (!state.settings.embeddedFrameDiscovery && state.namedPermissionGranted) {
+        if (previousFrameDiscovery && !state.settings.embeddedFrameDiscovery && state.namedPermissionGranted) {
           state.namedPermissionGranted = false;
           state.permissionRemovals += 1;
           state.permissionCalls.push('background-remove');

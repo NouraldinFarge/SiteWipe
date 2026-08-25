@@ -172,8 +172,48 @@ export function resetAccessibilityEvidence(accessibility, { version, artifactBas
     installedChecks: Object.fromEntries(
       Object.keys(accessibility?.installedChecks || {}).map((key) => [key, 'pending'])
     ),
+    installedEvidence: null,
     browserVersions: {},
     artifact: { version, runtimeZip: `${artifactBase}.zip`, sha256: null },
+    reviewerApproval: false
+  };
+}
+
+export function resetPerformanceEvidence(performance, { version, artifactBase }) {
+  return {
+    ...performance,
+    status: 'pending',
+    measuredAt: null,
+    environment: {},
+    artifact: { version, runtimeZip: `${artifactBase}.zip`, sha256: null },
+    fixtures: [],
+    limitations: [
+      'No performance observation is inherited across a version transaction or rebound to the current artifact.',
+      'Fresh exact-artifact Chrome and Brave measurements are required before any performance or cleanup-speed claim.',
+      'Required coverage includes repeated small, medium, and large fixtures; Standard and Expert modes; cold-worker starts; private mode where separately authorized; and adverse browser-load conditions.',
+      'Node test duration and prior-version installed observations are not current browser cleanup performance evidence.'
+    ],
+    reviewerApproval: false
+  };
+}
+
+export function resetMediaEvidence(media, { version, artifactBase }) {
+  return {
+    ...media,
+    status: 'pending',
+    authenticScreenshotCount: 0,
+    demoDurationSeconds: 0,
+    screenshots: [],
+    demo: null,
+    review: null,
+    artifact: { version, runtimeZip: `${artifactBase}.zip`, sha256: null },
+    storeAssets: {
+      ...media?.storeAssets,
+      screenshots1280x800: [],
+      promotionalTile440x280: null,
+      marquee1400x560: null,
+      githubSocialPreview: null
+    },
     reviewerApproval: false
   };
 }
@@ -197,7 +237,7 @@ export function resetDependencyLicenseInventoryEvidence(inventory, { version, cu
     },
     developmentSbom: {
       status: 'pending',
-      path: priorSbom.path || 'dist/sitewipe-development-sbom.cdx.json',
+      path: 'validation-output/sitewipe-development-sbom.cdx.json',
       bomFormat: priorSbom.bomFormat || 'CycloneDX',
       specVersion: priorSbom.specVersion || '1.6',
       componentVersion: version,
@@ -206,6 +246,14 @@ export function resetDependencyLicenseInventoryEvidence(inventory, { version, cu
       bytes: null,
       sha256: null,
       generatedAt: null
-    }
+    },
+    controls: [
+      'Pin every direct dependency to the exact version recorded in package.json and package-lock.json.',
+      'Install the locked development graph with lifecycle scripts disabled.',
+      'Bind the reviewed dependency inventory to the current lockfile hash, exact license counts, metadata exceptions, installed license text, and install-script package inventory.',
+      'Run a fresh vulnerability audit for the current lockfile and record its exact result before publication.',
+      'Keep the runtime allowlist free of npm runtime dependency files.',
+      'Regenerate and integrity-bind the CycloneDX development-graph SBOM for the current candidate before publication.'
+    ]
   };
 }

@@ -1,23 +1,57 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
 import {
+  BROWSER_MATRIX_VERSION,
+  CANONICAL_BROWSER_MATRIX_IDS,
+  CANONICAL_BROWSER_MATRIX_SHA256
+} from '../browser/installed/canonical-matrix.mjs';
+
+import {
+  BROWSER_PRIVATE_EVIDENCE_RETAINED_STATUS,
+  BROWSER_PUBLICATION_BINDING_SCHEMA,
+  BROWSER_PUBLICATION_NOT_RUN_STATUS,
+  BROWSER_PUBLIC_SEMANTIC_REPLAY,
   findAccessibilitySourceContractFindings,
   findBrowserEvidenceFindings,
   findDependencyCandidateAuditFindings,
   findMediaEvidenceFindings,
   findPerformanceEvidenceFindings,
-  findRemotePublicationFindings
+  findRemotePublicationFindings,
+  findTrackedBrowserEvidencePrivacyFindings
 } from '../../scripts/publication-evidence-contract.mjs';
 
 const artifactSha256 = 'A'.repeat(64);
 const releaseInputFingerprintSha256 = 'B'.repeat(64);
+const runtimeFingerprintSha256 = 'C'.repeat(64);
+const finalSource = Object.freeze({
+  commitSha: 'c'.repeat(40),
+  treeSha: 'd'.repeat(40),
+  testedCommitIsAncestor: true,
+  testedTreeSha: 'b'.repeat(40),
+  testedHarnessManifestSha256: '8'.repeat(64),
+  testedPackageLockSha256: '5'.repeat(64),
+  testedRuntimeFingerprintSha256: runtimeFingerprintSha256,
+  testedReleaseInputFingerprintSha256: releaseInputFingerprintSha256,
+  changedPaths: ['docs/evidence/browser-validation.json']
+});
 
-test('browser evidence requires every assertion to pass and each browser to cover the exact required matrix', () => {
-  const valid = browserEvidence();
-  assert.deepEqual(findBrowserEvidenceFindings({ browser: valid, runtimeArtifactSha256: artifactSha256 }), []);
+test('browser publication accepts only the exact empty not_run commitment and still blocks', () => {
+  const valid = browserEvidence(emptyInstalledCommitment());
+  assert.deepEqual(browserFindings(valid), [
+    'Installed browser execution is not_run; no private run commitment is retained.'
+  ]);
+
+  const missing = structuredClone(valid);
+  delete missing.installedEvidence;
+  assert.match(browserFindings(missing).join('\n'), /missing the strict private-run public commitment/i);
+
+  const nonempty = structuredClone(valid);
+  nonempty.installedEvidence.executionPlanSha256 = null;
+  assert.match(browserFindings(nonempty).join('\n'), /exact empty shape/i);
 
   for (const [name, mutate, pattern] of [
     [
@@ -51,18 +85,377 @@ test('browser evidence requires every assertion to pass and each browser to cove
     [
       'duplicate required matrix entry',
       (value) => {
-        value.requiredMatrix.push('install');
+        value.requiredMatrix.push('ART-01');
       },
-      /unique non-empty requirements/
+      /immutable canonical 24-ID matrix/
+    ],
+    [
+      'stale matrix version',
+      (value) => {
+        value.matrixVersion = 'sitewipe.installed-browser-matrix.v0';
+      },
+      /matrixVersion is missing or stale/
+    ],
+    [
+      'stale matrix hash',
+      (value) => {
+        value.matrixSha256 = 'D'.repeat(64);
+      },
+      /matrix SHA-256 is missing or stale/
     ]
   ]) {
     const fixture = structuredClone(valid);
     mutate(fixture);
+    assert.match(browserFindings(fixture).join('\n'), pattern, name);
+  }
+});
+
+test('digest-only private-run commitment is structurally valid but can never establish passing public cells', () => {
+  const valid = browserEvidence(privateInstalledCommitment());
+  assert.deepEqual(browserFindings(valid), [
+    'Private installed-browser evidence is retained, but public semantic replay is not implemented; digests and record counts cannot establish passing browser cells.'
+  ]);
+  assert.equal('plan' in valid.installedEvidence, false);
+  assert.equal('aggregate' in valid.installedEvidence, false);
+  assert.equal('resultRecords' in valid.installedEvidence, false);
+  assert.equal('sourceProvenance' in valid.installedEvidence, false);
+});
+
+test('digest-only private-run identity, matrix, completion, and replay mutations block', () => {
+  const valid = browserEvidence(privateInstalledCommitment());
+  for (const [name, mutate, pattern] of [
+    [
+      'run id',
+      (value) => {
+        value.installedEvidence.runId = 'latest';
+      },
+      /canonical run and browser matrix identities/i
+    ],
+    [
+      'matrix ids',
+      (value) => {
+        value.installedEvidence.requiredMatrixIds.pop();
+      },
+      /canonical run and browser matrix identities/i
+    ],
+    [
+      'matrix hash',
+      (value) => {
+        value.installedEvidence.matrixSha256 = 'D'.repeat(64);
+      },
+      /canonical run and browser matrix identities/i
+    ],
+    [
+      'plan digest',
+      (value) => {
+        value.installedEvidence.executionPlanSha256 = null;
+      },
+      /missing an exact plan, aggregate, or result-set digest/i
+    ],
+    [
+      'aggregate digest',
+      (value) => {
+        value.installedEvidence.aggregateSha256 = 'not-a-digest';
+      },
+      /missing an exact plan, aggregate, or result-set digest/i
+    ],
+    [
+      'result-set digest',
+      (value) => {
+        value.installedEvidence.resultSetSha256 = 'd'.repeat(64);
+      },
+      /missing an exact plan, aggregate, or result-set digest/i
+    ],
+    [
+      'record count',
+      (value) => {
+        value.installedEvidence.resultRecordCount = 47;
+      },
+      /canonical record count/i
+    ],
+    [
+      'completion timestamp',
+      (value) => {
+        value.installedEvidence.completedAt = null;
+      },
+      /completion time/i
+    ],
+    [
+      'private retention',
+      (value) => {
+        value.installedEvidence.privateEvidenceRetained = false;
+      },
+      /private-retention proof/i
+    ],
+    [
+      'public replay claim',
+      (value) => {
+        value.installedEvidence.publicSemanticReplay = 'passed';
+      },
+      /non-implemented public replay state/i
+    ],
+    [
+      'artifact hash',
+      (value) => {
+        value.installedEvidence.identity.artifactSha256 = 'D'.repeat(64);
+      },
+      /stale for the current artifact/i
+    ],
+    [
+      'identity extra field',
+      (value) => {
+        value.installedEvidence.identity.artifactBytes = 100;
+      },
+      /exact path-free hash\/version\/commit\/tree shape/i
+    ]
+  ]) {
+    const fixture = structuredClone(valid);
+    mutate(fixture);
+    const result = browserFindings(fixture).join('\n');
+    assert.match(result, pattern, name);
+    assert.match(result, /public semantic replay is not implemented/i, name);
+  }
+
+  assert.match(
+    browserFindings(valid, { ...finalSource, testedTreeSha: 'e'.repeat(40) }).join('\n'),
+    /does not match the authoritative tested commit ancestry, tree, harness, lockfile, stable fingerprints/i
+  );
+
+  for (const [name, changedPaths] of [
+    ['missing computed delta', undefined],
+    ['empty delta', []],
+    ['unrelated mutable evidence', ['docs/evidence/browser-validation.json', 'docs/evidence/performance-results.json']],
+    ['cross-root delete and add', ['docs/evidence/browser-validation.json', 'tests/browser/installed/executor.mjs']]
+  ]) {
     assert.match(
-      findBrowserEvidenceFindings({ browser: fixture, runtimeArtifactSha256: artifactSha256 }).join('\n'),
-      pattern,
+      browserFindings(valid, { ...finalSource, changedPaths }).join('\n'),
+      /exact browser-evidence-only final delta/i,
       name
     );
+  }
+});
+
+test('legacy full bindings and every tracked path, aggregate, record, raw, or base64 field are rejected', () => {
+  const legacyEmpty = browserEvidence({
+    schema: 'sitewipe.installed-browser-publication-binding.v1',
+    status: 'not_run'
+  });
+  assert.match(browserFindings(legacyEmpty).join('\n'), /legacy or unknown public commitment schema/i);
+
+  const legacy = browserEvidence({
+    schema: 'sitewipe.installed-browser-publication-binding.v1',
+    status: 'not_run',
+    plan: null,
+    planSha256: null,
+    aggregate: null,
+    aggregateSha256: null,
+    resultSetSha256: null,
+    sourceProvenance: null
+  });
+  assert.match(browserFindings(legacy).join('\n'), /must not contain plans, aggregates, result records/i);
+
+  for (const [name, key, value] of [
+    ['plan', 'plan', {}],
+    ['aggregate', 'aggregate', {}],
+    ['result records', 'resultRecords', []],
+    ['raw evidence', 'rawEvidence', {}],
+    ['base64', 'contentBase64', 'AA=='],
+    ['artifact path', 'artifactPath', 'C:\\private\\artifact.zip'],
+    ['workspace root', 'workspaceRoot', 'C:\\private\\run']
+  ]) {
+    const fixture = browserEvidence(privateInstalledCommitment());
+    fixture.installedEvidence[key] = value;
+    assert.match(browserFindings(fixture).join('\n'), /must not contain plans, aggregates, result records/i, name);
+  }
+
+  const unknown = browserEvidence(privateInstalledCommitment());
+  unknown.installedEvidence.verified = true;
+  assert.match(browserFindings(unknown).join('\n'), /differs from the exact digest-only public schema/i);
+});
+
+test('the complete tracked browser record is exact-schema and recursively privacy safe', async () => {
+  const current = JSON.parse(await readFile('docs/evidence/browser-validation.json', 'utf8'));
+  assert.deepEqual(findTrackedBrowserEvidencePrivacyFindings(current), []);
+
+  const valid = browserEvidence(emptyInstalledCommitment());
+  assert.deepEqual(findTrackedBrowserEvidencePrivacyFindings(valid), []);
+
+  for (const [name, mutate, pattern] of [
+    [
+      'top-level extra',
+      (value) => {
+        value.privateRun = null;
+      },
+      /exact top-level publication schema/i
+    ],
+    [
+      'Chrome assertion absolute path',
+      (value) => {
+        value.chrome.assertions[0].artifactPath = 'C:\\Users\\private\\artifact.zip';
+      },
+      /chrome\.assertions\.0\.artifactPath/i
+    ],
+    [
+      'Brave assertion raw evidence',
+      (value) => {
+        value.brave.assertions[0].rawEvidence = { result: 'passed' };
+      },
+      /brave\.assertions\.0\.rawEvidence/i
+    ],
+    [
+      'synthetic assertion base64 evidence',
+      (value) => {
+        value.syntheticInAppBrowser.assertions.push({ evidenceBase64: 'AA==' });
+      },
+      /syntheticInAppBrowser\.assertions\.0\.evidenceBase64/i
+    ],
+    [
+      'base64 value hidden in an allowed statement field',
+      (value) => {
+        value.limitations[0] = Buffer.from('C:\\Users\\private\\browser-run.json', 'utf8').toString('base64');
+      },
+      /limitations\.0/i
+    ],
+    [
+      'nested file URI',
+      (value) => {
+        value.installedEvidence.identity = { receipt: 'file:///C:/private/run.json' };
+      },
+      /installedEvidence\.identity\.receipt/i
+    ],
+    [
+      'nested unapproved directory field',
+      (value) => {
+        value.priorCandidateObservation.captureDirectory = 'validation-output/private';
+      },
+      /priorCandidateObservation\.captureDirectory/i
+    ],
+    [
+      'non-null automation attempt',
+      (value) => {
+        value.automationAttempt = { status: 'not_run' };
+      },
+      /automationAttempt must be exactly null/i
+    ]
+  ]) {
+    const fixture = structuredClone(valid);
+    mutate(fixture);
+    assert.match(findTrackedBrowserEvidencePrivacyFindings(fixture).join('\n'), pattern, name);
+  }
+
+  for (const record of [
+    '../private.json',
+    'browser\\sitewipe-1.11.61-chrome-expiry-failure.json',
+    'browser/unreviewed.json',
+    '/tmp/private.json'
+  ]) {
+    const fixture = structuredClone(valid);
+    fixture.priorExactArtifactEvidence.record = record;
+    assert.match(
+      findTrackedBrowserEvidencePrivacyFindings(fixture).join('\n'),
+      /approved normalized repository-relative historical record/i,
+      record
+    );
+  }
+});
+
+test('synthetic in-app Browser assertions use an exact path-free semantic schema', () => {
+  const valid = browserEvidence(emptyInstalledCommitment());
+  valid.syntheticInAppBrowser.status = 'passed';
+  valid.syntheticInAppBrowser.attemptedAt = '2026-08-24T23:00:00.000Z';
+  valid.syntheticInAppBrowser.assertions = [syntheticBrowserAssertion()];
+  assert.deepEqual(findTrackedBrowserEvidencePrivacyFindings(valid), []);
+
+  for (const [name, mutate, pattern] of [
+    [
+      'status laundering',
+      (value) => {
+        value.syntheticInAppBrowser.assertions[0].checks.focus = 'failed';
+      },
+      /status launders or contradicts/i
+    ],
+    [
+      'section status laundering',
+      (value) => {
+        const assertion = value.syntheticInAppBrowser.assertions[0];
+        assertion.status = 'failed';
+        assertion.checks.focus = 'failed';
+      },
+      /section status launders or contradicts/i
+    ],
+    [
+      'unknown overall status',
+      (value) => {
+        value.syntheticInAppBrowser.assertions[0].status = 'pending';
+      },
+      /unknown overall or semantic-check status/i
+    ],
+    [
+      'unknown semantic check',
+      (value) => {
+        value.syntheticInAppBrowser.assertions[0].checks.network = 'passed';
+      },
+      /exact semantic-check schema/i
+    ],
+    [
+      'malformed screenshot hash',
+      (value) => {
+        value.syntheticInAppBrowser.assertions[0].screenshotSha256 = 'not-a-hash';
+      },
+      /screenshot and sanitized-DOM SHA-256 digests/i
+    ],
+    [
+      'malformed viewport dimension',
+      (value) => {
+        value.syntheticInAppBrowser.assertions[0].viewport.width = 0;
+      },
+      /malformed bounded viewport/i
+    ],
+    [
+      'unknown surface',
+      (value) => {
+        value.syntheticInAppBrowser.assertions[0].surface = 'browser';
+      },
+      /unknown extension surface/i
+    ],
+    [
+      'non-boolean mode flag',
+      (value) => {
+        value.syntheticInAppBrowser.assertions[0].modes.forcedColors = 'off';
+      },
+      /malformed exact synthetic mode flags/i
+    ],
+    [
+      'fixture path leakage',
+      (value) => {
+        value.syntheticInAppBrowser.assertions[0].fixture = 'C:\\Users\\private\\fixture.html';
+      },
+      /syntheticInAppBrowser\.assertions\.0\.fixture/i
+    ],
+    [
+      'duplicate assertion id',
+      (value) => {
+        value.syntheticInAppBrowser.assertions.push(structuredClone(value.syntheticInAppBrowser.assertions[0]));
+      },
+      /unique normalized public id/i
+    ]
+  ]) {
+    const fixture = structuredClone(valid);
+    mutate(fixture);
+    assert.match(findTrackedBrowserEvidencePrivacyFindings(fixture).join('\n'), pattern, name);
+  }
+
+  for (const [status, checkStatus] of [
+    ['failed', 'failed'],
+    ['limited', 'limited'],
+    ['not_run', 'not_run']
+  ]) {
+    const fixture = structuredClone(valid);
+    const assertion = fixture.syntheticInAppBrowser.assertions[0];
+    fixture.syntheticInAppBrowser.status = status;
+    assertion.status = status;
+    for (const key of Object.keys(assertion.checks)) assertion.checks[key] = checkStatus;
+    assert.deepEqual(findTrackedBrowserEvidencePrivacyFindings(fixture), [], status);
   }
 });
 
@@ -378,18 +771,160 @@ test('dependency publication evidence cannot reuse a prior audit or SBOM', () =>
   }
 });
 
-function browserEvidence() {
+function browserEvidence(installedEvidence) {
   const assertion = (id) => ({
     id,
     status: 'passed',
     observedAt: '2026-08-21T20:00:00.000Z',
     artifactSha256,
-    matrixCoverage: ['install', 'cleanup']
+    matrixCoverage: [...CANONICAL_BROWSER_MATRIX_IDS]
   });
   return {
-    requiredMatrix: ['install', 'cleanup'],
-    chrome: { assertions: [assertion('chrome-matrix')] },
-    brave: { assertions: [assertion('brave-matrix')] }
+    schemaVersion: 1,
+    status: 'complete',
+    attemptedAt: '2026-08-21T20:00:00.000Z',
+    artifact: {
+      version: '1.11.77',
+      runtimeZip: 'sitewipe-unreleased-candidate-1.11.77.zip',
+      sha256: artifactSha256
+    },
+    priorExactArtifactEvidence: {
+      version: '1.11.62',
+      record: 'browser/sitewipe-1.11.62-chrome-target-partition-scope-failure.json',
+      historicalPathNote: 'An exact historical failure record retained for audit context.',
+      status: 'historical_failed_not_current',
+      runtimeZipSha256: '1'.repeat(64)
+    },
+    olderExactArtifactEvidence: {
+      version: '1.11.61',
+      record: 'browser/sitewipe-1.11.61-chrome-expiry-failure.json',
+      historicalPathNote: 'An older exact historical failure record retained for audit context.',
+      status: 'historical_failed_not_current',
+      runtimeZipSha256: '2'.repeat(64)
+    },
+    earlierExactArtifactEvidence: {
+      version: '1.11.57',
+      record: 'browser-validation-2026-08-22-v1.11.57.json',
+      status: 'historical_failed_not_current'
+    },
+    priorCandidateObservation: {
+      version: '1.11.56',
+      artifactSha256: '3'.repeat(64),
+      status: 'historical_prior_candidate_not_current',
+      claimsReboundToCurrentArtifact: false,
+      note: 'Earlier observations are not current-artifact evidence.'
+    },
+    matrixVersion: BROWSER_MATRIX_VERSION,
+    matrixSha256: CANONICAL_BROWSER_MATRIX_SHA256,
+    requiredMatrix: [...CANONICAL_BROWSER_MATRIX_IDS],
+    chrome: {
+      status: 'passed',
+      version: '151.0.0.0',
+      operatingSystem: 'Windows',
+      disposableProfile: true,
+      assertions: [assertion('chrome-matrix')]
+    },
+    brave: {
+      status: 'passed',
+      version: '1.0.0.0',
+      operatingSystem: 'Windows',
+      disposableProfile: true,
+      assertions: [assertion('brave-matrix')]
+    },
+    syntheticInAppBrowser: {
+      status: 'pending',
+      attemptedAt: null,
+      environment: 'ChatGPT in-app Browser',
+      fixture: 'HTTP-served UI with synthetic APIs',
+      assertions: [],
+      qualifiesAsInstalledExtensionEvidence: false,
+      limitations: ['Does not establish installed-extension behavior.']
+    },
+    automationAttempt: null,
+    installedEvidence: structuredClone(installedEvidence),
+    deferredBinaryPublicationMatrix: ['Installed-browser execution remains required.'],
+    limitations: ['Public evidence is path-free.'],
+    reviewerApproval: false
+  };
+}
+
+function browserFindings(browser, finalSourceOverride = finalSource) {
+  return findBrowserEvidenceFindings({
+    browser,
+    runtimeArtifactSha256: artifactSha256,
+    runtimeFingerprintSha256,
+    releaseInputFingerprintSha256,
+    finalSource: finalSourceOverride
+  });
+}
+
+function emptyInstalledCommitment() {
+  return {
+    schema: BROWSER_PUBLICATION_BINDING_SCHEMA,
+    status: BROWSER_PUBLICATION_NOT_RUN_STATUS
+  };
+}
+
+function privateInstalledCommitment() {
+  return {
+    schema: BROWSER_PUBLICATION_BINDING_SCHEMA,
+    status: BROWSER_PRIVATE_EVIDENCE_RETAINED_STATUS,
+    runId: `sitewipe-browser-${'a'.repeat(32)}`,
+    matrixVersion: BROWSER_MATRIX_VERSION,
+    matrixSha256: CANONICAL_BROWSER_MATRIX_SHA256,
+    requiredMatrixIds: [...CANONICAL_BROWSER_MATRIX_IDS],
+    executionPlanSha256: '4'.repeat(64),
+    identity: {
+      sourceCommitSha: 'a'.repeat(40),
+      sourceTreeSha: 'b'.repeat(40),
+      artifactVersion: '1.11.77',
+      artifactSha256,
+      gitExecutableSha256: '9'.repeat(64),
+      harnessManifestSha256: '8'.repeat(64),
+      nativeHelperSha256: '7'.repeat(64),
+      nodeExecutableSha256: '6'.repeat(64),
+      packageLockSha256: '5'.repeat(64),
+      releaseInputFingerprintSha256,
+      runtimeFingerprintSha256
+    },
+    aggregateSha256: '3'.repeat(64),
+    resultSetSha256: '2'.repeat(64),
+    resultRecordCount: CANONICAL_BROWSER_MATRIX_IDS.length * 2,
+    completedAt: '2026-08-24T22:00:00.000Z',
+    privateEvidenceRetained: true,
+    publicSemanticReplay: BROWSER_PUBLIC_SEMANTIC_REPLAY
+  };
+}
+
+function syntheticBrowserAssertion() {
+  return {
+    id: 'popup-standard-compact-default',
+    surface: 'popup',
+    fixture: 'synthetic browser API fixture',
+    state: 'standard compact review',
+    observedAt: '2026-08-24T23:00:00.000Z',
+    viewport: { width: 400, height: 640, zoomPercent: 100 },
+    modes: {
+      cleanupMode: 'standard',
+      colorScheme: 'dark',
+      directCleanup: false,
+      forcedColors: false,
+      privateAccess: false,
+      reducedMotion: false
+    },
+    checks: {
+      accessibleNames: 'passed',
+      focus: 'passed',
+      forcedColors: 'passed',
+      liveRegions: 'passed',
+      overflow: 'passed',
+      reducedMotion: 'passed',
+      scroll: 'passed',
+      wrapping: 'passed'
+    },
+    screenshotSha256: 'D'.repeat(64),
+    domSha256: 'E'.repeat(64),
+    status: 'passed'
   };
 }
 

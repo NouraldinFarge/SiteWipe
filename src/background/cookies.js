@@ -584,6 +584,13 @@ export function cookieHost(cookie) {
     .replace(/\.$/, '');
 }
 
+export function cookieRemovalUrlHost(cookie) {
+  const host = cookieHost(cookie);
+  if (!host) return '';
+  const unwrapped = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+  return unwrapped.includes(':') ? `[${unwrapped}]` : unwrapped;
+}
+
 export function cookieKey(cookie, storeId) {
   return JSON.stringify({
     storeId,
@@ -596,8 +603,9 @@ export function cookieKey(cookie, storeId) {
 
 export async function removeCookie(cookie, storeId, partitionKey, options = {}) {
   const host = cookieHost(cookie);
+  const urlHost = cookieRemovalUrlHost(cookie);
   const stats = { removed: false, attempts: 0, timeouts: 0, failures: 0 };
-  if (!host) return stats;
+  if (!host || !urlHost) return stats;
   const path = normalizeCookiePath(cookie.path);
   const schemes = cookie.secure ? ['https'] : ['http', 'https'];
   const partitionKeys = buildPartitionRemovalKeys(partitionKey || cookie.partitionKey);
@@ -607,7 +615,7 @@ export async function removeCookie(cookie, storeId, partitionKey, options = {}) 
       await throwIfCancellationRequested(options.shouldCancel, 'the next cookie removal variant');
       options.operationBudget?.check('the next cookie removal variant');
       const details = {
-        url: `${scheme}://${host}${path}`,
+        url: `${scheme}://${urlHost}${path}`,
         name: cookie.name,
         storeId
       };

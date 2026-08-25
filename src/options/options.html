@@ -158,7 +158,9 @@
             <div class="setting-row">
               <div>
                 <strong>Block target requests during cleanup</strong>
-                <p>Temporarily stops the target from recreating storage while cleanup is running.</p>
+                <p id="temporaryDnrShieldHelp" role="status" aria-live="polite">
+                  Request-shield availability is being checked against current private-window access.
+                </p>
               </div>
               <label class="switch"><input id="temporaryDnrShield" type="checkbox" disabled /><span></span></label>
             </div>
@@ -320,13 +322,41 @@
                   <div>
                     <strong>Discover embedded target frames</strong>
                     <p>
-                      Checks open-page frames for target data loaded inside iframes. Optional webNavigation access is
-                      requested.
+                      Checks open-page frames for target data loaded inside iframes. Grant optional webNavigation access
+                      below first, then enable this setting in a separate action.
                     </p>
                   </div>
                   <label class="switch"
                     ><input id="embeddedFrameDiscovery" type="checkbox" disabled /><span></span
                   ></label>
+                </div>
+                <div class="setting-row status-row">
+                  <div>
+                    <strong>Optional embedded-frame access</strong>
+                    <p id="webNavigationAccessStatus" role="status" aria-live="polite">
+                      Optional webNavigation access is being checked.
+                    </p>
+                  </div>
+                  <div class="button-row permission-actions">
+                    <button
+                      id="grantWebNavigationAccess"
+                      class="btn secondary"
+                      type="button"
+                      aria-describedby="webNavigationAccessStatus"
+                      disabled
+                    >
+                      Grant optional access
+                    </button>
+                    <button
+                      id="removeWebNavigationAccess"
+                      class="btn secondary"
+                      type="button"
+                      aria-describedby="webNavigationAccessStatus"
+                      disabled
+                    >
+                      Remove access
+                    </button>
+                  </div>
                 </div>
                 <div class="setting-row">
                   <div>
