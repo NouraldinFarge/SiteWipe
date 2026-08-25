@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { isAbsolute } from 'node:path';
 
 import { FIXTURE_ALLOWED_METHODS, FIXTURE_ALLOWED_ROUTES, SYNTHETIC_FIXTURE_HOSTS } from '../fixture-server.mjs';
 
@@ -20,6 +19,7 @@ import {
   NATIVE_PROMPT_SCENARIO_SCHEDULE,
   NATIVE_PROMPT_UIA_SNAPSHOTS
 } from './native-permission-dialog.mjs';
+import { isPortableLocalAbsolutePath } from './path-contract.mjs';
 
 export const BROWSER_PLAN_SCHEMA = 'sitewipe.unattended-browser-plan.v1';
 export const SCENARIO_RESULT_SCHEMA = 'sitewipe.installed-browser-scenario-result.v1';
@@ -329,9 +329,9 @@ function validatePlanInputs(inputs) {
     'Browser plan inputs'
   );
   if (
-    !isAbsolute(String(inputs.repositoryRoot || '')) ||
-    !isAbsolute(String(inputs.workspaceRoot || '')) ||
-    !isAbsolute(String(inputs.artifactPath || ''))
+    !isPortableLocalAbsolutePath(inputs.repositoryRoot) ||
+    !isPortableLocalAbsolutePath(inputs.workspaceRoot) ||
+    !isPortableLocalAbsolutePath(inputs.artifactPath)
   ) {
     throw new Error('Browser plan repository, workspace, and artifact paths must be absolute.');
   }
@@ -340,7 +340,7 @@ function validatePlanInputs(inputs) {
   }
   assertExactKeys(inputs.git, ['path', 'sha256', 'version'], 'Trusted Git identity');
   if (
-    !isAbsolute(String(inputs.git.path || '')) ||
+    !isPortableLocalAbsolutePath(inputs.git.path) ||
     !isSha256(inputs.git.sha256) ||
     !/^git version \d+\.\d+/.test(String(inputs.git.version || ''))
   ) {
@@ -353,7 +353,7 @@ function validatePlanInputs(inputs) {
   for (const pin of inputs.browserPins) {
     assertExactKeys(pin, ['executablePath', 'executableSha256', 'name', 'version'], 'Browser executable pin');
     if (
-      !isAbsolute(String(pin.executablePath || '')) ||
+      !isPortableLocalAbsolutePath(pin.executablePath) ||
       !isSha256(pin.executableSha256) ||
       !isNonEmptyString(pin.version)
     ) {
@@ -394,7 +394,7 @@ function validatePlanInputs(inputs) {
     'Native prompt policy'
   );
   if (
-    !isAbsolute(String(inputs.nativePrompt.helperPath || '')) ||
+    !isPortableLocalAbsolutePath(inputs.nativePrompt.helperPath) ||
     !isSha256(inputs.nativePrompt.helperSha256) ||
     inputs.nativePrompt.policySha256 !== NATIVE_PROMPT_POLICY_SHA256 ||
     !exactArray(inputs.nativePrompt.allowedActions, NATIVE_PROMPT_ALLOWED_ACTIONS) ||

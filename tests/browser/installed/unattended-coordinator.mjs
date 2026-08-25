@@ -15,6 +15,7 @@ import {
   captureCleanCommittedBrowserSourceSnapshot,
   createUnattendedBrowserPlanRecord
 } from './unattended-coordinator-core.mjs';
+import { assertNativeAbsolutePath, isDriveQualifiedWindowsAbsolutePath } from './path-contract.mjs';
 
 const directory = dirname(fileURLToPath(import.meta.url));
 export const INSTALLED_BROWSER_POLICY_PATH = resolve(directory, 'installed-browser-policy.json');
@@ -257,8 +258,7 @@ async function captureBrowserPins(browserPins) {
 }
 
 async function validateWorkspacePlacement(repositoryRoot, workspaceRoot, { allowMissing }) {
-  if (!isAbsolute(String(workspaceRoot || ''))) throw new Error('Browser workspace root must be absolute.');
-  const expected = resolve(workspaceRoot);
+  const expected = resolve(assertNativeAbsolutePath(workspaceRoot, 'Browser workspace root path'));
   const repositoryRelative = relative(repositoryRoot, expected);
   if (!repositoryRelative || (!repositoryRelative.startsWith(`..${sep}`) && repositoryRelative !== '..')) {
     throw new Error('Browser workspace root must remain outside the source repository.');
@@ -275,7 +275,7 @@ async function validateWorkspacePlacement(repositoryRoot, workspaceRoot, { allow
 }
 
 async function ensureOwnedWorkspaceRoot(workspaceRoot) {
-  const expected = resolve(workspaceRoot);
+  const expected = resolve(assertNativeAbsolutePath(workspaceRoot, 'Browser workspace root path'));
   let workspace;
   try {
     workspace = await exactPhysicalDirectory(expected, 'Browser workspace root');
@@ -362,7 +362,7 @@ async function writeExclusiveRegularFile(path, bytes, label) {
 }
 
 async function exactPhysicalDirectory(path, label) {
-  const expected = resolve(path);
+  const expected = resolve(assertNativeAbsolutePath(path, `${label} path`));
   const information = await lstat(expected);
   if (!information.isDirectory() || information.isSymbolicLink()) {
     throw new Error(`${label} must be one physical non-reparse directory.`);
@@ -378,7 +378,7 @@ async function assertExactDirectoryIdentity(identity, label) {
 }
 
 async function exactFileIdentity(path, label, { allowInputAlias = false } = {}) {
-  const requested = resolve(path);
+  const requested = resolve(assertNativeAbsolutePath(path, `${label} path`));
   const actual = await realpath(requested);
   if (!allowInputAlias && !samePath(actual, requested)) throw new Error(`${label} is aliased.`);
   const expected = actual;
@@ -415,7 +415,7 @@ function validateInstalledBrowserPolicy(value) {
   const browsers = value.browsers.map((entry) => {
     if (
       !REQUIRED_BROWSERS.includes(entry?.name) ||
-      !isAbsolute(String(entry?.executablePath || '')) ||
+      !isDriveQualifiedWindowsAbsolutePath(entry?.executablePath) ||
       !entry?.version ||
       !isSha256(entry?.executableSha256)
     ) {

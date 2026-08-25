@@ -6,6 +6,14 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.89 — public-source prerelease work — 2026-08-25
+
+### Forward 1.11.89 installed-browser path-contract parity repair
+
+- Preserve exact 1.11.88 at draft PR #11 as failed remote history. Exact-head CodeQL passed, while exact-head CI stopped at 947/951 after Linux applied host-native absolute-path checks to serialized Windows installed-browser paths; the hosted CI property, coverage, and reproducibility steps were skipped.
+- Validate serialized browser-plan paths with a host-independent local grammar that accepts only single-root POSIX paths or explicit drive-qualified Windows paths. Reject relative, drive-relative, root-relative, UNC/network, device-namespace, whitespace-padded, and NUL-containing forms, and reject a foreign path before any native physical lookup.
+- Keep physical file access bound to the current host before resolving or hashing directories, artifacts, helpers, and pinned executables. The substantive repair changes only installed-browser harness and evidence-path validation plus regression coverage. The required version transaction also changes version-bearing runtime metadata and resets candidate-sensitive evidence, but it does not change cleanup logic or authority, permissions, browser-data scope, downloaded-file behavior, storage, or messaging.
+
 ## 1.11.88 — public-source prerelease work — 2026-08-25
 
 ### Forward 1.11.88 toolchain and release-truth correction

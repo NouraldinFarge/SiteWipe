@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "local_automated_checks_passed",
+  "status": "remote_ci_failed_after_local_validation",
   "validatedAt": "2026-08-25T08:27:41.4367708-05:00",
   "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
   "environment": {
@@ -205,21 +205,56 @@
     "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
     "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
   },
+  "remoteValidation": {
+    "status": "failed",
+    "repository": "NouraldinFarge/SiteWipe",
+    "pullRequest": 11,
+    "candidateBranch": "candidate/sitewipe-1.11.88",
+    "sourceCommit": "961d2ce17eed6d34a1f1203d92a4b7ed903bf9ba",
+    "branchHeadMatched": true,
+    "requiredChecks": {
+      "ci": {
+        "name": "Static, safety, tests, coverage, and package parity",
+        "runId": 32856304160,
+        "appId": 15368,
+        "appSlug": "github-actions",
+        "status": "failed",
+        "failedStep": "Run complete local checks",
+        "reason": "Three browser-plan evidence tests failed at the grouped repository, workspace, and artifact path check, and the unattended-coordinator module import failed on the committed Windows browser pins. Static inspection found the same host-dependent predicate on the remaining serialized path fields."
+      },
+      "codeql": {
+        "name": "Analyze JavaScript",
+        "runId": 32856305146,
+        "appId": 15368,
+        "appSlug": "github-actions",
+        "status": "passed"
+      }
+    },
+    "interpretation": "Exact-head CodeQL passed. CI also passed exact-SHA verification, Node 24.18.1 setup, locked installation, audit, and development-SBOM parity, then stopped at 947/951 with four host-dependent installed-browser path-contract failures. The hosted CI property, coverage, and reproducibility steps were skipped, so 1.11.88 cannot be promoted."
+  },
   "publicationGate": {
     "command": "npm run check:publication-gates",
-    "publicationRecommendation": "not_evaluated",
-    "blockerCount": null,
-    "originalBlockerCount": null,
-    "closedOriginalBlockers": [],
+    "publicationRecommendation": "blocked",
+    "blockerCount": 27,
+    "originalBlockerCount": 32,
+    "closedOriginalBlockers": [
+      "Local version/source/artifact integrity verification",
+      "Exact current runtime artifact presence",
+      "Canonical current-release index",
+      "Local technical provenance and source-closure audit",
+      "Automated reproducibility and package-equivalence evidence"
+    ],
     "remainingClasses": [
+      "Required exact-head CI failed because Linux evaluated serialized Windows installed-browser paths with host-native absolute-path rules; the successor must separate portable evidence syntax from native filesystem dereference validation.",
       "Exact-artifact review and the remaining installed-browser, accessibility, performance, media, hosted-policy, independent-review, and remote-publication gates are required for this version."
     ]
   },
   "limitations": [
     "No installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
     "Automated tests do not prove complete erasure or installed-browser behavior.",
-    "These successful local checks ran before the clean immutable candidate commit; exact-commit safeguards and artifact verification remain required.",
+    "The complete local checks ran before source commit A; the later strict A/B/C sequence and final clean exact-head reproducibility run bound the recorded artifact bytes before remote validation.",
     "The ChatGPT in-app Browser visual lane is synthetic loopback evidence only and does not qualify as installed-extension or native browser-permission evidence.",
-    "The canonical 48-cell installed Chrome and Brave matrix, installed accessibility, performance, authentic media, exact artifacts, hosted-policy parity, independent review, and authenticated remote-publication capture remain pending or not_run."
+    "The canonical 48-cell installed Chrome and Brave matrix, installed accessibility, performance, authentic media, exact artifacts, hosted-policy parity, independent review, and authenticated remote-publication capture remain pending or not_run.",
+    "Draft PR #11's exact-head CodeQL check passed, but required CI failed at 947/951 because host-native Linux path validation rejected serialized Windows browser-plan and executable-pin paths. The hosted CI property, coverage, and reproducibility steps were skipped, so 1.11.88 remains a failed candidate."
   ]
 }

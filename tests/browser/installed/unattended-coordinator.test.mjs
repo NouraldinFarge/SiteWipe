@@ -6,12 +6,51 @@ import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import test from 'node:test';
 
-import { createUnattendedBrowserPlan, prepareApprovedOwnedRun } from './unattended-coordinator.mjs';
+import {
+  INSTALLED_BROWSER_PINS,
+  createUnattendedBrowserPlan,
+  prepareApprovedOwnedRun
+} from './unattended-coordinator.mjs';
 import { computePlanSha256 } from './evidence-contract.mjs';
+import { isDriveQualifiedWindowsAbsolutePath } from './path-contract.mjs';
 import {
   createUnattendedBrowserPlanFixture,
   revalidateUnattendedBrowserPlanFixture
 } from './unattended-coordinator-test-support.mjs';
+
+test('committed browser pins retain explicit local Windows drive authority on every host', () => {
+  assert.deepEqual(
+    INSTALLED_BROWSER_PINS.map(({ name }) => name),
+    ['brave', 'chrome']
+  );
+  for (const pin of INSTALLED_BROWSER_PINS) {
+    assert.equal(isDriveQualifiedWindowsAbsolutePath(pin.executablePath), true, pin.name);
+  }
+});
+
+test('production coordinator rejects foreign path grammar before physical lookup', async () => {
+  const foreignRepositoryRoot =
+    process.platform === 'win32' ? '/var/tmp/sitewipe/repository' : 'C:\\sitewipe\\repository';
+  await assert.rejects(
+    createUnattendedBrowserPlan({
+      repositoryRoot: foreignRepositoryRoot,
+      workspaceRoot: resolve(tmpdir(), 'sitewipe-foreign-path-regression')
+    }),
+    /current host/
+  );
+});
+
+test('production coordinator rejects a foreign workspace root before normalization', async () => {
+  const foreignWorkspaceRoot =
+    process.platform === 'win32' ? '/var/tmp/sitewipe/browser-runs' : 'C:\\sitewipe\\browser-runs';
+  await assert.rejects(
+    createUnattendedBrowserPlan({
+      repositoryRoot: resolve('.'),
+      workspaceRoot: foreignWorkspaceRoot
+    }),
+    /current host/
+  );
+});
 
 test('test support creates and revalidates an exact fixture plan without weakening production authority', async (t) => {
   const fixture = await coordinatorFixture(t);
@@ -109,6 +148,18 @@ test('production coordinator source exposes no environment-switched fixture auth
   assert.doesNotMatch(source, /WeakMap/);
   assert.doesNotMatch(source, /createUnattendedBrowserPlanForTest/);
   assert.doesNotMatch(source, /unattended-coordinator-test-support/);
+  assert.match(
+    source,
+    /async function exactPhysicalDirectory[\s\S]*?resolve\(assertNativeAbsolutePath\(path,[\s\S]*?async function exactFileIdentity/
+  );
+  assert.match(
+    source,
+    /async function exactFileIdentity[\s\S]*?resolve\(assertNativeAbsolutePath\(path,[\s\S]*?function validateInstalledBrowserPolicy/
+  );
+  assert.match(
+    source,
+    /async function validateWorkspacePlacement[\s\S]*?resolve\(assertNativeAbsolutePath\(workspaceRoot,[\s\S]*?async function ensureOwnedWorkspaceRoot[\s\S]*?resolve\(assertNativeAbsolutePath\(workspaceRoot,/
+  );
   assert.deepEqual(Object.keys(productionExports).sort(), [
     'INSTALLED_BROWSER_PINS',
     'INSTALLED_BROWSER_POLICY_PATH',

@@ -166,6 +166,64 @@ test('plan digest binds exact matrix, inputs, identities, and the one-approval b
   }
 });
 
+test('plan path validation is host-independent and rejects ambiguous authority in every path field', () => {
+  const posixPlan = samplePlan();
+  posixPlan.inputs.repositoryRoot = '/var/tmp/sitewipe/repository';
+  posixPlan.inputs.workspaceRoot = '/var/tmp/sitewipe/browser-runs';
+  posixPlan.inputs.artifactPath = '/var/tmp/sitewipe/artifact.zip';
+  posixPlan.inputs.git.path = '/usr/bin/git';
+  posixPlan.inputs.browserPins[0].executablePath = '/opt/brave/brave';
+  posixPlan.inputs.browserPins[1].executablePath = '/opt/chrome/chrome';
+  posixPlan.inputs.nativePrompt.helperPath = '/var/tmp/sitewipe/native-permission-helper';
+  posixPlan.planSha256 = computePlanSha256(posixPlan);
+  assert.equal(validateBrowserPlan(posixPlan), posixPlan);
+
+  const pathSetters = [
+    (plan, value) => {
+      plan.inputs.repositoryRoot = value;
+    },
+    (plan, value) => {
+      plan.inputs.workspaceRoot = value;
+    },
+    (plan, value) => {
+      plan.inputs.artifactPath = value;
+    },
+    (plan, value) => {
+      plan.inputs.git.path = value;
+    },
+    (plan, value) => {
+      plan.inputs.browserPins[0].executablePath = value;
+    },
+    (plan, value) => {
+      plan.inputs.browserPins[1].executablePath = value;
+    },
+    (plan, value) => {
+      plan.inputs.nativePrompt.helperPath = value;
+    }
+  ];
+  const invalidPaths = [
+    'relative/path',
+    './relative/path',
+    '../relative/path',
+    'C:drive-relative',
+    '\\rooted-without-drive',
+    '\\\\server\\share\\sitewipe',
+    '\\\\?\\C:\\device-path',
+    '//network/share',
+    ' C:\\sitewipe\\repository',
+    'C:\\sitewipe\\repository ',
+    'C:\\sitewipe\0repository'
+  ];
+  for (const setPath of pathSetters) {
+    for (const invalidPath of invalidPaths) {
+      const changed = samplePlan();
+      setPath(changed, invalidPath);
+      changed.planSha256 = computePlanSha256(changed);
+      assert.throws(() => validateBrowserPlan(changed), /absolute|incomplete/);
+    }
+  }
+});
+
 function samplePlan() {
   const plan = {
     schema: BROWSER_PLAN_SCHEMA,
