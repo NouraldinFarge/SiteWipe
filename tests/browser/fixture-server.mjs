@@ -75,6 +75,18 @@ const popupAssets = new Map([
     { file: resolve(sourceDirectory, 'shared', 'verification-evidence.js'), type: 'text/javascript; charset=utf-8' }
   ],
   [
+    '/shared/storage-partition-policy.js',
+    { file: resolve(sourceDirectory, 'shared', 'storage-partition-policy.js'), type: 'text/javascript; charset=utf-8' }
+  ],
+  [
+    '/shared/maintenance-results.js',
+    { file: resolve(sourceDirectory, 'shared', 'maintenance-results.js'), type: 'text/javascript; charset=utf-8' }
+  ],
+  [
+    '/shared/host-permissions.js',
+    { file: resolve(sourceDirectory, 'shared', 'host-permissions.js'), type: 'text/javascript; charset=utf-8' }
+  ],
+  [
     '/options/options.js',
     { file: resolve(sourceDirectory, 'options', 'options.js'), type: 'text/javascript; charset=utf-8' }
   ],
@@ -88,6 +100,14 @@ const popupAssets = new Map([
   [
     '/options/options.css',
     { file: resolve(sourceDirectory, 'options', 'options.css'), type: 'text/css; charset=utf-8' }
+  ],
+  [
+    '/handoff/handoff.js',
+    { file: resolve(sourceDirectory, 'handoff', 'handoff.js'), type: 'text/javascript; charset=utf-8' }
+  ],
+  [
+    '/handoff/handoff.css',
+    { file: resolve(sourceDirectory, 'handoff', 'handoff.css'), type: 'text/css; charset=utf-8' }
   ],
   [
     '/sidepanel/sidepanel.js',
@@ -108,6 +128,10 @@ const popupAssets = new Map([
   [
     '/options-browser-mock.js',
     { file: resolve(fixtureDirectory, 'options-browser-mock.js'), type: 'text/javascript; charset=utf-8' }
+  ],
+  [
+    '/handoff-browser-mock.js',
+    { file: resolve(fixtureDirectory, 'handoff-browser-mock.js'), type: 'text/javascript; charset=utf-8' }
   ],
   [
     '/sidepanel-browser-mock.js',
@@ -186,6 +210,19 @@ export async function startFixtureServer({ host = '127.0.0.1', port = 0 } = {}) 
           optionsPage.replace(
             '<script type="module" src="options.js"></script>',
             '<script src="/options-browser-mock.js"></script>\n    <script type="module" src="options.js"></script>'
+          )
+        );
+        return;
+      }
+
+      if (url.pathname === '/handoff/handoff.html') {
+        const handoff = await readFile(resolve(sourceDirectory, 'handoff', 'handoff.html'), 'utf8');
+        response.statusCode = 200;
+        response.setHeader('Content-Type', 'text/html; charset=utf-8');
+        response.end(
+          handoff.replace(
+            '<script type="module" src="handoff.js"></script>',
+            '<script src="/handoff-browser-mock.js"></script>\n    <script type="module" src="handoff.js"></script>'
           )
         );
         return;

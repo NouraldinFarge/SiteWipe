@@ -18,6 +18,8 @@ import {
   reconcileNewOptionalPermissionGrant,
   requestOptionalPermissionWithProvenance
 } from './permission-lifecycle.js';
+import { describeLocalStateResetResponse, describeSettingsResetResponse } from '../shared/maintenance-results.js';
+import { sanitizeAssociatedDomainGroupsWithEvidence } from '../shared/storage.js';
 
 let currentSettings = null;
 let webNavigationPermissionObservation = null;
@@ -25,6 +27,8 @@ let cleanupJobRunning = false;
 let activeJobCanClear = false;
 let authoritativeStateReady = false;
 let shieldControlAvailability = Object.freeze({ clear: false, repair: false });
+let associatedGroupsRawInput = null;
+let associatedGroupsStorageEvidence = null;
 
 const AUTHORITATIVE_CONTROL_SELECTOR = [
   '#mainContent input',
@@ -71,6 +75,8 @@ const SETTING_DEPENDENCIES = Object.freeze({
 
 const REFRESH_STORAGE_KEYS = new Set(Object.values(STORAGE_KEYS));
 let pendingSettingsPanelRefresh = false;
+/** @type {{ isConnected?: boolean, disabled?: boolean, focus?: () => void } | null} */
+let toastReturnFocus = null;
 const refreshFromStorage = debounce(() => {
   const renderSettingsPanel = pendingSettingsPanelRefresh;
   pendingSettingsPanelRefresh = false;
@@ -88,11 +94,11 @@ const PERMISSIONS = [
   ],
   [
     'browsingData',
-    'Origin-scoped deletion for site storage, cache, Cache Storage, IndexedDB, LocalStorage, File Systems, Service Workers, WebSQL, and cookies across discovered matching origins where Chrome exposes origin targeting.'
+    'Origin-scoped deletion for site storage, cache, Cache Storage, IndexedDB, LocalStorage, File Systems, Service Workers, WebSQL, and cookies across discovered matching origins where the browser exposes origin targeting.'
   ],
   [
     'cookies',
-    'Enumerates and removes cookies for the selected registrable domain and subdomains, including partitioned-cookie attempts with discovered embedding-site partition keys where Chrome exposes them.'
+    'Enumerates and removes cookies for the selected registrable domain and subdomains, including partitioned-cookie attempts with discovered embedding-site partition keys where the browser exposes them.'
   ],
   ['tabs', 'Finds and closes only tabs whose URL host exactly matches the target domain or one of its subdomains.'],
   [
@@ -166,6 +172,7 @@ function wireSettingAccessibility() {
 }
 
 function bindControls() {
+  document.querySelector('#dismissToast')?.addEventListener('click', dismissToast);
   document.querySelector('#retryOptionsLoad').addEventListener('click', retryOptionsLoad);
   document.querySelector('#skipCleanupReview').addEventListener('change', async (event) => {
     if (!requireAuthoritativeState()) return;
@@ -247,10 +254,18 @@ function bindControls() {
     }
     await saveFromForm(event);
   });
-  document.querySelector('#associatedDomainGroups').addEventListener('input', debounce(validateAssociatedGroups, 300));
+  const validateAssociatedGroupsAfterInput = debounce(() => void validateAssociatedGroups(), 300);
+  document.querySelector('#associatedDomainGroups').addEventListener('input', () => {
+    rememberAssociatedGroupsRawInput();
+    validateAssociatedGroupsAfterInput();
+  });
   document.querySelector('#associatedDomainGroups').addEventListener('change', async () => {
+    rememberAssociatedGroupsRawInput();
     await saveFromForm();
-    await validateAssociatedGroups();
+    await validateAssociatedGroups({
+      groupsText: associatedGroupsRawInput,
+      storageEvidence: associatedGroupsStorageEvidence
+    });
   });
   document.querySelector('#clearReports').addEventListener('click', clearReports);
   document.querySelector('#clearShield').addEventListener('click', clearActiveShield);
@@ -300,7 +315,6 @@ async function refresh({ renderSettingsPanel = true } = {}) {
   } catch (error) {
     const message = formatError(error);
     setOptionsLoadFailed(message);
-    toast(message, 'error');
     return null;
   }
 }
@@ -340,7 +354,12 @@ function renderSettings(settings) {
   setChecked('deleteDownloadedFiles', settings.deleteDownloadedFiles);
   setChecked('allowLocalTargets', settings.allowLocalTargets);
   setChecked('blockOnAssociatedGroupErrors', settings.blockOnAssociatedGroupErrors);
-  setValue('associatedDomainGroups', settings.associatedDomainGroups || '');
+  const authoritativeAssociatedGroups = settings.associatedDomainGroups || '';
+  if (associatedGroupsStorageEvidence && associatedGroupsStorageEvidence.value !== authoritativeAssociatedGroups) {
+    associatedGroupsRawInput = null;
+    associatedGroupsStorageEvidence = null;
+  }
+  setValue('associatedDomainGroups', authoritativeAssociatedGroups);
   setChecked('reducedMotion', settings.reducedMotion);
   setChecked('highContrast', settings.highContrast);
   setChecked('debugLog', settings.debugLog);
@@ -658,7 +677,7 @@ async function saveFromForm(event) {
       authoritativeFeatureEnabled: authoritativeFrameDiscoveryEnabled(refreshedState?.settings)
     });
     const permissionWarning = optionalPermissionReconciliationNeedsAttention(framePermissionReconciliation)
-      ? ' Optional webNavigation access was preserved because Chrome does not prove whether this request created the grant; review extension permissions if the feature remains off.'
+      ? ' Optional webNavigation access was preserved because the browser does not prove whether this request created the grant; review extension permissions if the feature remains off.'
       : '';
     toast(`${formatError(error)}${permissionWarning}`, 'error');
     setSettingsState('Save needs attention', 'error');
@@ -765,7 +784,7 @@ function renderMaintenanceStatus(status) {
   const alarms =
     (status.alarms || [])
       .map((alarm) => `${alarm.name}: ${alarm.scheduledTime ? formatDateTime(alarm.scheduledTime) : 'not scheduled'}`)
-      .join(' · ') || 'No Chrome alarms are currently scheduled.';
+      .join(' · ') || 'No browser alarms are currently scheduled.';
   const orphanRules = status.shieldDiagnostics?.orphanRuleIds?.length || 0;
   const latestReport = status.latestReportExpiresAt
     ? ` Latest report auto-forgets at ${formatDateTime(status.latestReportExpiresAt)}.`
@@ -784,7 +803,7 @@ function renderMaintenanceStatus(status) {
     targetAccess.state === 'none'
       ? ' No temporary target-access lease is recorded.'
       : ` Temporary target access: ${targetAccess.state}; ${Number(targetAccess.temporaryOriginCount) || 0} pattern(s); recovery ${targetAccess.recoveryPending ? 'pending' : 'not pending'}.${targetAccess.reviewExpiresAt ? ` Review window ends ${formatDateTime(targetAccess.reviewExpiresAt)}.` : ''}${targetAccess.lastError ? ` Last recovery error: ${targetAccess.lastError}` : ''}`;
-  text.textContent = `${status.alarmsAvailable ? 'Chrome alarms available.' : 'Chrome alarms unavailable.'} Auto-repair orphan shields: ${status.autoRepairOrphanedShields ? 'on' : 'off'}. Orphan shield rules: ${orphanRules}.${targetAccessText} ${shieldExpiry}${latestReport}${last} ${jobAge} Alarms: ${alarms}`;
+  text.textContent = `${status.alarmsAvailable ? 'Browser alarms available.' : 'Browser alarms unavailable.'} Auto-repair orphan shields: ${status.autoRepairOrphanedShields ? 'on' : 'off'}. Orphan shield rules: ${orphanRules}.${targetAccessText} ${shieldExpiry}${latestReport}${last} ${jobAge} Alarms: ${alarms}`;
 }
 
 async function runMaintenanceNow() {
@@ -803,16 +822,26 @@ async function resetExtensionState() {
   if (!requireAuthoritativeState()) return;
   if (
     !globalThis.confirm(
-      'Reset all SiteWipe-local state? This permanently deletes local reports, debug logs, job status, settings, and any active SiteWipe request shield. It does not restore or delete website data.'
+      'Reset SiteWipe-local state? This permanently deletes resettable local reports, debug logs, job status, and settings. SiteWipe retains permission or request-shield recovery proof when Chrome/Brave does not prove it safe to discard. This does not restore or delete website data.'
     )
   )
     return;
+  let outcome;
   try {
-    await sendMessage(MESSAGE_TYPES.resetExtensionLocalState);
-    toast('SiteWipe local state reset.', 'success');
+    const response = await sendMessage(MESSAGE_TYPES.resetExtensionLocalState);
+    outcome = describeLocalStateResetResponse(response);
+  } catch (error) {
+    const message = formatError(error);
+    renderResetOutcome({ status: 'failed', tone: 'error', message });
+    toast(message, 'error');
+    return;
+  }
+  renderResetOutcome(outcome);
+  toast(outcome.message, outcome.tone);
+  try {
     await refresh();
   } catch (error) {
-    toast(formatError(error), 'error');
+    toast(`Reset result retained, but Options could not refresh: ${formatError(error)}`, 'warning');
   }
 }
 
@@ -830,10 +859,31 @@ async function clearActiveJobRecord() {
   }
 }
 
-async function validateAssociatedGroups() {
+function rememberAssociatedGroupsRawInput() {
+  const rawInput = valueOf('associatedDomainGroups');
+  const evidence = sanitizeAssociatedDomainGroupsWithEvidence(rawInput);
+  if (evidence.ignoredLineCount > 0 || evidence.shortenedLineNumbers.length > 0) {
+    associatedGroupsRawInput = rawInput;
+    associatedGroupsStorageEvidence = evidence;
+  } else {
+    associatedGroupsRawInput = null;
+    associatedGroupsStorageEvidence = null;
+  }
+}
+
+async function validateAssociatedGroups(options = {}) {
   const diagnostics = document.querySelector('#associatedGroupsDiagnostics');
   if (!diagnostics) return;
-  const groupsText = valueOf('associatedDomainGroups');
+  const groupsText =
+    typeof options?.groupsText === 'string'
+      ? options.groupsText
+      : typeof associatedGroupsRawInput === 'string'
+        ? associatedGroupsRawInput
+        : valueOf('associatedDomainGroups');
+  const storageEvidence =
+    options?.storageEvidence ||
+    associatedGroupsStorageEvidence ||
+    sanitizeAssociatedDomainGroupsWithEvidence(groupsText);
   if (!groupsText.trim()) {
     diagnostics.textContent = 'No associated-domain groups configured.';
     diagnostics.className = 'diagnostic-box';
@@ -849,6 +899,16 @@ async function validateAssociatedGroups() {
     lines.push(
       `${validation.groupCount || 0} group(s), ${validation.associatedTargetCount || 0} related target(s) accepted.`
     );
+    if (storageEvidence.ignoredLineCount > 0) {
+      lines.push(
+        `Storage limit: ${storageEvidence.ignoredLineCount} line${storageEvidence.ignoredLineCount === 1 ? '' : 's'} beyond the 50-line limit ${storageEvidence.ignoredLineCount === 1 ? 'was' : 'were'} ignored before saving.`
+      );
+    }
+    if (storageEvidence.shortenedLineNumbers.length > 0) {
+      lines.push(
+        `Storage limit: line${storageEvidence.shortenedLineNumbers.length === 1 ? '' : 's'} ${storageEvidence.shortenedLineNumbers.join(', ')} exceeded 500 characters and ${storageEvidence.shortenedLineNumbers.length === 1 ? 'was' : 'were'} shortened before saving.`
+      );
+    }
     if ((validation.errors || []).length)
       lines.push('Cleanup gate: errors will block cleanup while the safety toggle is enabled.');
     for (const group of (validation.groups || []).slice(0, 6)) {
@@ -867,7 +927,7 @@ async function validateAssociatedGroups() {
     }
     if ((validation.errors || []).length > 6) lines.push(`+${validation.errors.length - 6} more error(s)`);
     diagnostics.textContent = lines.join('\n');
-    diagnostics.className = `diagnostic-box ${(validation.errors || []).length ? 'error' : (validation.warnings || []).length ? 'warn' : 'good'}`;
+    diagnostics.className = `diagnostic-box ${(validation.errors || []).length ? 'error' : (validation.warnings || []).length || storageEvidence.ignoredLineCount || storageEvidence.shortenedLineNumbers.length ? 'warn' : 'good'}`;
     document
       .querySelector('#associatedDomainGroups')
       .setAttribute('aria-invalid', (validation.errors || []).length ? 'true' : 'false');
@@ -915,7 +975,10 @@ async function clearReports() {
   )
     return;
   try {
-    await sendMessage(MESSAGE_TYPES.clearHistory);
+    const response = await sendMessage(MESSAGE_TYPES.clearReports);
+    if (response.report !== null || !Array.isArray(response.reports) || response.reports.length !== 0) {
+      throw new Error('SiteWipe did not prove that the latest report and report history were both deleted.');
+    }
     toast('All extension-local reports deleted.', 'success');
   } catch (error) {
     toast(formatError(error), 'error');
@@ -1085,7 +1148,8 @@ async function resetSettings() {
   try {
     const response = await sendMessage(MESSAGE_TYPES.resetSettings);
     renderSettings(response.settings || {});
-    toast('Settings reset.', 'success');
+    const outcome = describeSettingsResetResponse(response);
+    toast(outcome.message, outcome.tone);
   } catch (error) {
     toast(formatError(error), 'error');
   }
@@ -1148,18 +1212,54 @@ function applySettingDependencies() {
 
 function toast(message, tone = 'info') {
   const el = document.querySelector('#toast');
-  el.setAttribute('role', tone === 'error' ? 'alert' : 'status');
-  el.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
+  const messageCandidate = document.querySelector('#toastMessage');
+  const messageElement = messageCandidate?.parentElement === el ? messageCandidate : el;
+  const dismissButton = document.querySelector('#dismissToast');
+  toastReturnFocus = document.activeElement;
+  messageElement.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+  messageElement.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
   el.className = `toast ${tone}`;
   el.hidden = false;
-  el.textContent = '';
+  messageElement.textContent = '';
   requestAnimationFrame(() => {
-    el.textContent = message;
+    messageElement.textContent = message;
   });
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => {
-    el.hidden = true;
-  }, 2600);
+  toast.timer = null;
+  const autoDismissMs = tone === 'error' ? null : tone === 'success' ? 3200 : 8000;
+  if (autoDismissMs !== null) {
+    toast.timer = setTimeout(
+      () => hideToast(el, dismissButton, dismissButton?.ownerDocument?.activeElement || null),
+      autoDismissMs
+    );
+  }
+  dismissButton?.setAttribute('aria-label', tone === 'error' ? 'Dismiss error message' : 'Dismiss message');
+  if (dismissButton) dismissButton.disabled = false;
+}
+
+function dismissToast() {
+  hideToast(document.querySelector('#toast'), document.querySelector('#dismissToast'), document.activeElement);
+}
+
+function hideToast(el, dismissButton, activeElement) {
+  const restoreFocus = activeElement === dismissButton ? toastReturnFocus : null;
+  clearTimeout(toast.timer);
+  toast.timer = null;
+  el.hidden = true;
+  if (dismissButton) dismissButton.disabled = true;
+  toastReturnFocus = null;
+  if (restoreFocus?.isConnected && restoreFocus.disabled !== true && typeof restoreFocus.focus === 'function') {
+    restoreFocus.focus();
+  }
+}
+
+function renderResetOutcome(outcome) {
+  const element = document.querySelector('#resetOutcome');
+  element.hidden = false;
+  element.dataset.state = outcome.status;
+  element.setAttribute('role', outcome.tone === 'error' ? 'alert' : 'status');
+  element.setAttribute('aria-live', outcome.tone === 'error' ? 'assertive' : 'polite');
+  element.textContent = outcome.message;
 }
 
 function debounce(fn, delay) {

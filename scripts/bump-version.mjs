@@ -77,12 +77,9 @@ for (const [path, before, after] of [
   await queueRequiredReplacement(path, before, after);
 }
 
-await assertRequiredMarker(
-  'docs/architecture.md',
-  `\`${nextVersion}\` is the forward public-source prerelease candidate`
-);
+await assertRequiredMarker('docs/architecture.md', `forward ${nextVersion} transaction`);
 await assertRequiredMarker('docs/threat-model.md', `the ${nextVersion} corrective working source`);
-await assertRequiredMarker('docs/release-readiness.md', `local ${nextVersion} corrective handoff-tab source`);
+await assertRequiredMarker('docs/release-readiness.md', `SiteWipe ${nextVersion}`);
 
 // Release-readiness prose is deliberately staged for the exact successor
 // before the transaction. Requiring the next-version marker keeps the update

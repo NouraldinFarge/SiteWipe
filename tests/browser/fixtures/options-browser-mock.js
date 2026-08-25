@@ -1,6 +1,7 @@
 (() => {
   const fixtureParams = new URLSearchParams(globalThis.location?.search || '');
   let optionsLoadFailuresRemaining = fixtureParams.get('load') === 'fail-once' ? 1 : 0;
+  const showFixtureControls = fixtureParams.get('fixtureControls') === '1';
   const storageListeners = [];
   const state = {
     optionsLoads: 0,
@@ -201,5 +202,5 @@
       listener({ 'sitewipe.activeJob.v1': { newValue: structuredClone(state.activeJob) } }, 'local');
     }
   });
-  document.body.append(activeJobButton);
+  if (showFixtureControls) document.body.append(activeJobButton);
 })();

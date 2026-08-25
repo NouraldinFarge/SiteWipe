@@ -1,6 +1,6 @@
 export const APP = Object.freeze({
   name: 'SiteWipe',
-  version: '1.11.67',
+  version: '1.11.77',
   maxReports: 10
 });
 
@@ -47,6 +47,7 @@ export const MESSAGE_TYPES = Object.freeze({
   getReport: 'sitewipe.getReport',
   getHistory: 'sitewipe.getHistory',
   clearHistory: 'sitewipe.clearHistory',
+  clearReports: 'sitewipe.clearReports',
   getSettings: 'sitewipe.getSettings',
   saveSettings: 'sitewipe.saveSettings',
   resetSettings: 'sitewipe.resetSettings',
@@ -286,9 +287,9 @@ const CLEANUP_MATRIX_IMPLEMENTATION = Object.freeze([
   },
   {
     type: 'Localhost/IP exact-origin cleanup',
-    api: 'Exact-origin URL/live-page matching + guarded Chrome cleanup APIs',
+    api: 'Exact-origin URL/live-page matching + guarded browser cleanup APIs',
     targeted:
-      'Optional advanced developer mode for localhost, loopback, LAN IP, and bracketed IPv6 origins; tabs/history/download URLs and accessible live-page storage are exact-origin, browser-level closed-page storage/cache is skipped because Chrome partition keys do not preserve ports, and cookies are host-scoped because browsers do not scope cookies by port',
+      'Optional advanced developer mode for localhost, loopback, LAN IP, and bracketed IPv6 origins; tabs/history/download URLs and accessible live-page storage are exact-origin, browser-level closed-page storage/cache is skipped because browser partition keys do not preserve ports, and cookies are host-scoped because browsers do not scope cookies by port',
     incognito: 'Yes, only if allowed',
     status: 'advanced opt-in'
   },
@@ -373,7 +374,7 @@ const CLEANUP_MATRIX_IMPLEMENTATION = Object.freeze([
   {
     type: 'Site zoom state',
     api: 'chrome.tabs.getZoom/getZoomSettings/setZoom',
-    targeted: 'Yes, open target tabs; resets per-origin zoom where Chrome applies it',
+    targeted: 'Yes, open target tabs; resets per-origin zoom where the browser applies it',
     incognito: 'Yes, only if allowed',
     status: 'fully supported'
   },
@@ -507,7 +508,7 @@ const CLEANUP_MATRIX_IMPLEMENTATION = Object.freeze([
     type: 'Recently closed session metadata',
     api: 'Not requested',
     targeted:
-      'Preserved; Chrome has no targeted forget API, and SiteWipe does not request the sessions permission merely for extra discovery',
+      'Preserved; the browser has no targeted forget API, and SiteWipe does not request the sessions permission merely for extra discovery',
     incognito: 'No persistent incognito session list exposed',
     status: 'unavailable through extension APIs'
   },
@@ -541,7 +542,7 @@ const CLEANUP_MATRIX_IMPLEMENTATION = Object.freeze([
   },
   {
     type: 'Browser permission and content-setting rules',
-    api: 'Chrome site-settings UI',
+    api: 'Browser site-settings UI',
     targeted:
       'Preserved: MV3 cannot safely delete arbitrary user- or other-extension-managed rules for one target without adding new controlling rules',
     incognito: 'Manage manually in Chrome/Brave',
@@ -578,7 +579,7 @@ const CLEANUP_MATRIX_IMPLEMENTATION = Object.freeze([
   {
     type: 'FedCM / Storage Access / Private State Tokens',
     api: 'Browser identity/privacy APIs',
-    targeted: 'Reported or manual-only where Chrome exposes no target-domain extension API',
+    targeted: 'Reported or manual-only where the browser exposes no target-domain extension API',
     incognito: 'N/A',
     status: 'partially supported'
   },
@@ -614,7 +615,7 @@ const CLEANUP_MATRIX_IMPLEMENTATION = Object.freeze([
     type: 'Autofill profiles / payment methods',
     api: 'N/A',
     targeted:
-      'Protected because Chrome couples global form-data removal with saved autofill profiles and payment cards; SiteWipe never calls that global removal path',
+      'Protected because the browser couples global form-data removal with saved autofill profiles and payment cards; SiteWipe never calls that global removal path',
     incognito: 'N/A',
     status: 'skipped for safety'
   },

@@ -4,6 +4,12 @@ import { getEffectiveCleanupSettings } from '../shared/cleanup-mode.js';
 import { buildCleanupReview, validateCleanupReviewApproval } from '../shared/cleanup-review.js';
 import { normalizeStoredSettings } from '../shared/storage.js';
 import {
+  assertCleanupQueryCapacity,
+  assertCleanupQueryStructure,
+  buildCleanupCapacityObservationFromImpact,
+  cleanupCapacityPreviewLimitations
+} from './cleanup-capacity.js';
+import {
   buildHostPermissionInventory,
   canonicalizeHostPermissionOrigin,
   canonicalizeHostPermissionOrigins,
@@ -32,7 +38,7 @@ export const CLEANUP_PERMISSION_PROMPT_CONFIRM_GRACE_MS = 30 * 1000;
 // at preparation time and to a worker-minted capability digest. Raw
 // capabilities are never persisted. Legacy records are discarded before any
 // cleanup can begin.
-export const CLEANUP_REVIEW_SCHEMA_VERSION = 8;
+export const CLEANUP_REVIEW_SCHEMA_VERSION = 9;
 const MAX_APPROVED_DOWNLOAD_FILE_IDS = 1000;
 const MAX_PREVIEW_LIMITATIONS = 50;
 const MAX_PREVIEW_LIMITATION_LENGTH = 1000;
@@ -75,7 +81,7 @@ export async function prepareCleanupReviewRequest(payload = {}, dependencies = {
   if (!Number.isFinite(createdAtMs)) throw new Error('Cleanup review clock is unavailable.');
   const { sourceWindowId, sourceIncognito } = await verifySourceWindowContext(payload, inspectSourceWindow);
   if (!preparationContextId) {
-    throw new Error('The popup context preparing Chrome target access could not be verified. Reopen SiteWipe.');
+    throw new Error('The popup context preparing browser target access could not be verified. Reopen SiteWipe.');
   }
   const popupPreparationCapability = String(await createPopupPreparationCapability());
   if (!POPUP_PREPARATION_CAPABILITY_PATTERN.test(popupPreparationCapability)) {
@@ -101,7 +107,7 @@ export async function prepareCleanupReviewRequest(payload = {}, dependencies = {
   if (existingRecord) {
     if (existingRecord.approvalHandoff?.status === 'prompt_tombstone') {
       throw new Error(
-        'A canceled or expired Chrome target-access prompt is still being reconciled. Close any native prompt or restart the browser before reviewing again.'
+        'A canceled or expired browser target-access prompt is still being reconciled. Close any native prompt or restart the browser before reviewing again.'
       );
     }
     if (cleanupReviewPromptIntentMayStillConfirm(existingRecord, createdAtMs)) {
@@ -115,35 +121,49 @@ export async function prepareCleanupReviewRequest(payload = {}, dependencies = {
             );
       await storageSession.set({ [CLEANUP_REVIEW_STORAGE_KEY]: retainedRecord });
       throw new Error(
-        'A Chrome target-access request is still being confirmed. Wait briefly for it to settle before reviewing again.'
+        'A browser target-access request is still being confirmed. Wait briefly for it to settle before reviewing again.'
       );
     }
-    if (Number.isFinite(existingRecord.expiresAtMs) && createdAtMs <= existingRecord.expiresAtMs) {
+    const existingReviewIsLive =
+      Number.isFinite(existingRecord.expiresAtMs) && createdAtMs <= existingRecord.expiresAtMs;
+    if (existingReviewIsLive) {
       const resumed = await resumeEquivalentCleanupReview(payload, existingRecord, {
         ...dependencies,
         sourceWindowId,
         sourceIncognito
       });
       if (resumed) return resumed;
-      throw new Error(
-        'Another cleanup review is active. Reopen its original target to resume and cancel it. If a Chrome site-access prompt may still be open, close it or restart the browser before reviewing a different target.'
-      );
-    }
-    if (cleanupReviewPromptMayStillSettle(existingRecord)) {
-      await storageSession.set({
-        [CLEANUP_REVIEW_STORAGE_KEY]: createPromptTombstoneRecord(existingRecord, createdAtMs, 'cleanup_review_expired')
+      const abandonedDirectReviewRetired = await retireAbandonedDirectReviewForFreshTarget(payload, existingRecord, {
+        ...dependencies,
+        sourceWindowId,
+        sourceIncognito
       });
-      throw new Error(
-        'An expired Chrome target-access prompt is still being reconciled. Close any native prompt or restart the browser before reviewing again.'
-      );
-    }
-    const expiredRemoval = await removeReviewAndReleaseUnlessPromptOwnerArrived(existingRecord, dependencies, {
-      tombstoneReason: 'cleanup_review_expired'
-    });
-    if (expiredRemoval.promptTombstoneRetained) {
-      throw new Error(
-        'An expired Chrome target-access prompt is still being reconciled. Close any native prompt or restart the browser before reviewing again.'
-      );
+      if (!abandonedDirectReviewRetired) {
+        throw new Error(
+          'Another cleanup review is active. Reopen its original target to resume and cancel it. If a browser site-access prompt may still be open, close it or restart the browser before reviewing a different target.'
+        );
+      }
+    } else {
+      if (cleanupReviewPromptMayStillSettle(existingRecord)) {
+        await storageSession.set({
+          [CLEANUP_REVIEW_STORAGE_KEY]: createPromptTombstoneRecord(
+            existingRecord,
+            createdAtMs,
+            'cleanup_review_expired'
+          )
+        });
+        throw new Error(
+          'An expired browser target-access prompt is still being reconciled. Close any native prompt or restart the browser before reviewing again.'
+        );
+      }
+      const expiredRemoval = await removeReviewAndReleaseUnlessPromptOwnerArrived(existingRecord, dependencies, {
+        tombstoneReason: 'cleanup_review_expired'
+      });
+      if (expiredRemoval.promptTombstoneRetained) {
+        throw new Error(
+          'An expired browser target-access prompt is still being reconciled. Close any native prompt or restart the browser before reviewing again.'
+        );
+      }
     }
   }
 
@@ -189,7 +209,22 @@ export async function prepareCleanupReviewRequest(payload = {}, dependencies = {
       'Private-window cleanup requires the exact reviewed target site access to be granted before preflight. SiteWipe does not persist private target patterns in a durable permission lease.'
     );
   }
-  const impact = normalizeImpactSnapshot(await inspectImpact(target, { ...settings, incognitoAccess }));
+  const capacitySettings = { ...settings, sourceWindowId, incognitoAccess };
+  assertCleanupQueryStructure(target, capacitySettings);
+  const inspectedImpact = normalizeImpactSnapshot(await inspectImpact(target, capacitySettings));
+  const queryCapacityPlan = assertCleanupQueryCapacity(
+    target,
+    capacitySettings,
+    buildCleanupCapacityObservationFromImpact(inspectedImpact, capacitySettings)
+  );
+  const impact = normalizeImpactSnapshot({
+    ...inspectedImpact,
+    queryCapacityPlan,
+    limitations: [
+      ...(Array.isArray(inspectedImpact.limitations) ? inspectedImpact.limitations : []),
+      ...cleanupCapacityPreviewLimitations(queryCapacityPlan)
+    ]
+  });
   const expiresAtMs = createdAtMs + CLEANUP_REVIEW_TTL_MS;
   const approvalToken = String(await createToken());
   if (!REVIEW_IDENTIFIER_PATTERN.test(approvalToken)) throw new Error('Cleanup approval token generation failed.');
@@ -346,7 +381,7 @@ async function resumeEquivalentCleanupReview(payload, record, dependencies) {
       // externally controlled access into a prompt-settlement tombstone.
       await discardUninvokedCleanupReviewRecord(record, dependencies);
       throw new Error(
-        'The popup that prepared Chrome target access closed before the reviewed prompt activation. Start the cleanup again.'
+        'The popup that prepared browser target access closed before the reviewed prompt activation. Start the cleanup again.'
       );
     }
   }
@@ -373,6 +408,137 @@ async function resumeEquivalentCleanupReview(payload, record, dependencies) {
     resumed: true,
     popupContextId: preparationContextId,
     popupPreparationCapability: dependencies.popupPreparationCapability
+  };
+}
+
+async function retireAbandonedDirectReviewForFreshTarget(payload, record, dependencies) {
+  if (typeof dependencies.getSettings !== 'function') return false;
+
+  // Validate the fresh input before retiring anything. Settings, source
+  // window, and private scope may legitimately differ: retiring an unarmed
+  // token only removes authority, and the ordinary fresh-preflight path below
+  // revalidates every new authority field before it creates another token.
+  resolveCleanupReviewScope(payload.input, await dependencies.getSettings());
+  return (await retireAbandonedDirectReviewRecord(record, dependencies)).retired;
+}
+
+export async function retireAbandonedDirectReviewForPopupContext(dependencies = {}) {
+  const storageSession = dependencies.storageSession;
+  if (!storageSession?.get || !storageSession?.set || !storageSession?.remove) {
+    throw new Error('Cleanup review session storage is unavailable.');
+  }
+  const state = await readRecordState(storageSession);
+  if (state.invalid) return { retired: false, reason: 'invalid_review_retained' };
+  const record = state.record;
+  if (!record) return { retired: false, reason: 'no_review' };
+  const nowMs = Number(typeof dependencies.now === 'function' ? dependencies.now() : Date.now());
+  if (!Number.isFinite(nowMs)) throw new Error('Cleanup review clock is unavailable.');
+  if (!Number.isFinite(record.expiresAtMs) || nowMs > record.expiresAtMs) {
+    return { retired: false, reason: 'expired_review_requires_normal_recovery' };
+  }
+  return retireAbandonedDirectReviewRecord(record, {
+    ...dependencies,
+    storageLocal: dependencies.storageLocal || storageSession.durable
+  });
+}
+
+async function retireAbandonedDirectReviewRecord(record, dependencies) {
+  const { isPreparationContextActive, getPendingPromptContextId, storageSession, storageLocal } = dependencies;
+  const preparationContextId = normalizePopupContextId(dependencies.preparationContextId);
+  if (record.approvalMode !== 'settings_direct' || record.approvalHandoff !== null) {
+    return { retired: false, reason: 'review_not_direct_unarmed' };
+  }
+  if (!preparationContextId || preparationContextId === record.preparationContextId) {
+    return { retired: false, reason: 'popup_context_not_replaced' };
+  }
+  if (
+    typeof isPreparationContextActive !== 'function' ||
+    typeof getPendingPromptContextId !== 'function' ||
+    !storageSession?.set ||
+    !storageSession?.remove
+  ) {
+    return { retired: false, reason: 'retirement_proof_unavailable' };
+  }
+
+  // The in-memory arm reservation is set synchronously before its durable
+  // review mutation is queued. Observe it on both sides of the asynchronous
+  // context check so a final click from the old popup always wins this race.
+  if (getPendingPromptContextId(record)) return { retired: false, reason: 'pending_arm' };
+  if (await isPreparationContextActive(record.preparationContextId)) {
+    return { retired: false, reason: 'old_popup_context_active' };
+  }
+  if (getPendingPromptContextId(record)) return { retired: false, reason: 'pending_arm' };
+
+  if (cleanupReviewPromptIntentMayStillConfirm(record) || cleanupReviewPromptMayStillSettle(record)) {
+    return { retired: false, reason: 'prompt_may_still_settle' };
+  }
+  let lease = null;
+  if (record.permissionLeaseId) {
+    if (!storageLocal?.get || !storageLocal?.set || !storageLocal?.remove) {
+      return { retired: false, reason: 'lease_storage_unavailable' };
+    }
+    lease = await getPermissionLease(storageLocal);
+    if (getPendingPromptContextId(record)) return { retired: false, reason: 'pending_arm' };
+    if (
+      !lease ||
+      lease.id !== record.permissionLeaseId ||
+      lease.status !== 'prompt_pending' ||
+      lease.ownershipProof !== null ||
+      !permissionLeaseMatchesReview(lease, record, normalizeOrigins(record.target?.hostPermissionOrigins))
+    ) {
+      return { retired: false, reason: 'lease_not_exact_proofless_prompt_pending' };
+    }
+  } else if (record.hostPermissionsGranted !== true || record.approvalHandoffNonce !== null) {
+    return { retired: false, reason: 'pregranted_review_binding_invalid' };
+  }
+
+  // Retire the session authority before its proofless lease. If a final click
+  // reserves the old arm during either storage await, restore the exact old
+  // record (and, if already discarded, its exact proofless lease) so the arm
+  // wins. If no reservation appears, the old token is permanently gone before
+  // a fresh preflight can mint another one.
+  if (getPendingPromptContextId(record)) return { retired: false, reason: 'pending_arm' };
+  await storageSession.remove(CLEANUP_REVIEW_STORAGE_KEY);
+  if (getPendingPromptContextId(record)) {
+    await storageSession.set({ [CLEANUP_REVIEW_STORAGE_KEY]: record });
+    return { retired: false, reason: 'pending_arm_restored' };
+  }
+
+  let hostPermissionCleanup = {
+    found: false,
+    released: false,
+    accessRemains: null,
+    recordRetained: false,
+    permissionsPreserved: true,
+    reason: 'no_lease'
+  };
+  if (lease) {
+    hostPermissionCleanup = await discardUninvokedPermissionLease(storageLocal, record.permissionLeaseId);
+    const pendingArmAfterLeaseRetirement = getPendingPromptContextId(record);
+    if (hostPermissionCleanup.recordRetained === true || pendingArmAfterLeaseRetirement) {
+      if (!hostPermissionCleanup.recordRetained) {
+        await restorePermissionLeasePromptOwnership(storageLocal, {
+          id: record.permissionLeaseId,
+          requestedOrigins: record.target?.hostPermissionOrigins || [],
+          preexistingOrigins: record.preexistingHostPermissionOrigins || [],
+          createdAt: new Date(record.createdAtMs).toISOString(),
+          reviewExpiresAt: new Date(record.expiresAtMs).toISOString(),
+          now: dependencies.now || (() => Date.now())
+        });
+      }
+      await storageSession.set({ [CLEANUP_REVIEW_STORAGE_KEY]: record });
+      return {
+        retired: false,
+        reason: pendingArmAfterLeaseRetirement ? 'pending_arm_restored' : 'lease_retained',
+        hostPermissionCleanup
+      };
+    }
+  }
+
+  return {
+    retired: true,
+    reason: 'abandoned_direct_popup_context_closed',
+    hostPermissionCleanup
   };
 }
 
@@ -511,7 +677,7 @@ export async function assertLeaseOwnedCleanupPermissionInventory(record, depende
   });
   if (!inventory) {
     throw new Error(
-      'Chrome target access changed after final approval. SiteWipe requires the exact preflight-bound temporary patterns and did not admit cleanup.'
+      'Browser target access changed after final approval. SiteWipe requires the exact preflight-bound temporary patterns and did not admit cleanup.'
     );
   }
   return inventory;
@@ -657,7 +823,7 @@ export async function stageCleanupReviewApprovalRequest(payload = {}, dependenci
   }
   const promptContextId = normalizePopupContextId(payload.popupContextId || dependencies.promptContextId);
   if (!promptContextId) {
-    throw new Error('The initiating popup context could not be bound to the Chrome permission prompt. Start again.');
+    throw new Error('The initiating popup context could not be bound to the browser permission prompt. Start again.');
   }
 
   if (!record.approvalHandoff && record.preparationContextId !== promptContextId) {
@@ -774,7 +940,7 @@ export async function armCleanupReviewApprovalRequest(payload = {}, dependencies
     }
     const armedAtMs = Number(now());
     if (!Number.isFinite(armedAtMs) || armedAtMs > record.expiresAtMs) {
-      throw new Error('This cleanup approval expired while Chrome target access was being requested.');
+      throw new Error('This cleanup approval expired while browser target access was being requested.');
     }
     const approvalHandoff = {
       ...armingHandoff,
@@ -892,7 +1058,7 @@ export async function recordCleanupPermissionPromptIntent(payload = {}, dependen
   }
   const popupContextId = normalizePopupContextId(payload.popupContextId);
   if (!popupContextId || popupContextId !== record.approvalHandoff.promptContextId) {
-    throw new Error('The Chrome target-access request changed popup context. Start again.');
+    throw new Error('The browser target-access request changed popup context. Start again.');
   }
   const existing = record.approvalHandoff.promptIntent;
   if (existing) {
@@ -967,7 +1133,7 @@ export async function recordCleanupPermissionPromptInvocation(payload = {}, depe
     popupContextId !== record.approvalHandoff.promptContextId ||
     record.approvalHandoff.promptIntent?.popupContextId !== popupContextId
   ) {
-    throw new Error('The accepted Chrome target-access request is missing its initiating popup intent. Start again.');
+    throw new Error('The accepted browser target-access request is missing its initiating popup intent. Start again.');
   }
   const existing = record.approvalHandoff.promptInvocation;
   if (existing) {
@@ -983,7 +1149,7 @@ export async function recordCleanupPermissionPromptInvocation(payload = {}, depe
     recordedAtMs >= record.approvalHandoff.promptIntent.confirmationDeadlineMs
   ) {
     await discardUninvokedCleanupReviewRecord(record, dependencies);
-    throw new Error('Chrome target-access confirmation arrived too late. Start again.');
+    throw new Error('Browser target-access confirmation arrived too late. Start again.');
   }
   if (record.approvalHandoff.status === 'prompt_intent_tombstone' || recordedAtMs > record.expiresAtMs) {
     // The exact popup confirms this marker immediately after
@@ -1141,7 +1307,7 @@ export async function recordCleanupPermissionGrantOutcome(payload = {}, dependen
     throw new Error('Cleanup review session storage is unavailable.');
   }
   if (payload.preRequestTemporaryOriginsAbsent !== true) {
-    throw new Error('Chrome target access was not proved absent before the requested prompt. Start again.');
+    throw new Error('Browser target access was not proved absent before the requested prompt. Start again.');
   }
   const state = await readRecordState(storageSession);
   if (state.invalid) {
@@ -1156,7 +1322,7 @@ export async function recordCleanupPermissionGrantOutcome(payload = {}, dependen
     record.approvalHandoff.nonce !== handoffNonce ||
     !record.approvalHandoff.promptInvocation
   ) {
-    throw new Error('The accepted Chrome target-access result has no matching invoked request. Start again.');
+    throw new Error('The accepted browser target-access result has no matching invoked request. Start again.');
   }
   if (dependencies.requirePopupPreparationCapability === true) {
     await assertCleanupReviewPopupBinding(record, payload);
@@ -1167,7 +1333,7 @@ export async function recordCleanupPermissionGrantOutcome(payload = {}, dependen
     popupContextId !== record.approvalHandoff.promptContextId ||
     record.approvalHandoff.promptInvocation.popupContextId !== popupContextId
   ) {
-    throw new Error('Only the initiating popup can confirm Chrome granted the requested target access.');
+    throw new Error('Only the initiating popup can confirm the browser granted the requested target access.');
   }
   const existing = record.approvalHandoff.promptGrantOutcome;
   if (existing?.granted === true) {
@@ -1244,7 +1410,7 @@ export async function discardCleanupPermissionPromptWithoutInvocation(payload = 
   }
   const popupContextId = normalizePopupContextId(payload.popupContextId);
   if (record.approvalHandoff.promptIntent.popupContextId !== popupContextId) {
-    throw new Error('Only the initiating popup can report that Chrome target access was not invoked.');
+    throw new Error('Only the initiating popup can report that browser target access was not invoked.');
   }
 
   await storageSession.set({
@@ -1737,7 +1903,7 @@ function createPromptTombstoneRecord(record, requestedNowMs, reason, pendingProm
   const tombstonedAtMs = Math.max(fallbackMs, record.createdAtMs);
   const existing = record.approvalHandoff;
   if (!existing?.promptInvocation) {
-    throw new Error('A Chrome target-access settlement tombstone requires an authenticated prompt invocation.');
+    throw new Error('A browser target-access settlement tombstone requires an authenticated prompt invocation.');
   }
   return {
     ...record,
@@ -1866,6 +2032,13 @@ export function normalizeCleanupReviewRecord(value) {
     if (!approvedDownloadFileIds) return null;
     const impact = normalizeImpactSnapshot(value.impact);
     if (!jsonEquivalent(value.impact, impact)) return null;
+    const capacitySettings = { ...settings, sourceWindowId, incognitoAccess: value.incognitoAccess };
+    const expectedQueryCapacityPlan = assertCleanupQueryCapacity(
+      resolved.target,
+      capacitySettings,
+      buildCleanupCapacityObservationFromImpact(impact, capacitySettings)
+    );
+    if (!jsonEquivalent(impact.queryCapacityPlan, expectedQueryCapacityPlan)) return null;
     const impactApprovedFileIds = Array.isArray(impact.matchedCompletedFileIds) ? impact.matchedCompletedFileIds : [];
     if (!jsonEquivalent(approvedDownloadFileIds, impactApprovedFileIds)) return null;
     const expectedReview = buildCleanupReview({
@@ -2233,16 +2406,140 @@ function normalizeImpactSnapshot(value = {}) {
         .slice(0, MAX_PREVIEW_LIMITATIONS)
         .map((item) => String(item).slice(0, MAX_PREVIEW_LIMITATION_LENGTH))
     : [];
+  const matchingHistoryEntries = normalizeImpactCount(input.matchingHistoryEntries);
+  const matchingDownloadRecords = normalizeImpactCount(input.matchingDownloadRecords);
   return {
     matchingTabs: normalizeImpactCount(input.matchingTabs),
     matchingPrivateTabs: normalizeImpactCount(input.matchingPrivateTabs),
-    matchingHistoryEntries: normalizeImpactCount(input.matchingHistoryEntries),
-    matchingDownloadRecords: normalizeImpactCount(input.matchingDownloadRecords),
+    tabEnumerationComplete: input.tabEnumerationComplete === true,
+    matchingHistoryEntries,
+    matchingHistoryEntriesLowerBound:
+      normalizeImpactCount(input.matchingHistoryEntriesLowerBound) ?? matchingHistoryEntries,
+    matchingDownloadRecords,
+    matchingDownloadRecordsLowerBound:
+      normalizeImpactCount(input.matchingDownloadRecordsLowerBound) ?? matchingDownloadRecords,
     matchedCompletedFileCount: Array.isArray(matchedCompletedFileIds)
       ? matchedCompletedFileIds.length
       : normalizeImpactCount(input.matchedCompletedFileCount),
     matchedCompletedFileIds,
+    cookieStoreCount: normalizeImpactCount(input.cookieStoreCount),
+    cookieStoreEnumerationComplete: input.cookieStoreEnumerationComplete === true,
+    overlayEligibleTabs: normalizeImpactCount(input.overlayEligibleTabs),
+    discoveryEvidence: normalizeImpactDiscoveryEvidence(input.discoveryEvidence),
+    queryCapacityPlan: normalizeQueryCapacityPlan(input.queryCapacityPlan),
     limitations
+  };
+}
+
+function normalizeImpactDiscoveryEvidence(value) {
+  const input = isPlainObject(value) ? value : {};
+  return {
+    history: normalizeRecordDiscoveryEvidence(input.history, 'history'),
+    downloads: normalizeRecordDiscoveryEvidence(input.downloads, 'downloads')
+  };
+}
+
+function normalizeRecordDiscoveryEvidence(value, kind) {
+  if (!isPlainObject(value)) return null;
+  const queriesPlanned = normalizeImpactCount(value.queriesPlanned) ?? 0;
+  const queriesRun = normalizeImpactCount(value.queriesRun) ?? 0;
+  const queryResultCapReached = value.queryResultCapReached === true;
+  const matchCapReached = value.matchCapReached === true;
+  const queryFailures = normalizeImpactCount(value.queryFailures) ?? 0;
+  const complete =
+    value.complete === true &&
+    !queryResultCapReached &&
+    !matchCapReached &&
+    queryFailures === 0 &&
+    queriesRun >= queriesPlanned;
+  const limitations = Array.isArray(value.limitations)
+    ? value.limitations
+        .slice(0, MAX_PREVIEW_LIMITATIONS)
+        .map((item) => String(item).slice(0, MAX_PREVIEW_LIMITATION_LENGTH))
+    : [];
+  return {
+    kind,
+    queriesPlanned,
+    queriesRun,
+    recordsObserved: normalizeImpactCount(value.recordsObserved) ?? 0,
+    matches: normalizeImpactCount(value.matches) ?? 0,
+    cappedQueries: normalizeImpactCount(value.cappedQueries) ?? 0,
+    queryResultCapReached,
+    matchCapReached,
+    queryFailures,
+    complete,
+    truncated: !complete,
+    limitations
+  };
+}
+
+function normalizeQueryCapacityPlan(value) {
+  if (!isPlainObject(value)) return null;
+  const integerFields = [
+    'associatedTargetCount',
+    'totalTargetCount',
+    'recordSearchTerms',
+    'downloadQueriesPerPass',
+    'cookieStoreCount',
+    'cookieStoreLimit',
+    'matchingTabCount',
+    'matchingDownloadCount',
+    'approvedDownloadFileCount',
+    'overlayEligibleTabCount',
+    'scopeAdditionalOriginAllowance',
+    'scopePartitionTopLevelSiteAllowance',
+    'scopeCookieQueriesUncappedRequestedPerStore',
+    'scopeCookieQueryHardCapPerStore',
+    'scopeCookieQueriesHardCappedRequestedPerStore',
+    'scopeCookieQueriesRequestedPerStore',
+    'scopeCookieQueriesHardCapOmittedPerStore',
+    'scopeCookieQueriesRequiredUncappedPerStore',
+    'scopeCookieQueriesRequiredPerStore',
+    'scopeCookieQueriesRequiredHardCapOmittedPerStore',
+    'scopeCookieQueryCapacityPerStore',
+    'scopeCookieQueriesAllocatedPerStore',
+    'scopeCookieQueriesAllocationOmittedPerStore',
+    'scopeCookieQueriesOmittedPerStore',
+    'scopeCookieQueriesTotalOmittedPerStore',
+    'scopeCookieQueriesPerStore',
+    'verificationCookieQueriesPerStore',
+    'embeddedFrameQueryAllowance',
+    'tabAuditTabCount',
+    'tabAuditQueriesPerTab',
+    'tabAuditQueries',
+    'pageScrubTabCount',
+    'pageScrubQueries',
+    'tabCloseQueries',
+    'downloadRevalidationQueries',
+    'dnrDiagnosticQueries',
+    'overlayTabCount',
+    'overlayShowUpdateAllowance',
+    'progressOverlayQueries',
+    'dynamicQueries',
+    'preflightPlannedQueries',
+    'preflightQueryLimit',
+    'cleanupPlannedQueries',
+    'cleanupQueryLimit',
+    'cleanupQueryReserve',
+    'cleanupAdmissionLimit'
+  ];
+  const normalized = {};
+  for (const field of integerFields) {
+    const count = normalizeImpactCount(value[field]);
+    if (count === null) return null;
+    normalized[field] = count;
+  }
+  return {
+    ...normalized,
+    scopeCookieQueriesHardCapTruncated: value.scopeCookieQueriesHardCapTruncated === true,
+    scopeCookieQueriesAllocationTruncated: value.scopeCookieQueriesAllocationTruncated === true,
+    scopeCookieQueriesTruncated: value.scopeCookieQueriesTruncated === true,
+    verificationEnabled: value.verificationEnabled === true,
+    observationComplete: value.observationComplete === true,
+    observationFits: value.observationFits === true,
+    preflightFits: value.preflightFits === true,
+    cleanupFits: value.cleanupFits === true,
+    admitted: value.admitted === true
   };
 }
 

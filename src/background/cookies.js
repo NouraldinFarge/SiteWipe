@@ -12,6 +12,7 @@ import { runOriginCookieSweep } from './origin-storage.js';
 const MAX_COOKIE_URL_PROBE_ORIGINS = 80;
 const MAX_PARTITION_TOP_LEVEL_SITES = 50;
 export const MAX_COOKIE_DISCOVERY_QUERIES = 1_500;
+export const MAX_COOKIE_STORES = 8;
 const OPERATION_YIELD_EVERY = 10;
 const COOKIE_DISCOVERY_CONCURRENCY = 6;
 const COOKIE_REMOVE_CONCURRENCY = 8;
@@ -121,9 +122,10 @@ export async function removeCookies(target, report, incognitoAccess, context, op
     report.summary.browserCookieSweepAttempted = Boolean(sweep.attempted);
     report.summary.browserCookieSweepBatches = sweep.batches || 0;
     report.summary.browserCookieSweepSucceeded = Boolean(sweep.ok);
-    report.summary.partitionTopLevelSitesProbed = Array.isArray(context?.partitionTopLevelSites)
-      ? context.partitionTopLevelSites.length
-      : report.summary.partitionTopLevelSitesProbed || 0;
+    const probedPartitionTopLevelSites = Array.isArray(context?.probedPartitionTopLevelSites)
+      ? [...new Set(context.probedPartitionTopLevelSites.filter((site) => typeof site === 'string' && site))]
+      : [];
+    report.summary.partitionTopLevelSitesProbed = probedPartitionTopLevelSites.length;
     const partial = Boolean(
       cookieCandidatesUnremoved || cookieRemoveTimeouts || cookieRemoveFailures || (sweep.attempted && !sweep.ok)
     );
@@ -144,9 +146,8 @@ export async function removeCookies(target, report, incognitoAccess, context, op
         unknown: cookieCandidatesUnremoved
       }),
       stores: context?.storeStats || [],
-      partitionTopLevelSitesProbed: Array.isArray(context?.partitionTopLevelSites)
-        ? context.partitionTopLevelSites.length
-        : 0,
+      partitionTopLevelSitesProbed: probedPartitionTopLevelSites.length,
+      probedPartitionTopLevelSites,
       perCallTimeoutMs: COOKIE_REMOVE_TIMEOUT_MS,
       browserCookieSweep: sweep
     });
@@ -165,11 +166,23 @@ export async function discoverCookiesOnly(target, incognitoAccess, options = {})
     throw new Error(storesResult.error || 'Cookie stores could not be enumerated.');
   }
   const stores = storesResult.ok ? storesResult.stores : [];
+  const maxCookieStores = Number.isSafeInteger(options.maxCookieStores)
+    ? Math.max(0, options.maxCookieStores)
+    : MAX_COOKIE_STORES;
+  if (stores.length > maxCookieStores) {
+    throw new Error(
+      `The browser exposed ${stores.length} cookie stores, exceeding SiteWipe's reviewed bound of ${maxCookieStores}.`
+    );
+  }
+  const tabPrivateScopeById = await resolveTabPrivateScopeSnapshot(options);
   const candidates = [];
   for (const store of stores) {
     await throwIfCancellationRequested(options.shouldCancel, 'the next cookie store');
     options.operationBudget?.check('the next cookie store');
-    const privateScope = await classifyCookieStorePrivateScope(store, options);
+    const privateScope = await classifyCookieStorePrivateScope(store, {
+      ...options,
+      tabPrivateScopeById
+    });
     if (!incognitoAccess && privateScope !== 'regular') {
       if (options.strict && privateScope === 'unknown') {
         throw new Error('Cookie-store private scope could not be verified.');
@@ -206,148 +219,308 @@ export async function discoverCookiesOnly(target, incognitoAccess, options = {})
   return candidates;
 }
 
+/**
+ * Counts the complete bounded-input query matrix without materializing its
+ * optional cross product. The executable query builder applies the independent
+ * per-store hard cap after this count is established, so review/report evidence
+ * can distinguish hard-cap omissions from the later operation-budget
+ * allocation.
+ */
+export function describeCookieDiscoveryQueryDemand(target, origins = [], partitionTopLevelSites = [], options = {}) {
+  const inputs = normalizeCookieDiscoveryInputs(target, origins, partitionTopLevelSites, options);
+  const requiredQueries =
+    inputs.originList.length * 2 +
+    inputs.exactTargetsWithOrigin.length * 2 +
+    inputs.domains.reduce((total, domain) => total + (domain.startsWith('.') ? 2 : 4), 0) +
+    (options.exhaustiveCookieStoreScan === true ? 2 : 0);
+  const optionalPartitionQueries =
+    options.probePartitionedCookiesWithEmbeddingSites === true
+      ? inputs.topLevelSites.length * (inputs.originList.length * 3 + inputs.domains.length * 3)
+      : 0;
+  const uncappedRequestedQueries = requiredQueries + optionalPartitionQueries;
+  const hardCappedRequestedQueries = Math.min(uncappedRequestedQueries, MAX_COOKIE_DISCOVERY_QUERIES);
+  return {
+    uncappedRequestedQueries,
+    hardCappedRequestedQueries,
+    hardCap: MAX_COOKIE_DISCOVERY_QUERIES,
+    hardCapOmittedQueries: Math.max(0, uncappedRequestedQueries - hardCappedRequestedQueries),
+    requiredQueries,
+    optionalPartitionQueries,
+    originCount: inputs.originList.length,
+    domainCount: inputs.domains.length,
+    exactOriginTargetCount: inputs.exactTargetsWithOrigin.length,
+    partitionTopLevelSiteCount: inputs.topLevelSites.length
+  };
+}
+
 export function buildCookieDiscoveryQueries(target, storeId, origins = [], partitionTopLevelSites = [], options = {}) {
   const queries = [];
-  const explicitOrigins = [...new Set((target.baseOrigins || []).filter(Boolean))];
-  const explicitOriginSet = new Set(explicitOrigins);
-  const additionalOrigins = [...new Set(origins || [])].filter((origin) => origin && !explicitOriginSet.has(origin));
-  const originList = [...explicitOrigins, ...additionalOrigins.slice(0, MAX_COOKIE_URL_PROBE_ORIGINS)];
-  const domains = cookieDiscoveryDomains(target);
-  const exactTargets = listCleanupTargets(target).filter((item) => item.matchMode === 'exact_origin');
+  const { originList, domains, exactTargetsWithOrigin, topLevelSites } = normalizeCookieDiscoveryInputs(
+    target,
+    origins,
+    partitionTopLevelSites,
+    options
+  );
 
-  for (const origin of originList) {
-    queries.push({
-      source: `url:${origin}`,
-      details: { url: `${origin}/`, storeId }
-    });
-    queries.push({
-      source: `partition-any-url:${origin}`,
-      details: { url: `${origin}/`, storeId, partitionKey: {} }
-    });
+  function append(query) {
+    if (queries.length >= MAX_COOKIE_DISCOVERY_QUERIES) return false;
+    queries.push(query);
+    return true;
   }
 
-  for (const item of exactTargets) {
-    if (item.exactOrigin) {
-      const origin = String(item.exactOrigin).replace(/\/$/, '');
-      queries.push({
+  for (const origin of originList) {
+    if (
+      !append({
+        source: `url:${origin}`,
+        details: { url: `${origin}/`, storeId }
+      })
+    )
+      return queries;
+    if (
+      !append({
+        source: `partition-any-url:${origin}`,
+        details: { url: `${origin}/`, storeId, partitionKey: {} }
+      })
+    )
+      return queries;
+  }
+
+  for (const item of exactTargetsWithOrigin) {
+    const origin = String(item.exactOrigin).replace(/\/$/, '');
+    if (
+      !append({
         source: `exact-origin-url:${origin}`,
         details: { url: `${origin}/`, storeId }
-      });
-      queries.push({
+      })
+    )
+      return queries;
+    if (
+      !append({
         source: `partition-any-exact-origin-url:${origin}`,
         details: { url: `${origin}/`, storeId, partitionKey: {} }
-      });
-    }
+      })
+    )
+      return queries;
   }
 
   for (const domain of domains) {
-    queries.push({
-      source: `domain-filter:${domain}`,
-      details: { domain, storeId }
-    });
-    queries.push({
-      source: `partition-any-domain-filter:${domain}`,
-      details: { domain, storeId, partitionKey: {} }
-    });
+    if (
+      !append({
+        source: `domain-filter:${domain}`,
+        details: { domain, storeId }
+      })
+    )
+      return queries;
+    if (
+      !append({
+        source: `partition-any-domain-filter:${domain}`,
+        details: { domain, storeId, partitionKey: {} }
+      })
+    )
+      return queries;
     if (!domain.startsWith('.')) {
-      queries.push({
-        source: `domain-filter:.${domain}`,
-        details: { domain: `.${domain}`, storeId }
-      });
-      queries.push({
-        source: `partition-any-domain-filter:.${domain}`,
-        details: { domain: `.${domain}`, storeId, partitionKey: {} }
-      });
+      if (
+        !append({
+          source: `domain-filter:.${domain}`,
+          details: { domain: `.${domain}`, storeId }
+        })
+      )
+        return queries;
+      if (
+        !append({
+          source: `partition-any-domain-filter:.${domain}`,
+          details: { domain: `.${domain}`, storeId, partitionKey: {} }
+        })
+      )
+        return queries;
     }
   }
 
   if (options.exhaustiveCookieStoreScan === true) {
-    queries.push({
-      source: 'all-accessible-store-cookies',
-      details: { storeId }
-    });
-    queries.push({
-      source: 'partition-any-accessible-store-cookies',
-      details: { storeId, partitionKey: {} }
-    });
+    if (
+      !append({
+        source: 'all-accessible-store-cookies',
+        details: { storeId }
+      })
+    )
+      return queries;
+    if (
+      !append({
+        source: 'partition-any-accessible-store-cookies',
+        details: { storeId, partitionKey: {} }
+      })
+    )
+      return queries;
   }
 
   if (options.probePartitionedCookiesWithEmbeddingSites === true) {
-    const topLevelSites = [
-      ...new Set([...(target.partitionTopLevelSites || []), ...(partitionTopLevelSites || [])])
-    ].slice(0, MAX_PARTITION_TOP_LEVEL_SITES);
     for (const topLevelSite of topLevelSites) {
       for (const origin of originList) {
-        queries.push({
-          source: `partition-url:${topLevelSite}`,
-          details: {
-            url: `${origin}/`,
-            storeId,
-            partitionKey: { topLevelSite }
-          }
-        });
-        queries.push({
-          source: `partition-url-crosssite:${topLevelSite}`,
-          details: {
-            url: `${origin}/`,
-            storeId,
-            partitionKey: { topLevelSite, hasCrossSiteAncestor: true }
-          }
-        });
-        queries.push({
-          source: `partition-url-samesite:${topLevelSite}`,
-          details: {
-            url: `${origin}/`,
-            storeId,
-            partitionKey: { topLevelSite, hasCrossSiteAncestor: false }
-          }
-        });
+        if (
+          !append({
+            source: `partition-url:${topLevelSite}`,
+            details: {
+              url: `${origin}/`,
+              storeId,
+              partitionKey: { topLevelSite }
+            }
+          })
+        )
+          return queries;
+        if (
+          !append({
+            source: `partition-url-crosssite:${topLevelSite}`,
+            details: {
+              url: `${origin}/`,
+              storeId,
+              partitionKey: { topLevelSite, hasCrossSiteAncestor: true }
+            }
+          })
+        )
+          return queries;
+        if (
+          !append({
+            source: `partition-url-samesite:${topLevelSite}`,
+            details: {
+              url: `${origin}/`,
+              storeId,
+              partitionKey: { topLevelSite, hasCrossSiteAncestor: false }
+            }
+          })
+        )
+          return queries;
       }
       for (const domain of domains) {
-        queries.push({
-          source: `partition-domain:${domain}:${topLevelSite}`,
-          details: { domain, storeId, partitionKey: { topLevelSite } }
-        });
-        queries.push({
-          source: `partition-domain-crosssite:${domain}:${topLevelSite}`,
-          details: {
-            domain,
-            storeId,
-            partitionKey: { topLevelSite, hasCrossSiteAncestor: true }
-          }
-        });
-        queries.push({
-          source: `partition-domain-samesite:${domain}:${topLevelSite}`,
-          details: {
-            domain,
-            storeId,
-            partitionKey: { topLevelSite, hasCrossSiteAncestor: false }
-          }
-        });
+        if (
+          !append({
+            source: `partition-domain:${domain}:${topLevelSite}`,
+            details: { domain, storeId, partitionKey: { topLevelSite } }
+          })
+        )
+          return queries;
+        if (
+          !append({
+            source: `partition-domain-crosssite:${domain}:${topLevelSite}`,
+            details: {
+              domain,
+              storeId,
+              partitionKey: { topLevelSite, hasCrossSiteAncestor: true }
+            }
+          })
+        )
+          return queries;
+        if (
+          !append({
+            source: `partition-domain-samesite:${domain}:${topLevelSite}`,
+            details: {
+              domain,
+              storeId,
+              partitionKey: { topLevelSite, hasCrossSiteAncestor: false }
+            }
+          })
+        )
+          return queries;
       }
     }
   }
-  // Preserve the reviewed origin/domain queries at the front and bound the
-  // optional embedding-site expansion. Expert discovery must not generate an
-  // unbounded service-worker workload.
-  return queries.slice(0, MAX_COOKIE_DISCOVERY_QUERIES);
+  return queries;
+}
+
+function normalizeCookieDiscoveryInputs(target, origins, partitionTopLevelSites, options) {
+  const explicitOrigins = boundedUniqueValues(target?.baseOrigins, Number.POSITIVE_INFINITY);
+  const explicitOriginSet = new Set(explicitOrigins);
+  const additionalOrigins = [];
+  const additionalOriginSet = new Set();
+  for (const origin of iterableValues(origins)) {
+    if (!origin || explicitOriginSet.has(origin) || additionalOriginSet.has(origin)) continue;
+    additionalOriginSet.add(origin);
+    additionalOrigins.push(origin);
+    if (additionalOrigins.length >= MAX_COOKIE_URL_PROBE_ORIGINS) break;
+  }
+  const originList = [...explicitOrigins, ...additionalOrigins];
+  const domains = cookieDiscoveryDomains(target);
+  const exactTargetsWithOrigin = listCleanupTargets(target).filter(
+    (item) => item.matchMode === 'exact_origin' && item.exactOrigin
+  );
+  const topLevelSites =
+    options.probePartitionedCookiesWithEmbeddingSites === true
+      ? boundedUniqueValuesFromSources(
+          [target?.partitionTopLevelSites, partitionTopLevelSites],
+          MAX_PARTITION_TOP_LEVEL_SITES
+        )
+      : [];
+  return { originList, domains, exactTargetsWithOrigin, topLevelSites };
+}
+
+function boundedUniqueValues(values, limit) {
+  const result = [];
+  const seen = new Set();
+  const safeLimit = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : Number.POSITIVE_INFINITY;
+  if (safeLimit === 0) return result;
+  for (const value of iterableValues(values)) {
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+    if (result.length >= safeLimit) break;
+  }
+  return result;
+}
+
+function boundedUniqueValuesFromSources(sources, limit) {
+  const result = [];
+  const seen = new Set();
+  const safeLimit = Math.max(0, Math.floor(Number(limit) || 0));
+  if (safeLimit === 0) return result;
+  for (const source of sources) {
+    for (const value of iterableValues(source)) {
+      if (!value || seen.has(value)) continue;
+      seen.add(value);
+      result.push(value);
+      if (result.length >= safeLimit) return result;
+    }
+  }
+  return result;
+}
+
+function iterableValues(value) {
+  return value != null && typeof value !== 'string' && typeof value[Symbol.iterator] === 'function' ? value : [];
 }
 
 export async function classifyCookieStorePrivateScope(store, options = {}) {
   if (!Array.isArray(store?.tabIds) || store.tabIds.length === 0) return 'unknown';
+  const tabPrivateScopeById = normalizeTabPrivateScopeSnapshot(options.tabPrivateScopeById);
   let inspectedTabs = 0;
   for (const tabId of store.tabIds) {
     await throwIfCancellationRequested(options.shouldCancel, 'cookie-store tab inspection');
-    options.operationBudget?.claimQuery('cookie-store tab inspection');
-    try {
-      const tab = await chrome.tabs.get(tabId);
-      inspectedTabs += 1;
-      if (tab?.incognito) return 'incognito';
-    } catch {
-      // A closed or unreadable tab cannot prove this store is regular.
-    }
+    if (!tabPrivateScopeById.has(tabId)) continue;
+    inspectedTabs += 1;
+    if (tabPrivateScopeById.get(tabId) === true) return 'incognito';
   }
   return inspectedTabs > 0 ? 'regular' : 'unknown';
+}
+
+async function resolveTabPrivateScopeSnapshot(options) {
+  const provided = normalizeTabPrivateScopeSnapshot(options.tabPrivateScopeById);
+  if (provided.size || options.tabPrivateScopeById) return provided;
+  if (typeof chrome.tabs?.query !== 'function') return provided;
+  await throwIfCancellationRequested(options.shouldCancel, 'cookie-store tab snapshot');
+  options.operationBudget?.claimQuery('cookie-store tab snapshot');
+  const tabs = await chrome.tabs.query({});
+  options.operationBudget?.observeRecords(tabs?.length || 0, 'cookie-store tab snapshot results');
+  return new Map(
+    (tabs || []).filter((tab) => Number.isInteger(tab?.id)).map((tab) => [tab.id, tab.incognito === true])
+  );
+}
+
+function normalizeTabPrivateScopeSnapshot(value) {
+  if (value instanceof Map) return value;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return new Map();
+  const snapshot = new Map();
+  for (const [id, incognito] of Object.entries(value)) {
+    const numericId = Number(id);
+    if (Number.isInteger(numericId)) snapshot.set(numericId, incognito === true);
+  }
+  return snapshot;
 }
 
 export async function safeGetCookieStores() {
@@ -364,7 +537,14 @@ export async function safeGetCookieStores() {
         error: `cookies.getAllCookieStores timed out after ${COOKIE_GET_STORES_TIMEOUT_MS}ms`
       };
     }
-    return { ok: true, stores: Array.isArray(stores) ? stores : [] };
+    if (!Array.isArray(stores)) {
+      return {
+        ok: false,
+        stores: [],
+        error: 'cookies.getAllCookieStores returned a non-array result.'
+      };
+    }
+    return { ok: true, stores };
   } catch (error) {
     return { ok: false, stores: [], error: error?.message || String(error) };
   }
@@ -380,7 +560,14 @@ export async function safeGetCookies(details) {
         error: `cookies.getAll timed out after ${COOKIE_GET_TIMEOUT_MS}ms`
       };
     }
-    return { ok: true, cookies: Array.isArray(cookies) ? cookies : [] };
+    if (!Array.isArray(cookies)) {
+      return {
+        ok: false,
+        cookies: [],
+        error: 'cookies.getAll returned a non-array result.'
+      };
+    }
+    return { ok: true, cookies };
   } catch (error) {
     return { ok: false, cookies: [], error: error?.message || String(error) };
   }
@@ -436,10 +623,11 @@ export async function removeCookie(cookie, storeId, partitionKey, options = {}) 
           stats.timeouts += 1;
           continue;
         }
-        if (result) {
+        if (isConfirmedCookieRemoval(result, details)) {
           stats.removed = true;
           return stats;
         }
+        if (result !== null && result !== undefined) stats.failures += 1;
       } catch {
         stats.failures += 1;
         // Try the next scheme/partition variant. Cookie metadata can be browser-specific.
@@ -447,6 +635,23 @@ export async function removeCookie(cookie, storeId, partitionKey, options = {}) 
     }
   }
   return stats;
+}
+
+function isConfirmedCookieRemoval(result, expected) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return false;
+  if (result.name !== expected.name || typeof result.url !== 'string') return false;
+  if (result.storeId !== undefined && String(result.storeId) !== String(expected.storeId)) return false;
+  try {
+    const actualUrl = new URL(result.url);
+    const expectedUrl = new URL(expected.url);
+    return (
+      actualUrl.protocol === expectedUrl.protocol &&
+      actualUrl.host === expectedUrl.host &&
+      normalizeCookiePath(actualUrl.pathname) === normalizeCookiePath(expectedUrl.pathname)
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function buildPartitionRemovalKeys(partitionKey) {

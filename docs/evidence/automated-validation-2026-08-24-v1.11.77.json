@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 1,
+  "status": "partial_safe_validation_complete",
+  "validatedAt": "2026-08-24T19:05:30.4822471-05:00",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
+  "environment": {
+    "os": "Microsoft Windows 11 Pro",
+    "architecture": "x64",
+    "node": "v24.18.0",
+    "npm": "11.16.0",
+    "scope": "Ordinary local source, dependency, and loopback UI-fixture checks only; no installed-browser, coverage, release-artifact, publication-gate, or remote workflow was run."
+  },
+  "baseline": {
+    "beforeState": "The exact 1.11.67 public-source baseline remains unchanged at commit 71b59d17a760a74fa634d8dd0566a91fdfe15fcb.",
+    "baselineVersion": "1.11.67",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-23-v1.11.67.json"
+  },
+  "separation": {
+    "mixedCheckpointBranch": "agent/sitewipe-1.11.68-autonomous-validation",
+    "mixedCheckpointCommit": "84f86c3e68bb05b6385ac250d41b7c37ab943890",
+    "cleanBranch": "agent/sitewipe-1.11.77-safe-product",
+    "baseCommit": "71b59d17a760a74fa634d8dd0566a91fdfe15fcb",
+    "status": "passed",
+    "excludedCategories": [
+      "installed-browser harness and tests",
+      "publication and stage-evidence machinery",
+      "release-output, attestation, and coverage writers",
+      "workflow changes",
+      "Puppeteer and its added dependency graph",
+      "mixed intermediate 1.11.68 through 1.11.76 validation records"
+    ],
+    "excludedPathAudit": "passed"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "not_run_by_clean_branch_scope",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.11.77",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "013EE8E57EDEA29033BB40F11E7786A0713EE72577F3D280C870CA7DB6F40B1A",
+      "stableReleaseInputFingerprintSha256": "C814F1136E8C54931A56ACE53B3BEF67328A8846167990D21E7C400E9103F483"
+    },
+    "manifest": {
+      "status": "passed",
+      "version": "1.11.77",
+      "descriptionCharacters": 123,
+      "descriptionMaximum": 132,
+      "requiredNamedPermissions": 10
+    }
+  },
+  "safeValidation": {
+    "status": "passed",
+    "staticChecks": [
+      "format",
+      "version",
+      "syntax",
+      "types",
+      "lint",
+      "html",
+      "css",
+      "manifest",
+      "runtime remote-code and secret scan",
+      "repository secret and private-path scan",
+      "dependency licenses",
+      "project license",
+      "third-party notices",
+      "assets",
+      "documentation",
+      "GitHub Action pins",
+      "package allowlist"
+    ],
+    "syntaxModules": 148,
+    "functionalTestFiles": 51,
+    "functionalTests": 632,
+    "functionalFailures": 0,
+    "legacySelfTest": "passed",
+    "propertyTests": 11,
+    "propertyFailures": 0,
+    "fixtureServerContract": "passed",
+    "inAppVisualInspection": {
+      "status": "passed_before_branch_separation_on_identical_runtime_bytes",
+      "runtimeFingerprintSha256": "013EE8E57EDEA29033BB40F11E7786A0713EE72577F3D280C870CA7DB6F40B1A",
+      "popupDefaultWidthCssPixels": 380,
+      "popupDefaultHorizontalOverflow": false,
+      "directTabWidth320HorizontalOverflow": false,
+      "handoffInitialFocus": "document body at scroll position zero",
+      "optionsDisabledRowsWithReducedOpacity": 0,
+      "optionsHorizontalOverflow": false,
+      "sidePanelHorizontalOverflow": false,
+      "note": "The clean branch has the same 61-file runtime fingerprint as the inspected mixed tree. These loopback fixture observations validate presentation only and are not installed-extension evidence."
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "not_run_by_clean_branch_scope",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    }
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "passed",
+    "installedPackages": 387,
+    "lockedPackageEntriesIncludingRoot": 407,
+    "lifecycleScriptsDisabled": true,
+    "deprecationWarnings": [
+      "prebuild-install@7.1.3 is no longer maintained",
+      "glob@10.5.0 is deprecated"
+    ]
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=moderate --json",
+    "status": "passed",
+    "auditedAt": "2026-08-24T19:05:30.4822471-05:00",
+    "knownVulnerabilities": 0,
+    "runtimeDependencyRecords": 1,
+    "lockedDevelopmentPackageEntries": 406,
+    "lockfileSha256": "C776BF46A9067A538EF6F9158930CA518C6864BB0B26A1BF5C8EFCA06C716F11"
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "not_run",
+    "redactionCanaries": "passed_in_safe_functional_subset",
+    "privateContextPersistenceRefusal": "passed_in_safe_functional_subset",
+    "deterministicThirtyMinuteExpiry": "passed_in_safe_functional_subset"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "passed_in_safe_loopback_test",
+    "installedChromeRun": "pending",
+    "installedBraveRun": "pending"
+  },
+  "gitInitialization": {
+    "status": "validated_local_candidate_tree_pending_commit",
+    "branch": "agent/sitewipe-1.11.77-safe-product",
+    "baseCommit": "71b59d17a760a74fa634d8dd0566a91fdfe15fcb",
+    "commitCountBeforeCandidate": 8,
+    "remoteCount": 1,
+    "tagCount": 0,
+    "note": "The local candidate commit is created only after this validation record and the staged separation audit are complete. No remote state is changed."
+  },
+  "artifacts": {
+    "status": "not_built_by_clean_branch_scope",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.77.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.77-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "pending",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.77.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.77.unsigned-provenance-input.json",
+    "remoteAttestation": "pending",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "remainingClasses": [
+      "Coverage, release-boundary tests, exact release artifacts, installed Chrome/Brave tests, publication-gate evaluation, and remote exact-head evidence were deliberately excluded from this product/UI checkpoint."
+    ]
+  },
+  "limitations": [
+    "No installed-browser, performance, media, artifact, publication, or remote result is inherited across this version transaction.",
+    "The recorded 632-test subset excludes release and installed-browser harness tests.",
+    "The in-app Browser visual inspection used loopback fixtures and does not prove installed-extension behavior or complete erasure.",
+    "This local branch is not a supported binary and carries no push, merge, tag, GitHub Release, browser-store, promotional, or publication authorization."
+  ]
+}

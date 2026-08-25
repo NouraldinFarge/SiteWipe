@@ -92,6 +92,11 @@ async function snapshotFixture() {
     ? await navigator.serviceWorker.getRegistrations()
     : [];
   const cacheNames = globalThis.caches ? await caches.keys() : [];
+  const fixtureCacheName = `${prefix}:cache`;
+  const fixtureCache =
+    globalThis.caches && cacheNames.includes(fixtureCacheName) ? await caches.open(fixtureCacheName) : null;
+  const workerCacheEntry = fixtureCache ? await fixtureCache.match('/fixture-worker-payload.txt') : null;
+  const storageBucketNames = navigator.storageBuckets?.keys ? await navigator.storageBuckets.keys() : null;
   return {
     ok: true,
     fixtureVersion: VERSION,
@@ -103,6 +108,7 @@ async function snapshotFixture() {
       ? (await indexedDB.databases()).filter((item) => item.name === databaseName()).length
       : 'unknown',
     matchingCaches: cacheNames.filter((name) => name.startsWith(prefix)).length,
+    matchingWorkerCacheEntries: workerCacheEntry ? 1 : 0,
     matchingServiceWorkers: registrations.filter((registration) => registration.scope.startsWith(location.origin))
       .length,
     cookieNames: document.cookie
@@ -110,7 +116,11 @@ async function snapshotFixture() {
       .map((item) => item.trim().split('=')[0])
       .filter((name) => name.startsWith('sitewipe_')),
     storageBucketsSupported: Boolean(navigator.storageBuckets),
-    opfsSupported: Boolean(navigator.storage?.getDirectory)
+    matchingStorageBuckets: Array.isArray(storageBucketNames)
+      ? storageBucketNames.filter((name) => name.startsWith('sitewipe-fixture-')).length
+      : 'unknown',
+    opfsSupported: Boolean(navigator.storage?.getDirectory),
+    matchingOpfsEntries: await countFixtureOpfsEntries()
   };
 }
 
@@ -189,6 +199,23 @@ async function clearOpfs() {
   } catch (error) {
     if (error?.name !== 'NotFoundError') throw error;
   }
+}
+
+async function countFixtureOpfsEntries() {
+  if (!navigator.storage?.getDirectory) return 'unknown';
+  const root = await navigator.storage.getDirectory();
+  let directory;
+  try {
+    directory = await root.getDirectoryHandle('sitewipe-fixture');
+  } catch (error) {
+    if (error?.name === 'NotFoundError') return 0;
+    throw error;
+  }
+  let count = 0;
+  for await (const entryName of directory.keys()) {
+    if (entryName) count += 1;
+  }
+  return count;
 }
 
 function matchingStorageKeys(storage) {

@@ -58,7 +58,7 @@
         <div class="summary-head">
           <div class="summary-title-group">
             <div class="eyebrow">Latest cleanup</div>
-            <h2 id="summaryTitle" tabindex="-1">Cleanup complete</h2>
+            <h1 id="summaryTitle" tabindex="-1">Cleanup complete</h1>
             <p id="summaryTarget" class="summary-target mono"></p>
           </div>
           <span id="summaryStatus" class="badge success">Complete</span>
@@ -127,6 +127,10 @@
               SiteWipe uses the canonical domain. Subdomains are included; lookalike domains are not.
             </div>
             <div id="targetError" class="error-text" role="alert"></div>
+            <details id="targetErrorDetails" class="target-error-details" hidden>
+              <summary>Technical details</summary>
+              <p id="targetErrorTechnical" class="mono"></p>
+            </details>
           </div>
           <div id="normalizedCard" class="normalized-card" role="status" aria-live="polite" hidden>
             <span>Cleanup scope</span>
@@ -137,8 +141,8 @@
             <span>
               <strong>Direct cleanup is on.</strong>
               <span id="directCleanupMode"
-                >Clean now uses your current settings. Missing browser access requires a separate grant
-                activation.</span
+                >Clean now uses your current settings. If browser access is missing, it opens a SiteWipe access tab;
+                grant and run requires a second activation there.</span
               >
             </span>
           </div>
@@ -287,8 +291,9 @@
         <div id="reviewApprovalCommitted" class="review-host-permission" role="status" hidden>
           <strong>Reviewed cleanup approval saved</strong>
           <p>
-            No cleanup has started. Keep this popup open and activate Grant reviewed access and run before this review
-            expires; Chrome will then request only the target patterns shown above.
+            No cleanup has started. Use Open reviewed access tab to open or focus the worker-created SiteWipe handoff,
+            then continue only there before this review expires; this popup may close. Chrome or Brave will request only
+            the target patterns shown above.
           </p>
         </div>
 
@@ -297,10 +302,10 @@
             >Approval is saved before target-specific site access is requested</strong
           >
           <p id="reviewHostPermissionDetail">
-            First activate Approve reviewed cleanup so the worker can durably bind this exact approval. SiteWipe will
-            then expose a separate Grant reviewed access and run action. Chrome will request only the reviewed target
-            patterns, and access newly granted for this review is tracked until Chrome/Brave proves it has been
-            released. Access that existed before the review is preserved.
+            Activate Approve reviewed cleanup so the worker can durably bind this exact approval and open a SiteWipe
+            access tab. A second activation there requests only the reviewed target patterns and runs the cleanup. Any
+            access newly granted for this review is tracked until Chrome/Brave proves it has been released. Access that
+            existed before the review is preserved.
           </p>
         </div>
 

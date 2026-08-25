@@ -27,6 +27,7 @@ export async function removeOriginScopedStorage(target, report, context, options
   const originScope = selectBrowserLevelStorageOrigins(target, reviewedOrigins);
   const origins = originScope.browserOrigins;
   const includeProtectedWebOrigins = options.includeProtectedWebOrigins === true;
+  /** @type {Array<{key: string, label: string, originTypes: chrome.browsingData.OriginTypes}>} */
   const originTypePlans = [
     {
       key: 'unprotectedWeb',
@@ -89,7 +90,7 @@ export async function removeOriginScopedStorage(target, report, context, options
     addUnavailable(
       report,
       'AppCache',
-      'Chrome does not expose reliable origin-scoped AppCache cleanup in all versions; broad time-based deletion was skipped for safety.'
+      'The browser does not expose reliable origin-scoped AppCache cleanup in all supported versions; broad time-based deletion was skipped for safety.'
     );
     return;
   }
@@ -232,7 +233,7 @@ export async function removeOriginScopedStorage(target, report, context, options
   addUnavailable(
     report,
     'AppCache',
-    'Chrome does not expose reliable origin-scoped AppCache cleanup in all versions; broad time-based deletion was skipped for safety.'
+    'The browser does not expose reliable origin-scoped AppCache cleanup in all supported versions; broad time-based deletion was skipped for safety.'
   );
 }
 
@@ -245,6 +246,7 @@ export async function runOriginCookieSweep(target, origins, includeProtectedWebO
       skipped: 'browsingData origin cookie sweep unavailable.'
     };
   }
+  /** @type {Array<{key: string, originTypes: chrome.browsingData.OriginTypes}>} */
   const originTypePlans = [{ key: 'unprotectedWeb', originTypes: { unprotectedWeb: true } }];
   if (includeProtectedWebOrigins) {
     originTypePlans.push({

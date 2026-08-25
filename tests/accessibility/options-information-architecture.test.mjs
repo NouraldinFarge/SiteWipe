@@ -71,6 +71,10 @@ test('Options replaces the stacked mobile menu with horizontally scrollable sect
   assert.match(mobile, /\.rail \{[\s\S]*?position: sticky;[\s\S]*?display: block;/);
   assert.match(mobile, /\.rail-brand,[\s\S]*?\.rail-note \{\s*display: none;/);
   assert.match(mobile, /\.rail-nav \{[\s\S]*?display: flex;[\s\S]*?overflow-x: auto;/);
+  assert.match(mobile, /\.rail-nav \{[\s\S]*?scrollbar-width: thin;/);
+  assert.match(mobile, /\.rail-nav::-webkit-scrollbar \{\s*height: 6px;/);
+  assert.match(mobile, /\.rail-nav::-webkit-scrollbar-thumb \{[\s\S]*?background: var\(--text-faint\);/);
+  assert.doesNotMatch(mobile, /\.rail-nav::-webkit-scrollbar \{[^}]*display:\s*none;/);
   assert.match(mobile, /\.rail-nav a \{[\s\S]*?flex: 0 0 auto;[\s\S]*?min-height: 40px;/);
   assert.match(mobile, /\.rail-nav a\[aria-current='location'\]/);
   assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*?\.support-grid,[\s\S]*?grid-template-columns: 1fr;/);

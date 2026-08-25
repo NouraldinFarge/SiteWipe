@@ -106,6 +106,12 @@ export function createReport(target, _input) {
       cancelRequested: false,
       discoveredOrigins: 0,
       discoveredCookieHosts: 0,
+      cookieQueriesUncappedRequested: 0,
+      cookieQueriesHardCapOmitted: 0,
+      cookieQueriesAllocated: 0,
+      cookieQueriesAllocationOmitted: 0,
+      cookieQueriesTotalOmitted: 0,
+      cookieQueriesRun: 0,
       hostPermissionsReleased: false,
       hostAccessMode: 'Preflight-bound target access',
       targetSiteAccessGranted: false,
@@ -311,7 +317,10 @@ function buildCleanupConfidence(report, summary) {
     if (!verificationComplete) {
       score = Math.min(score, 65);
       const incomplete = Object.entries(summary.verificationCategories || {})
-        .filter(([, evidence]) => !['verified_zero', 'residue_found'].includes(evidence?.state))
+        .filter(
+          ([, evidence]) =>
+            evidence?.complete === false || !['verified_zero', 'residue_found'].includes(evidence?.state)
+        )
         .map(([name, evidence]) => `${name}:${evidence?.state || 'unknown'}`)
         .join(', ');
       reasons.push(
@@ -324,7 +333,9 @@ function buildCleanupConfidence(report, summary) {
   } else {
     score = Math.min(score - 25, 65);
     const incomplete = Object.entries(summary.verificationCategories || {})
-      .filter(([, evidence]) => !['verified_zero', 'residue_found'].includes(evidence?.state))
+      .filter(
+        ([, evidence]) => evidence?.complete === false || !['verified_zero', 'residue_found'].includes(evidence?.state)
+      )
       .map(([name, evidence]) => `${name}:${evidence?.state || 'unknown'}`)
       .join(', ');
     reasons.push(

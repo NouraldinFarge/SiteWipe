@@ -7,6 +7,15 @@ body {
   overflow: hidden;
 }
 
+html.popup-opened-in-tab,
+html.popup-opened-in-tab body {
+  width: min(380px, 100vw);
+}
+
+html.popup-opened-in-tab body {
+  container: popup-document / inline-size;
+}
+
 body {
   height: 600px;
 }
@@ -35,6 +44,12 @@ body {
 .popup-shell > * {
   min-width: 0;
   flex: 0 0 auto;
+}
+
+.popup-shell .error-text {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .popup-shell::-webkit-scrollbar {
@@ -436,7 +451,7 @@ form {
   min-width: 0;
 }
 
-.summary-title-group h2 {
+.summary-title-group h1 {
   margin-top: 5px;
 }
 
@@ -466,7 +481,7 @@ form {
 
 .summary-metric span {
   color: var(--text-faint);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.25;
 }
 
@@ -613,7 +628,6 @@ form {
   font-size: 11px;
   font-weight: 700;
   overflow-wrap: anywhere;
-  word-break: break-all;
   text-align: right;
 }
 
@@ -645,7 +659,6 @@ form {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
-  word-break: break-all;
   padding-left: 2px;
 }
 
@@ -714,7 +727,6 @@ form {
   flex: 1 1 58%;
   text-align: right;
   overflow-wrap: anywhere;
-  word-break: break-all;
 }
 
 .review-acknowledgements {
@@ -764,7 +776,7 @@ form {
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-main);
-  font-size: 10px;
+  font-size: 11px;
   overflow-wrap: anywhere;
   user-select: all;
 }
@@ -793,7 +805,34 @@ form {
 
 .review-expiry {
   color: var(--text-faint);
-  font-size: 10px;
+  font-size: 11px;
+}
+
+.target-error-details {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.target-error-details summary {
+  width: fit-content;
+  min-height: 32px;
+  padding-block: 7px;
+  cursor: pointer;
+  font-weight: 680;
+}
+
+.target-error-details p {
+  margin-top: 3px;
+  padding: 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .review-actions {
@@ -867,11 +906,19 @@ body.review-active .popup-shell {
   }
 }
 
-@container popup (max-width: 340px) {
+@container popup-document (max-width: 340px) {
   .popup-shell {
     padding-inline: 10px;
   }
+}
 
+@container popup-document (max-width: 280px) {
+  .popup-shell {
+    padding: 6px;
+  }
+}
+
+@container popup (max-width: 340px) {
   .popup-shell .candidate-notice {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -929,10 +976,6 @@ body.review-active .popup-shell {
     align-items: stretch;
   }
 
-  .popup-shell {
-    padding: 6px;
-  }
-
   .popup-shell :where(p, h1, h2, h3, span, strong, summary, code, dd, dt, li, label, legend) {
     min-width: 0;
     max-width: 100%;
@@ -962,6 +1005,13 @@ body.review-active .popup-shell {
     min-width: 0;
     max-width: 100%;
     overflow-wrap: anywhere;
+  }
+
+  .brand-title {
+    font-size: 13px;
+    letter-spacing: -0.04em;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
   .status-strip .badge {

@@ -9,6 +9,8 @@
   const denyPermission = fixtureParameters.get('permission') === 'deny';
   const expireAfterNativeGrant = fixtureParameters.get('permission') === 'expire-after-grant';
   const pregrantedHostAccess = fixtureParameters.get('pregranted') === '1' || privateAccess;
+  const showFixtureControls = fixtureParameters.get('fixtureControls') === '1';
+  const directOpenSurface = fixtureParameters.get('surface') === 'tab';
   const simulatedZoomScale = simulatedZoom === '200' ? 2 : simulatedZoom === '400' ? 4 : 1;
   if (simulatedZoomScale > 1) {
     const simulatedPopupWidth = 380 / simulatedZoomScale;
@@ -36,6 +38,7 @@
     promptInvocations: 0,
     grantOutcomes: 0,
     resumeAttempts: 0,
+    handoffOpenAttempts: 0,
     approvedRuns: 0,
     canceledReviews: 0,
     preparationSequence: 0,
@@ -60,6 +63,7 @@
     document.documentElement.dataset.fixturePromptInvocations = String(state.promptInvocations);
     document.documentElement.dataset.fixtureGrantOutcomes = String(state.grantOutcomes);
     document.documentElement.dataset.fixtureResumeAttempts = String(state.resumeAttempts);
+    document.documentElement.dataset.fixtureHandoffOpenAttempts = String(state.handoffOpenAttempts);
     document.documentElement.dataset.fixtureLastApprovalMode = String(state.lastApprovalMode || '');
     document.documentElement.dataset.fixtureLastReviewedScope = String(state.lastReviewedScope ?? '');
     document.documentElement.dataset.fixtureDirectCleanup = String(directCleanup);
@@ -69,6 +73,7 @@
     document.documentElement.dataset.fixtureTransientReport = String(transientReport);
     document.documentElement.dataset.fixturePermissionDenied = String(denyPermission);
     document.documentElement.dataset.fixtureExpireAfterNativeGrant = String(expireAfterNativeGrant);
+    document.documentElement.dataset.fixtureDirectOpenSurface = String(directOpenSurface);
     document.documentElement.dataset.fixtureMessageTypes = state.messages.map((item) => item.type).join(',');
   };
   syncEvidence();
@@ -493,6 +498,13 @@
           handoffStatus: 'armed',
           handoffNonce: request.payload.handoffNonce
         });
+      case 'sitewipe.openCleanupPermissionHandoff':
+        if (!state.armedApproval || request.payload.handoffNonce !== state.armedApproval.handoffNonce) {
+          throw new Error('Synthetic fixture refused to open a missing or different cleanup handoff.');
+        }
+        state.handoffOpenAttempts += 1;
+        syncEvidence();
+        return envelope(request, { handoffOpened: true, handoffFocused: true, tabId: 88 });
       case 'sitewipe.beginCleanupPermissionPrompt':
         if (!state.armedApproval || request.payload.handoffNonce !== state.armedApproval.handoffNonce) {
           throw new Error('Synthetic fixture refused a missing or different cleanup handoff.');
@@ -718,6 +730,11 @@
         return { id: 7, incognito: privateAccess };
       }
     },
+    tabs: {
+      async getCurrent() {
+        return directOpenSurface ? { id: 77, windowId: 7, url: location.href, incognito: privateAccess } : undefined;
+      }
+    },
     sidePanel: {
       async open() {}
     }
@@ -766,5 +783,5 @@
   settingsChangeButton.addEventListener('click', () => {
     globalThis.__sitewipeBrowserFixture.emitSettingsChange();
   });
-  document.body.append(settingsChangeButton);
+  if (showFixtureControls) document.body.append(settingsChangeButton);
 })();

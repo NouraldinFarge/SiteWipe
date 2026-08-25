@@ -107,6 +107,7 @@ test('Options keeps controls disabled through load failure, blocks attempted act
           if (
             [
               'sitewipe.clearHistory',
+              'sitewipe.clearReports',
               'sitewipe.clearActiveShield',
               'sitewipe.repairActiveShield',
               'sitewipe.clearActiveJobRecord',

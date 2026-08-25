@@ -6,6 +6,20 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.11.77 — public-source prerelease work — 2026-08-24
+
+### Bounded cleanup and truthful outcomes
+
+- Carry explicit completeness evidence through capped history, download, cookie, tab, and storage discovery so an incomplete scan cannot be reported as verified zero. Reject malformed browser inventories instead of coercing them into empty or successful results.
+- Admit cleanup only after a complete read-only capacity observation proves the frozen target tab/window scope and conservative query plan fit below the operation ceiling. Preserve useful bounded download matches without allowing file deletion from an incomplete inventory, keep required cookie discovery ahead of optional probes, and report demand, allocation, and omissions separately.
+- Use the exact reviewed source window for progress overlays, keep exact-origin and partition limits explicit, and return structured reset, report-clearing, permission-recovery, and request-shield maintenance outcomes without presenting partial work as success.
+
+### UI, accessibility, and recovery
+
+- Keep the popup at a definite action width while preserving 400-percent reflow when opened as a page. Separate actionable cleanup-capacity guidance from expandable technical detail, use browser-neutral recovery copy across shipped surfaces, and keep the side panel's visual settings live before a report is bound.
+- Keep the persistent permission-handoff review at the top of the document when it becomes ready instead of moving focus to an off-screen action. Restore visible focus indicators, including forced-colors mode; retain error notices until explicitly dismissed; restore focus after dismissal; keep disabled-setting explanations at full contrast; and expose narrow-screen Options navigation without horizontal overflow.
+- Preserve the exact associated-domain input bounds while reporting every ignored or shortened line, and retire an abandoned Direct review only when its original popup is proved closed and the authority remains unarmed, uninvoked, and unable to settle a permission prompt. Live or uncertain authority continues to fail closed.
+
 ## 1.11.67 — public-source prerelease work — 2026-08-23
 
 - Replace the remaining coverage-only permission-settlement timing race with causal test-harness synchronization that parks the exact load-readiness retry whose absence defines the regression. The test proves that interception occurred and restores the real timer before constructing the reviewed approval; production runtime behavior is unchanged.

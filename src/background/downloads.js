@@ -57,6 +57,7 @@ export async function eraseDownloadHistory(target, report, context, options = {}
             );
             removedFile = 1;
           } catch (error) {
+            rethrowControlError(error);
             preserveRecordForFileRecovery = true;
             fileRemovalFailures.push({
               id: item.id,
@@ -75,8 +76,12 @@ export async function eraseDownloadHistory(target, report, context, options = {}
             DOWNLOAD_API_TIMEOUT_MS,
             'downloads.erase'
           );
-          erasedCount = result.length;
+          if (!Array.isArray(result) || result.length !== 1 || String(result[0]) !== String(current.id)) {
+            throw new Error('downloads.erase did not confirm removal of the one exact reviewed browser record.');
+          }
+          erasedCount = 1;
         } catch (error) {
+          rethrowControlError(error);
           if (error?.name === 'OperationTimeoutError') recordEraseTimeouts += 1;
           else recordEraseFailures += 1;
           addError(report, `Download history ${item.id}`, error);
@@ -150,6 +155,7 @@ async function getLiveReviewedDownloadCandidate(item, target, options = {}) {
   }
 
   const timeoutMs = Math.max(1, Number(options.downloadApiTimeoutMs) || DOWNLOAD_API_TIMEOUT_MS);
+  options.operationBudget?.claimQuery('download live revalidation');
   const results = await withTimeoutReject(
     chrome.downloads.search({ id: item.id }),
     timeoutMs,
@@ -176,4 +182,14 @@ function sameDiscoveredDownloadIdentity(discovered, current) {
   return ['filename', 'url', 'finalUrl', 'referrer'].every(
     (key) => String(discovered?.[key] || '') === String(current?.[key] || '')
   );
+}
+
+function rethrowControlError(error) {
+  if (
+    error?.name === 'AbortError' ||
+    error?.name === 'OperationBudgetExceededError' ||
+    error?.name === 'OperationCapacityExceededError'
+  ) {
+    throw error;
+  }
 }

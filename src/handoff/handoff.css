@@ -87,11 +87,42 @@ p {
   overflow-wrap: anywhere;
 }
 
+.effects-list {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+}
+
+.effects-list div {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.effects-list dt {
+  color: #93a4c7;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.effects-list dd {
+  min-width: 0;
+  margin: 0;
+  color: #eef2ff;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .status,
 .error {
+  min-width: 0;
+  max-width: 100%;
   margin: 1.25rem 0;
   padding: 0.9rem 1rem;
   border-radius: 0.75rem;
+  overflow-wrap: anywhere;
 }
 
 .status {

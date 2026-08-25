@@ -47,10 +47,13 @@ test('popup exposes calm, named completion highlights and a distinct direct mode
   assert.match(html, /id="summaryMetrics"[^>]+role="list"[^>]+aria-label="Cleanup highlights"/);
   assert.match(html, /id="summaryAnnouncement"[^>]+role="status"[^>]+aria-live="polite"/);
   assert.match(html, /id="summaryTitle"[^>]+tabindex="-1"/);
+  assert.match(html, /<h1 id="summaryTitle"[^>]*>Cleanup complete<\/h1>/);
   assert.match(html, /id="cleanupModeBadge"[^>]+role="status"/);
   assert.match(script, /`\$\{mode\} · \$\{directCleanupEnabled\(\) \? 'Direct' : 'Review'\}`/);
-  assert.match(html, /Missing browser access requires a separate grant\s+activation/);
+  assert.match(html, /browser access is missing[\s\S]*?second activation there/);
   assert.match(script, /function cleanupOutcomeTitle\(report\)/);
+  assert.match(script, /function formatDownloadRecordEffect\(effect\)/);
+  assert.match(script, /only after the corresponding file deletion succeeds/);
   assert.match(script, /metric\.setAttribute\('role', 'listitem'\)/);
 });
 
@@ -98,7 +101,7 @@ test('detailed-review approval failures stay visible and announced inside the op
     script,
     /setReviewMode\(Boolean\(cleanupReview\)\);[\s\S]*?setReviewApprovalError\(detailedReviewRetryError, \{ runtime: true \}\)/
   );
-  assert.match(script, /Grant reviewed access and run/);
+  assert.match(script, /Open reviewed access tab/);
   assert.match(script, /qs\('#approveCleanup'\)\.focus\(\{ preventScroll: true \}\)/);
   assert.match(script, /if \(!direct\) setReviewApprovalError\(''\)/);
 });
@@ -124,4 +127,18 @@ test('narrow popup overrides retain enough specificity to stack the candidate no
   );
   assert.match(css, /\.candidate-label,\s*\.mode-chip \{\s*width: 100%;/);
   assert.match(css, /\.brand-title,\s*\.brand-subtitle \{[\s\S]*?overflow-wrap: anywhere;/);
+  assert.match(
+    css,
+    /\.brand-title \{\s*font-size: 13px;\s*letter-spacing: -0\.04em;\s*overflow-wrap: normal;\s*word-break: normal;/
+  );
+});
+
+test('browser-action width stays usable while a directly opened tab keeps 400-percent reflow rules', async () => {
+  const [css, script] = await Promise.all([source('popup/popup.css'), source('popup/popup.js')]);
+  assert.match(css, /html,\s*body \{\s*width: 380px;\s*max-width: 380px;/);
+  assert.match(css, /html\.popup-opened-in-tab,\s*html\.popup-opened-in-tab body \{\s*width: min\(380px, 100vw\);/);
+  assert.match(script, /chrome\.tabs\?\.getCurrent/);
+  assert.match(script, /popup-opened-in-tab/);
+  assert.match(css, /@container popup \(max-width: 280px\)/);
+  assert.match(css, /\.popup-shell :where\(p, h1, h2, h3,[\s\S]*?overflow-wrap: anywhere;/);
 });

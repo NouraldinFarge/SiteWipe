@@ -2804,7 +2804,24 @@ async function createArmedHandoffFixture(label, { recordPromptInvocation = true 
     hasHostPermissions: async (origins) => origins.every((origin) => chrome.__state.originPermissions.has(origin)),
     containsHostPermissions: async (origins) => origins.every((origin) => chrome.__state.originPermissions.has(origin)),
     getAllHostPermissions: async () => ({ origins: [...chrome.__state.originPermissions] }),
-    inspectImpact: async () => ({ matchingTabs: 0, matchedCompletedFileIds: [] }),
+    inspectImpact: async () => ({
+      matchingTabs: 0,
+      matchingPrivateTabs: 0,
+      tabEnumerationComplete: true,
+      matchingHistoryEntries: 0,
+      matchingHistoryEntriesLowerBound: 0,
+      matchingDownloadRecords: 0,
+      matchingDownloadRecordsLowerBound: 0,
+      matchedCompletedFileIds: [],
+      cookieStoreCount: 1,
+      cookieStoreEnumerationComplete: true,
+      overlayEligibleTabs: 0,
+      discoveryEvidence: {
+        history: completeDiscoveryEvidenceFixture('history'),
+        downloads: completeDiscoveryEvidenceFixture('downloads')
+      },
+      limitations: []
+    }),
     storageSession: chrome.storage.session,
     storageLocal: chrome.storage.local,
     preparationContextId: promptContextId,
@@ -2852,6 +2869,23 @@ async function createArmedHandoffFixture(label, { recordPromptInvocation = true 
     localState: structuredClone(chrome.__state.local),
     sessionState: structuredClone(chrome.__state.session),
     temporaryOrigins: [...prepared.review.temporaryHostPermissionOrigins]
+  };
+}
+
+function completeDiscoveryEvidenceFixture(kind) {
+  return {
+    kind,
+    queriesPlanned: 1,
+    queriesRun: 1,
+    recordsObserved: 0,
+    matches: 0,
+    cappedQueries: 0,
+    queryResultCapReached: false,
+    matchCapReached: false,
+    queryFailures: 0,
+    complete: true,
+    truncated: false,
+    limitations: []
   };
 }
 

@@ -84,7 +84,7 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
     assert.equal(page.status, 200);
     assert.match(page.body, /Disposable SiteWipe fixture/);
     assert.match(page.headers['content-security-policy'], /default-src 'self'/);
-    assert.match(page.headers['content-security-policy'], /(?:^|;\s*)style-src 'self' 'unsafe-inline'(?:;|$)/);
+    assert.match(page.headers['content-security-policy'], /(?:^|;\s*)style-src 'self' 'unsafe-inline'(?:\s|;|$)/);
 
     const partitionProbe = await readFixture(fixture.port, '/partition-probe?scale=small', 'selected.example.com');
     assert.equal(partitionProbe.status, 200);
@@ -129,6 +129,10 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
     assert.match(popupMock.body, /fixtureParameters\.get\('permission'\) === 'deny'/);
     assert.match(popupMock.body, /fixtureParameters\.get\('permission'\) === 'expire-after-grant'/);
     assert.match(popupMock.body, /fixtureParameters\.get\('mode'\) === 'standard'/);
+    assert.match(popupMock.body, /fixtureParameters\.get\('fixtureControls'\) === '1'/);
+    assert.match(popupMock.body, /fixtureParameters\.get\('surface'\) === 'tab'/);
+    assert.match(popupMock.body, /fixtureDirectOpenSurface/);
+    assert.match(popupMock.body, /if \(showFixtureControls\) document\.body\.append\(settingsChangeButton\)/);
     assert.match(popupMock.body, /approvalMode: directCleanup \? 'settings_direct' : 'detailed_review'/);
     assert.match(popupMock.body, /case 'sitewipe\.armCleanupApproval'/);
     assert.match(popupMock.body, /case 'sitewipe\.beginCleanupPermissionPrompt'/);
@@ -140,6 +144,8 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
     assert.match(popupMock.body, /promptGrantObserved/);
     assert.match(popupMock.body, /preRequestTemporaryOriginsAbsent/);
     assert.match(popupMock.body, /fixtureLastApprovalMode/);
+    assert.match(popupMock.body, /fixtureHandoffOpenAttempts/);
+    assert.match(popupMock.body, /sitewipe\.openCleanupPermissionHandoff/);
     assert.match(popupMock.body, /fixtureExpireAfterNativeGrant/);
     assert.match(popupMock.body, /Unsupported scheme chrome-extension:\. Use http or https domains only\./);
     for (const modulePath of [
@@ -171,6 +177,18 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
     assert.equal(optionsMock.status, 200);
     assert.match(optionsMock.body, /async contains\(/);
     assert.match(optionsMock.body, /fixtureNamedPermissionRequestUserActivation/);
+    assert.match(optionsMock.body, /fixtureParams\.get\('fixtureControls'\) === '1'/);
+
+    const handoff = await readFixture(fixture.port, '/handoff/handoff.html?outcome=deny', '127.0.0.1');
+    assert.equal(handoff.status, 200);
+    assert.match(handoff.body, /handoff-browser-mock\.js/);
+    assert.match(handoff.body, /<script type="module" src="handoff\.js"><\/script>/);
+    const handoffMock = await readFixture(fixture.port, '/handoff-browser-mock.js', '127.0.0.1');
+    assert.equal(handoffMock.status, 200);
+    assert.match(handoffMock.body, /sitewipe\.claimCleanupPermissionHandoff/);
+    assert.match(handoffMock.body, /outcome !== 'deny'/);
+    assert.match(handoffMock.body, /fixtureHandoffPermissionRequests/);
+    assert.match(optionsMock.body, /if \(showFixtureControls\) document\.body\.append\(activeJobButton\)/);
 
     const sidepanel = await readFixture(fixture.port, '/sidepanel/sidepanel.html?width=320&view=matrix', '127.0.0.1');
     assert.equal(sidepanel.status, 200);

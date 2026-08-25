@@ -63,9 +63,9 @@ export async function validateVersionContract({
     ['PRIVACY.md', `SiteWipe \`${version}\``],
     ['SECURITY.md', `public-source \`${version}\` prerelease`],
     ['src/README.md', `Version \`${version}\``],
-    ['docs/architecture.md', `\`${version}\` is the forward public-source prerelease candidate`],
+    ['docs/architecture.md', `forward ${version} transaction`],
     ['docs/threat-model.md', `the ${version} corrective working source`],
-    ['docs/release-readiness.md', `local ${version} corrective handoff-tab source`],
+    ['docs/release-readiness.md', `SiteWipe ${version}`],
     ['CHANGELOG.md', `## ${version} — public-source prerelease work`],
     ['.github/ISSUE_TEMPLATE/bug.yml', `${version} / SHA-256`]
   ]) {

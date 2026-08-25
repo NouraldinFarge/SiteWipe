@@ -298,7 +298,10 @@
           </article>
         </div>
       </section>
-      <div id="panelStatus" class="toast panel-status" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+      <div id="panelStatus" class="toast panel-status" hidden>
+        <span id="panelStatusMessage" class="toast-message" role="status" aria-live="polite" aria-atomic="true"></span>
+        <button id="dismissPanelStatus" class="toast-dismiss" type="button" disabled>Dismiss</button>
+      </div>
     </main>
     <script type="module" src="sidepanel.js"></script>
   </body>

@@ -1,43 +1,34 @@
 {
   "schemaVersion": 1,
-  "status": "passed",
-  "reviewedAt": "2026-08-23",
+  "status": "pending_installed_validation",
+  "reviewedAt": null,
   "sourceContracts": {
-    "status": "passed",
-    "reviewedAt": "2026-08-23",
+    "status": "pending",
+    "reviewedAt": null,
     "binding": {
-      "version": "1.11.67",
-      "releaseInputFingerprintSha256": "E33406BB06BF0F20027BBBCD572252BAE011D3546DA88ECFC8998F72705EF363"
+      "version": "1.11.77",
+      "releaseInputFingerprintSha256": null
     },
-    "namedTests": 38,
-    "coverage": [
-      "popup configured-impact disclosure, scrolling, focus restoration, permission patterns, and direct-mode truth",
-      "Options information architecture, labeling, status, progressive disclosure, and fail-closed controls",
-      "side-panel tabs, responsive report layout, result filtering, export priority, and empty-history state",
-      "review acknowledgements, normal-only safeguards, partition disclosure, and downloaded-file preservation",
-      "keyboard navigation, target sizes, contrast, forced-colors, reduced-motion, and narrow-container reflow",
-      "persistent permission handoff accessible action and report permission timing"
-    ]
+    "namedTests": null,
+    "coverage": []
   },
   "installedChecks": {
-    "axe": "passed",
-    "keyboardOnly": "passed",
-    "focusOrderAndRestoration": "passed",
-    "screenReaderAnnouncements": "passed",
-    "zoom125": "passed",
-    "zoom150": "passed",
-    "zoom200": "passed",
-    "zoom400": "passed",
-    "forcedColors": "passed",
-    "reducedMotion": "passed"
+    "axe": "pending",
+    "keyboardOnly": "pending",
+    "focusOrderAndRestoration": "pending",
+    "screenReaderAnnouncements": "pending",
+    "zoom125": "pending",
+    "zoom150": "pending",
+    "zoom200": "pending",
+    "zoom400": "pending",
+    "forcedColors": "pending",
+    "reducedMotion": "pending"
   },
   "installedCheckScopes": {
     "screenReaderAnnouncements": "Installed DOM live-region and Chrome accessibility-tree semantics only; audible speech capture remains deferred.",
     "keyboardOnly": "Native action popup and installed full-page extension surfaces; live bound-handoff keyboard traversal remains deferred."
   },
-  "browserVersions": {
-    "chrome": "151.0.7922.172"
-  },
+  "browserVersions": {},
   "installedEvidence": {
     "observedAt": "2026-08-23T22:32:08.408Z",
     "environment": "Exact SiteWipe 1.11.67 runtime in a disposable normal Chrome profile on Microsoft Windows 11 Pro 10.0.26100, 64-bit; private access and Sync off; window bounds preserved at 1281,0 and 1279x720 normal; temporary inspection tabs closed and zoom and media state restored.",
@@ -176,9 +167,9 @@
     ]
   },
   "artifact": {
-    "version": "1.11.67",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.67.zip",
-    "sha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6"
+    "version": "1.11.77",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.77.zip",
+    "sha256": null
   },
-  "reviewerApproval": true
+  "reviewerApproval": false
 }

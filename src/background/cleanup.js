@@ -9,10 +9,16 @@ import { discoverCookiesOnly, removeCookies } from './cookies.js';
 import { removeOriginScopedStorage } from './origin-storage.js';
 import { scrubOpenPageData } from './page-scrub.js';
 import { createCleanupProgressOverlay } from './progress-overlay.js';
-import { discoverMatchingDownloads, discoverMatchingHistory } from './record-discovery.js';
+import { discoverMatchingDownloadsWithEvidence, discoverMatchingHistoryWithEvidence } from './record-discovery.js';
 import { discoverCleanupScope } from './scope-discovery.js';
 import { auditAndResetTabState, closeMatchingTabs } from './tab-state.js';
 import { createOperationBudget, sleep } from './operation-control.js';
+import {
+  assertCleanupQueryCapacity,
+  buildCleanupCapacityObservationFromContext,
+  capCleanupQueryCapacityToReviewedAllocation,
+  CLEANUP_OPERATION_MAX_QUERIES
+} from './cleanup-capacity.js';
 export {
   buildTemporaryDnrShieldRules,
   clearSiteWipeDnrRules,
@@ -28,7 +34,7 @@ export async function runDeepClean(target, report, options = {}) {
     createOperationBudget({
       label: 'cleanup',
       maxDurationMs: 210_000,
-      maxQueries: 1_000,
+      maxQueries: CLEANUP_OPERATION_MAX_QUERIES,
       maxRecords: 250_000
     });
   options = { ...options, operationBudget };
@@ -44,7 +50,10 @@ export async function runDeepClean(target, report, options = {}) {
     associatedTargetCount: target.associatedTargets?.length || 0,
     note: describeTargetMode(target)
   });
-  const progress = createCleanupProgressOverlay(target, report, options);
+  let progress = {
+    update: async () => {},
+    hide: async () => {}
+  };
   const phaseTimer = createPhaseTimer(report);
   async function updateProgress(percent, label, detail) {
     phaseTimer.mark(label);
@@ -79,18 +88,16 @@ export async function runDeepClean(target, report, options = {}) {
   let completed = false;
 
   try {
-    await updateProgress(3, 'Preparing cleanup…', 'SiteWipe is starting the target-domain cleanup.');
-
     addSkipped(
       report,
       'Saved passwords',
-      'Never requested or modified. Password deletion is unavailable through current Chrome extension APIs and intentionally outside SiteWipe scope.'
+      'Never requested or modified. Password deletion is unavailable through current browser extension APIs and intentionally outside SiteWipe scope.'
     );
     addSkipped(report, 'Bookmarks', 'Never requested or modified.');
     addSkipped(
       report,
       'Autofill profiles and payment methods',
-      'Protected. Chrome exposes autofill removal only as a browser-profile-wide form-data operation that can also remove saved payment cards, so SiteWipe never calls it.'
+      'Protected. The browser exposes autofill removal only as a browser-profile-wide form-data operation that can also remove saved payment cards, so SiteWipe never calls it.'
     );
     addSkipped(
       report,
@@ -123,6 +130,45 @@ export async function runDeepClean(target, report, options = {}) {
       'ISP, DNS, router, VPN, OS, antivirus, enterprise, firewall, CDN, and website-server records are outside browser extension APIs.'
     );
 
+    await checkCanceled('cleanup-start capacity observation');
+    let cleanupStartCapacityPlan = null;
+    const context = await discoverCleanupScope(target, report, {
+      ...options,
+      onCapacityObservation(observedContext) {
+        cleanupStartCapacityPlan = capCleanupQueryCapacityToReviewedAllocation(
+          assertCleanupQueryCapacity(
+            target,
+            options,
+            buildCleanupCapacityObservationFromContext(observedContext, options)
+          ),
+          options.reviewedQueryCapacityPlan
+        );
+        return cleanupStartCapacityPlan;
+      }
+    });
+    if (!cleanupStartCapacityPlan?.admitted) {
+      const error = new Error('Cleanup-start query-capacity observation did not produce an admitted plan.');
+      error.name = 'OperationCapacityExceededError';
+      throw error;
+    }
+    if (options.reviewedQueryCapacityPlan && options.reviewedQueryCapacityPlan.admitted !== true) {
+      const error = new Error('The approved cleanup did not contain an admitted preflight query-capacity plan.');
+      error.name = 'OperationCapacityExceededError';
+      throw error;
+    }
+    addSection(report, 'queryCapacity', 'Cleanup query capacity rechecked before mutation', 'info', {
+      ...cleanupStartCapacityPlan,
+      observationStage: 'cleanup_start',
+      fixedOverlaySnapshot: true,
+      reviewedCookieQueryAllocationPerStore:
+        options.reviewedQueryCapacityPlan?.scopeCookieQueriesAllocatedPerStore ?? null,
+      note: 'SiteWipe completed its count-only browser observation and rejected over-capacity work before installing the request shield or changing site/browser data. Later cleanup uses the fixed discovered tab, download, and cookie-store snapshots.'
+    });
+    progress = createCleanupProgressOverlay(target, report, {
+      ...options,
+      overlayTabsSnapshot: context.allTabs
+    });
+
     await checkCanceled('request shield installation');
     const requestShieldRequested = options.temporaryDnrShield !== false || options.postWipeSessionBlock === true;
     const requestShieldWillBeAttempted = options.incognitoAccess === true && requestShieldRequested;
@@ -137,16 +183,7 @@ export async function runDeepClean(target, report, options = {}) {
       requestShieldProgressDetail
     );
     const shield = await installTemporaryDnrShield(target, report, options);
-    let context = null;
     try {
-      await checkCanceled('discovery');
-      await updateProgress(
-        16,
-        'Discovering site traces…',
-        'Finding matching tabs, frames, cookies, origins, history entries, downloads, and related records.'
-      );
-      context = await discoverCleanupScope(target, report, options);
-
       await checkCanceled('tab-state audit');
       await updateProgress(
         28,
@@ -218,11 +255,20 @@ export async function runDeepClean(target, report, options = {}) {
           'Verifying cleanup…',
           'Re-checking exposed cookies, open target tabs, history URLs, and download records.'
         );
-        await verifyExposedResidue(target, report, options, {
-          discoverCookies: discoverCookiesOnly,
-          discoverHistory: discoverMatchingHistory,
-          discoverDownloads: discoverMatchingDownloads
-        });
+        await verifyExposedResidue(
+          target,
+          report,
+          {
+            ...options,
+            tabPrivateScopeById: context.tabPrivateScopeById,
+            maxCookieStores: context.cookieStores.length
+          },
+          {
+            discoverCookies: discoverCookiesOnly,
+            discoverHistory: discoverMatchingHistoryWithEvidence,
+            discoverDownloads: discoverMatchingDownloadsWithEvidence
+          }
+        );
       } else {
         const skippedEvidence = {
           cookies: verificationNotAttempted('Verification was disabled in settings.'),
@@ -245,7 +291,7 @@ export async function runDeepClean(target, report, options = {}) {
       await updateProgress(
         97,
         'Recording unsupported residue…',
-        'Documenting browser/network/site details that Chrome MV3 cannot safely reset per target.'
+        'Documenting browser/network/site details that the browser extension platform cannot safely reset per target.'
       );
       addKnownUnsupportedResidues(report, context, options);
     } finally {
@@ -324,15 +370,15 @@ function addKnownUnsupportedResidues(report, context, options = {}) {
   const reportOnly = [
     [
       'Protocol handlers',
-      'Websites can register protocol handlers, but Chrome does not expose a safe target-domain removal API to extensions. Review browser site settings manually if needed.'
+      'Websites can register protocol handlers, but the browser does not expose a safe target-domain removal API to extensions. Review browser site settings manually if needed.'
     ],
     [
       'Favicon cache',
-      'Site favicons may remain in browser UI/cache. Extensions can see current favIconUrl on open tabs, but Chrome does not expose a target-safe favicon-cache deletion API.'
+      'Site favicons may remain in browser UI/cache. Extensions can see current favIconUrl on open tabs, but the browser does not expose a target-safe favicon-cache deletion API.'
     ],
     [
       'Top Sites / New Tab suggestions',
-      'History cleanup can reduce suggestions, but Chrome does not expose a reliable targeted top-sites deletion API.'
+      'History cleanup can reduce suggestions, but the browser does not expose a reliable targeted top-sites deletion API.'
     ],
     [
       'Omnibox autocomplete',
@@ -340,11 +386,11 @@ function addKnownUnsupportedResidues(report, context, options = {}) {
     ],
     [
       'Recently closed tab/session metadata',
-      'Chrome exposes recently closed entries only with an additional sessions permission and provides no targeted forget API. SiteWipe does not request that permission merely for discovery.'
+      'The browser exposes recently closed entries only with an additional sessions permission and provides no targeted forget API. SiteWipe does not request that permission merely for discovery.'
     ],
     [
       'HSTS, Alt-Svc, DNS cache, socket pools, TLS session tickets',
-      'Chrome MV3 does not expose safe per-site cleanup APIs for these low-level network caches. Restarting the browser clears some transient network state.'
+      'The browser extension platform does not expose safe per-site cleanup APIs for these low-level network caches. Restarting the browser clears some transient network state.'
     ],
     [
       'NEL / Reporting endpoints',
@@ -356,11 +402,11 @@ function addKnownUnsupportedResidues(report, context, options = {}) {
     ],
     [
       'FedCM identity state',
-      'Federated sign-in state is not a password, but Chrome does not expose a safe target-specific cleanup API for all FedCM/identity state.'
+      'Federated sign-in state is not a password, but the browser does not expose a safe target-specific cleanup API for all FedCM/identity state.'
     ],
     [
       'Private State Tokens / autoVerify',
-      'Chrome exposes autoVerify as a global setting rather than a normal target-domain reset; SiteWipe reports it instead of changing a global setting.'
+      'The browser exposes autoVerify as a global setting rather than a normal target-domain reset; SiteWipe reports it instead of changing a global setting.'
     ],
     [
       'Payment handlers and payment methods',
@@ -381,7 +427,7 @@ function addKnownUnsupportedResidues(report, context, options = {}) {
     temporaryDnrShieldEnabled: Boolean(options.incognitoAccess && options.temporaryDnrShield !== false),
     postWipeSessionBlockRequested: Boolean(options.postWipeSessionBlock),
     postWipeSessionBlockEnabled: Boolean(options.incognitoAccess && options.postWipeSessionBlock),
-    note: 'This section is intentionally explicit about small browser/site residues that are observable, indirect, global-only, manual-only, or not safely targetable through Chrome MV3 APIs.'
+    note: 'This section is intentionally explicit about small browser/site residues that are observable, indirect, global-only, manual-only, or not safely targetable through browser extension APIs.'
   });
 }
 
@@ -395,7 +441,7 @@ function recordSitePermissionLimitation(report) {
   addUnavailable(
     report,
     'Targeted site-permission reset',
-    'Chrome MV3 does not provide a safe API to delete arbitrary user-managed browser permission or content-setting rules for only one target without creating new extension-controlled rules. Use Chrome or Brave site settings for manual changes.'
+    'The browser extension platform does not provide a safe API to delete arbitrary user-managed browser permission or content-setting rules for only one target without creating new extension-controlled rules. Use Chrome or Brave site settings for manual changes.'
   );
   addSection(report, 'contentSettings', 'Browser permission and content-setting rules preserved', 'skipped', {
     note: 'SiteWipe intentionally does not change browser permission or content-setting rules. Website data is still removed through the scoped cookies, browsingData, history, downloads, tabs, and page-scrub paths.'

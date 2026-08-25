@@ -108,7 +108,7 @@ export async function clearSiteWipeDnrRules(ruleIds = SITEWIPE_DNR_RULE_IDS, opt
   return { ok: true, ruleIds: ids };
 }
 
-export async function getSiteWipeDnrDiagnostics(activeShield = null) {
+export async function getSiteWipeDnrDiagnostics(activeShield = null, options = {}) {
   const diagnostics = {
     available: Boolean(chrome.declarativeNetRequest?.getSessionRules),
     rangeStart: DNR_RULE_BASE_ID,
@@ -131,8 +131,12 @@ export async function getSiteWipeDnrDiagnostics(activeShield = null) {
     return diagnostics;
   }
   try {
+    options.operationBudget?.claimQuery('request-shield diagnostics');
     const rules = await chrome.declarativeNetRequest.getSessionRules();
-    const siteWipeRules = (rules || []).filter((rule) => isSiteWipeRuleId(rule?.id));
+    if (!Array.isArray(rules)) {
+      throw new TypeError('declarativeNetRequest.getSessionRules returned a non-array result.');
+    }
+    const siteWipeRules = rules.filter((rule) => isSiteWipeRuleId(rule?.id));
     diagnostics.activeRuleIds = siteWipeRules.map((rule) => rule.id).sort((a, b) => a - b);
     diagnostics.siteWipeRuleCount = diagnostics.activeRuleIds.length;
     const tracked = new Set(diagnostics.trackedRuleIds);
@@ -159,6 +163,7 @@ export async function getSiteWipeDnrDiagnostics(activeShield = null) {
     }
     return diagnostics;
   } catch (error) {
+    if (error?.name === 'OperationBudgetExceededError' || error?.name === 'AbortError') throw error;
     diagnostics.healthy = false;
     diagnostics.error = readableMessage(error);
     diagnostics.note = 'Failed to read current DNR session rules.';
@@ -283,7 +288,7 @@ export async function installTemporaryDnrShield(target, report, options = {}) {
         ruleIds,
         recoveryTracked: uncertain,
         note: uncertain
-          ? 'Chrome did not settle the session-rule update before the timeout. SiteWipe retained the pre-mutation recovery record and will reconcile the owned rule range during finalization or maintenance.'
+          ? 'The browser did not settle the session-rule update before the timeout. SiteWipe retained the pre-mutation recovery record and will reconcile the owned rule range during finalization or maintenance.'
           : 'The update failed. SiteWipe attempted to clear its reserved rule range and local recovery record.'
       }
     );
@@ -317,7 +322,7 @@ export async function finalizeTemporaryDnrShield(shield, report, options = {}) {
       if (typeof options.onShieldUncertain === 'function') {
         await options.onShieldUncertain({ lifecycle: 'unknown', pendingMutation: true }).catch(() => {});
       }
-      const diagnostics = await getSiteWipeDnrDiagnostics(null);
+      const diagnostics = await getSiteWipeDnrDiagnostics(null, options);
       report.summary.temporaryDnrShieldRemoved = false;
       addSection(report, 'dnrShieldFinal', 'Request-shield reconciliation awaits browser settlement', 'partial', {
         operationSettlement: settlement.state,
@@ -370,9 +375,9 @@ export async function finalizeTemporaryDnrShield(shield, report, options = {}) {
       onMutationSettled: options.onShieldMutationSettled
     });
     if (clearResult?.ok !== true) {
-      throw new Error('Chrome did not accept the SiteWipe request-shield removal. Recovery state was retained.');
+      throw new Error('The browser did not accept the SiteWipe request-shield removal. Recovery state was retained.');
     }
-    const diagnostics = await getSiteWipeDnrDiagnostics(null);
+    const diagnostics = await getSiteWipeDnrDiagnostics(null, options);
     if (diagnostics.available !== true || diagnostics.error || diagnostics.activeRuleIds.length) {
       throw new Error(
         'SiteWipe could not prove its request-shield range empty after removal. Recovery state was retained.'
@@ -382,6 +387,7 @@ export async function finalizeTemporaryDnrShield(shield, report, options = {}) {
     report.summary.temporaryDnrShieldRemoved = true;
     addSection(report, 'dnrShieldFinal', 'Temporary request shield removed', 'success', { ruleIds: shield.ruleIds });
   } catch (error) {
+    if (error?.name === 'OperationBudgetExceededError' || error?.name === 'AbortError') throw error;
     report.summary.temporaryDnrShieldRemoved = false;
     if (typeof options.onShieldUncertain === 'function') {
       const typedError = /** @type {Error & {operationMayContinue?: boolean}} */ (error);
@@ -412,7 +418,7 @@ async function reconcileOwnedRange(options, { forgetIfCleared = true } = {}) {
     // A timed-out removal may still complete. Diagnostics below decides whether
     // it is safe to clear the persistent recovery record.
   }
-  const diagnostics = await getSiteWipeDnrDiagnostics(null);
+  const diagnostics = await getSiteWipeDnrDiagnostics(null, options);
   const pointInTimeRangeEmpty = diagnostics.available && !diagnostics.error && diagnostics.activeRuleIds.length === 0;
   const pendingMutation = hasPendingSiteWipeDnrMutation();
   const cleared = pointInTimeRangeEmpty && !pendingMutation;
@@ -498,7 +504,7 @@ async function withDnrTimeout(promise, timeoutMs, label) {
     ]);
     if (result === DNR_TIMEOUT) {
       const error = new Error(
-        `${label} timed out after ${ms}ms. Chrome may still finish the underlying update, so recovery state must be retained until reconciliation proves the owned rule range empty.`
+        `${label} timed out after ${ms}ms. The browser may still finish the underlying update, so recovery state must be retained until reconciliation proves the owned rule range empty.`
       );
       error.name = 'OperationTimeoutError';
       /** @type {Error & {operationMayContinue?: boolean}} */ (error).operationMayContinue = true;

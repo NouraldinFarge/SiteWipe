@@ -78,3 +78,44 @@ test('live-page injection rejects a private tab outside the reviewed scope immed
   assert.equal(section.details.targetsSkippedAfterRevalidation, 1);
   assert.equal(section.details.tabsAttempted, 0);
 });
+
+test('live-page tab revalidation fails closed when the admitted query budget is exhausted', async () => {
+  const normalized = normalizeSiteInput('example.com');
+  assert.equal(normalized.ok, true);
+  const injections = [];
+  globalThis.chrome = {
+    tabs: {
+      get: async () => {
+        throw new Error('tabs.get must not run after its budget claim fails');
+      }
+    },
+    scripting: {
+      executeScript: async (details) => {
+        injections.push(details);
+        return [];
+      }
+    }
+  };
+  const budgetError = new Error('Synthetic query budget exhausted.');
+  budgetError.name = 'OperationBudgetExceededError';
+
+  await assert.rejects(
+    scrubOpenPageData(
+      normalized.target,
+      createReport(normalized.target, normalized.input),
+      { matchingTabs: [{ id: 19, url: 'https://example.com/', incognito: false }] },
+      {
+        pageScriptScrub: true,
+        incognitoAccess: false,
+        operationBudget: {
+          check() {},
+          claimQuery() {
+            throw budgetError;
+          }
+        }
+      }
+    ),
+    (error) => error === budgetError
+  );
+  assert.deepEqual(injections, []);
+});

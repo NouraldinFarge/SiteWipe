@@ -164,6 +164,21 @@ test('storage preserves the explicit cleanup-review preference and defaults it o
   assert.equal(unsafeString.skipCleanupReview, false);
 });
 
+test('associated-domain storage bounds return exact, truthful truncation evidence', () => {
+  const lines = Array.from({ length: 51 }, (_, index) => `site${index}.example => cdn${index}.example`);
+  const lineBound = storage.sanitizeAssociatedDomainGroupsWithEvidence(lines.join('\n'));
+  assert.equal(lineBound.value.split('\n').length, 50);
+  assert.equal(lineBound.ignoredLineCount, 1);
+  assert.deepEqual(lineBound.shortenedLineNumbers, []);
+
+  const overlong = storage.sanitizeAssociatedDomainGroupsWithEvidence(
+    `example.com => ${'a'.repeat(510)}.example\nshort.example => cdn.example`
+  );
+  assert.equal(overlong.value.split('\n')[0].length, 500);
+  assert.equal(overlong.ignoredLineCount, 0);
+  assert.deepEqual(overlong.shortenedLineNumbers, [1]);
+});
+
 test('the storage layer refuses to persist reports that may include private-window scope', async () => {
   const report = createReport(
     { domain: 'private-scope.example', matchMode: 'registrable_domain' },

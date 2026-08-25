@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 
 const root = new URL('../../src/', import.meta.url);
 
@@ -8,11 +8,48 @@ async function source(path) {
   return readFile(new URL(path, root), 'utf8');
 }
 
+function withoutJavaScriptComments(value) {
+  return value.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
+async function collectRuntimeUiPaths(directory = root, prefix = '') {
+  const paths = [];
+  const entries = await readdir(directory, { withFileTypes: true });
+  entries.sort((left, right) => left.name.localeCompare(right.name));
+
+  for (const entry of entries) {
+    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      paths.push(...(await collectRuntimeUiPaths(new URL(`${entry.name}/`, directory), path)));
+    } else if (/\.(?:html|js)$/u.test(entry.name)) {
+      paths.push(path);
+    }
+  }
+
+  return paths;
+}
+
+test('Brave-reachable runtime copy uses browser-neutral branding', async () => {
+  const paths = await collectRuntimeUiPaths();
+  assert.ok(paths.length >= 50, 'the branding check must cover the complete shipped JavaScript and HTML surface');
+
+  for (const path of paths) {
+    const runtimeSource = withoutJavaScriptComments(await source(path));
+    assert.doesNotMatch(
+      runtimeSource,
+      /\bChrome\b(?!\/Brave| or Brave)/,
+      `${path} must reserve the Chrome name for explicit Chrome/Brave support copy or internal comments`
+    );
+  }
+});
+
 test('Options groups controls, wires visible labels/help, and exposes live outcomes', async () => {
   const [html, script] = await Promise.all([source('options/options.html'), source('options/options.js')]);
   assert.ok((html.match(/<fieldset\b/g) || []).length >= 4);
   assert.ok((html.match(/<legend\b/g) || []).length >= 4);
-  assert.match(html, /id="toast"[^>]+role="status"[^>]+aria-live="polite"/);
+  assert.match(html, /id="toast"[^>]+class="toast"[^>]+hidden/);
+  assert.match(html, /id="toastMessage"[^>]+role="status"[^>]+aria-live="polite"/);
+  assert.match(html, /id="dismissToast"[^>]+class="toast-dismiss"[^>]+type="button"[^>]*>Dismiss/);
   assert.match(
     html,
     /id="associatedDomainGroups"[^>]+aria-describedby="associatedGroupsDiagnostics"[^>]+aria-invalid="false"/
@@ -87,6 +124,74 @@ test('Options keeps the prerelease warning readable when its content column narr
   );
 });
 
+test('disabled Options settings keep explanatory text readable', async () => {
+  const css = await source('options/options.css');
+  assert.doesNotMatch(css, /\.setting-row\.expert-disabled,[\s\S]*?opacity:\s*0\.52/);
+  assert.doesNotMatch(css, /\.setting-row\.dependency-disabled[^}]*opacity:/);
+  assert.match(css, /\.switch input:disabled \+ span \{[\s\S]*?opacity:\s*0\.55;/);
+});
+
+test('error notices persist until dismissed while non-errors retain bounded timing', async () => {
+  const [components, optionsHtml, optionsScript, sidepanelHtml, sidepanelScript] = await Promise.all([
+    source('shared/components.css'),
+    source('options/options.html'),
+    source('options/options.js'),
+    source('sidepanel/sidepanel.html'),
+    source('sidepanel/sidepanel.js')
+  ]);
+  assert.match(components, /\.toast-message \{[\s\S]*?overflow-wrap: anywhere;/);
+  assert.match(components, /\.toast-dismiss \{[\s\S]*?min-height: 32px;/);
+  assert.match(optionsHtml, /id="dismissToast"[^>]+type="button"[^>]*>Dismiss/);
+  assert.match(sidepanelHtml, /id="dismissPanelStatus"[^>]+type="button"[^>]*>Dismiss/);
+  assert.match(optionsScript, /const autoDismissMs = tone === 'error' \? null : tone === 'success' \? 3200 : 8000;/);
+  assert.match(
+    optionsScript,
+    /hideToast\(el, dismissButton, dismissButton\?\.ownerDocument\?\.activeElement \|\| null\)/
+  );
+  assert.match(optionsScript, /function dismissToast\(\)/);
+  assert.match(sidepanelScript, /const autoDismissMs = tone === 'error' \? null : tone === 'success' \? 3200 : 8000;/);
+  assert.match(
+    sidepanelScript,
+    /hidePanelStatus\(status, dismissButton, dismissButton\?\.ownerDocument\?\.activeElement \|\| null\)/
+  );
+  assert.match(sidepanelScript, /function dismissPanelStatus\(\)/);
+});
+
+test('essential compact report and review text stays at least eleven pixels', async () => {
+  const [optionsCss, popupCss, sidepanelCss] = await Promise.all([
+    source('options/options.css'),
+    source('popup/popup.css'),
+    source('sidepanel/sidepanel.css')
+  ]);
+  for (const [label, block] of [
+    ['Options disclosure count', optionsCss.match(/\.summary-meta \{[^}]+\}/)?.[0]],
+    ['popup summary metric label', popupCss.match(/\.summary-metric span \{[^}]+\}/)?.[0]],
+    ['popup file confirmation phrase', popupCss.match(/\.file-confirmation code \{[^}]+\}/)?.[0]],
+    ['popup review expiry', popupCss.match(/\.review-expiry \{[^}]+\}/)?.[0]],
+    ['side-panel history fact label', sidepanelCss.match(/\.history-fact span \{[^}]+\}/)?.[0]],
+    ['side-panel matrix count', sidepanelCss.match(/\.matrix-count \{[^}]+\}/)?.[0]]
+  ]) {
+    assert.ok(block, `${label} style is present`);
+    assert.match(block, /font-size:\s*11px;/, `${label} must remain readable at the default scale`);
+  }
+});
+
+test('capacity errors lead with an actionable summary and disclose technical details separately', async () => {
+  const [html, popupScript, capacityScript] = await Promise.all([
+    source('popup/popup.html'),
+    source('popup/popup.js'),
+    source('background/cleanup-capacity.js')
+  ]);
+  assert.match(html, /id="targetErrorDetails"[^>]+class="target-error-details"[^>]+hidden/);
+  assert.match(html, /<summary>Technical details<\/summary>/);
+  assert.match(html, /id="targetErrorTechnical"[^>]+class="mono"/);
+  assert.match(popupScript, /const TECHNICAL_ERROR_DETAILS_MARKER = ' Technical details: ';/);
+  assert.match(popupScript, /function splitDisplayedError\(message\)/);
+  assert.match(popupScript, /#targetErrorDetails'\)\.hidden = !displayed\.technicalDetails/);
+  assert.match(capacityScript, /This cleanup is too large to review safely in one run\./);
+  assert.match(capacityScript, /Technical details: \$\{reasons\.join/);
+});
+
 test('side panel implements the ARIA tab pattern and full keyboard navigation', async () => {
   const [html, script] = await Promise.all([source('sidepanel/sidepanel.html'), source('sidepanel/sidepanel.js')]);
   assert.match(html, /role="tablist"/);
@@ -118,13 +223,15 @@ test('popup exposes required and invalid states for destructive approval control
   );
 });
 
-test('popup preserves a definite extension width and reflows long review content in a narrow synthetic container', async () => {
+test('action popup preserves a definite width while a direct tab reflows long review content', async () => {
   const [css, browserFixture] = await Promise.all([
     source('popup/popup.css'),
     source('../tests/browser/fixtures/popup-browser-mock.js')
   ]);
 
   assert.match(css, /html,\s*body \{\s*width: 380px;\s*max-width: 380px;/);
+  assert.match(css, /html\.popup-opened-in-tab,\s*html\.popup-opened-in-tab body \{\s*width: min\(380px, 100vw\);/);
+  assert.match(css, /html\.popup-opened-in-tab body \{\s*container: popup-document \/ inline-size;\s*\}/);
   assert.match(
     css,
     /\.popup-shell \{[\s\S]*?width: 100%;[\s\S]*?max-width: 380px;[\s\S]*?overflow: hidden auto;[\s\S]*?container: popup \/ inline-size;/
@@ -141,6 +248,9 @@ test('popup preserves a definite extension width and reflows long review content
   assert.match(browserFixture, /document\.documentElement\.style\.width = `\$\{simulatedPopupWidth\}px`;/);
   assert.match(browserFixture, /document\.body\.style\.width = `\$\{simulatedPopupWidth\}px`;/);
   assert.match(css, /@container popup \(max-width: 280px\) \{/);
+  assert.match(css, /@container popup-document \(max-width: 340px\) \{\s*\.popup-shell \{\s*padding-inline: 10px;/);
+  assert.match(css, /@container popup-document \(max-width: 280px\) \{\s*\.popup-shell \{\s*padding: 6px;/);
+  assert.match(css, /\.popup-shell \.error-text \{\s*min-width: 0;\s*max-width: 100%;\s*overflow-wrap: anywhere;/);
   assert.match(css, /\.brand,[\s\S]*?\.review-effect \{\s*flex-direction: column;\s*align-items: stretch;/);
   assert.match(css, /\.review-facts > div,[\s\S]*?\.review-actions \{\s*grid-template-columns: minmax\(0, 1fr\);/);
   assert.match(css, /\.check-row \{\s*grid-template-columns: minmax\(0, 1fr\);/);
@@ -148,18 +258,25 @@ test('popup preserves a definite extension width and reflows long review content
     css,
     /\.help-text,\s*\.error-text \{\s*min-width: 0;\s*max-width: 100%;\s*overflow-wrap: anywhere;\s*word-break: break-all;/
   );
+  for (const [selector, block] of [
+    ['review facts', css.match(/\.review-facts dd \{[^}]+\}/)?.[0]],
+    ['review list', css.match(/\.review-list li \{[^}]+\}/)?.[0]],
+    ['review effect', css.match(/\.review-effect strong \{[^}]+\}/)?.[0]]
+  ]) {
+    assert.ok(block, `${selector} wrapping rule is present`);
+    assert.match(block, /min-width: 0;/);
+    assert.match(block, /overflow-wrap: anywhere;/);
+    assert.doesNotMatch(block, /word-break: break-all;/);
+  }
+});
+
+test('dynamic diagnostics and handoff outcomes contain long unbroken browser text', async () => {
+  const [optionsCss, handoffCss] = await Promise.all([source('options/options.css'), source('handoff/handoff.css')]);
   assert.match(
-    css,
-    /\.review-facts dd \{[\s\S]*?min-width: 0;[\s\S]*?overflow-wrap: anywhere;[\s\S]*?word-break: break-all;/
+    optionsCss,
+    /\.diagnostic-box \{\s*min-width: 0;\s*max-width: 100%;[\s\S]*?white-space: pre-wrap;\s*overflow-wrap: anywhere;/
   );
-  assert.match(
-    css,
-    /\.review-list li \{\s*min-width: 0;\s*max-width: 100%;\s*overflow-wrap: anywhere;\s*word-break: break-all;/
-  );
-  assert.match(
-    css,
-    /\.review-effect strong \{\s*min-width: 0;[\s\S]*?overflow-wrap: anywhere;\s*word-break: break-all;/
-  );
+  assert.match(handoffCss, /\.status,\s*\.error \{\s*min-width: 0;\s*max-width: 100%;[\s\S]*?overflow-wrap: anywhere;/);
 });
 
 test('popup visibly and accessibly renders exact reviewed host-permission patterns with safe DOM APIs', async () => {
@@ -228,11 +345,24 @@ test('persistent permission handoff exposes an accessible exact-review action wi
   assert.match(html, /<title>SiteWipe reviewed access<\/title>/);
   assert.match(html, /<main[^>]+aria-labelledby="handoffTitle"/);
   assert.match(html, /<h1 id="handoffTitle">/);
-  assert.equal((html.match(/<section[^>]+aria-labelledby=/g) || []).length, 2);
+  assert.ok(html.indexOf('id="status"') < html.indexOf('id="targetTitle"'));
+  assert.match(script, /if \(!hadBoundHandoff\) renderUnavailableReview\(\)/);
+  assert.match(script, /No target patterns are available because this handoff could not be verified/);
+  assert.equal((html.match(/<section[^>]+aria-labelledby=/g) || []).length, 3);
+  assert.match(html, /id="effectsTitle">Reviewed effects/);
+  assert.match(html, /id="reviewedDownloadedFiles">Loading…/);
+  assert.match(html, /id="reviewedBrowserRecords">Loading…/);
+  assert.match(html, /id="reviewedRequestShield">Loading…/);
+  assert.match(html, /id="reviewedProgressOverlay">Loading…/);
+  assert.match(html, /id="reviewedProtectedOrigins">Loading…/);
+  assert.match(html, /id="reviewedEvidence">Loading…/);
   assert.match(html, /id="status"[^>]+role="status"[^>]+aria-live="polite"/);
   assert.match(html, /id="error"[^>]+role="alert"/);
   assert.match(html, /<button id="grantAccess"[^>]*>Grant reviewed access and run<\/button>/);
-  assert.match(script, /#grantAccess'\)\.focus\(\{ preventScroll: true \}\)/);
+  assert.doesNotMatch(script, /#grantAccess'\)\.focus\(/);
+  assert.match(script, /renderReviewedEffects\(claimed\.reviewedEffects\)/);
+  assert.match(script, /This tab does not live-update after handoff/);
+  assert.doesNotMatch(html, /will be released after this one cleanup/);
   assert.match(css, /button \{[\s\S]*?min-height: 3\.25rem;/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(css, /@media \(forced-colors: active\)/);
@@ -249,6 +379,9 @@ test('motion, forced-colors, target size, and primary CTA contrast contracts pas
   ]);
   assert.match(theme, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(theme, /@media \(forced-colors: active\)/);
+  assert.match(theme, /@media \(forced-colors: active\)[\s\S]*?:focus-visible \{[\s\S]*?outline: 3px solid Highlight;/);
+  assert.doesNotMatch(components, /\.input \{[^}]*outline:\s*none;/);
+  assert.doesNotMatch(sidepanelCss, /\.tab-panel \{[^}]*outline:\s*none;/);
   assert.match(components, /\.btn \{[\s\S]*?min-height: 44px;/);
   assert.match(optionsCss, /\.switch \{[^}]*height: 44px;/);
   assert.match(popupCss, /\.btn\.compact \{[\s\S]*?min-height: 44px;/);
@@ -312,9 +445,10 @@ test('cleanup review defaults on and the explicit direct-cleanup option is discl
   assert.match(popupHtml, /Chrome\/Brave cannot safely remove/);
   assert.match(popupHtml, /Required acknowledgements/);
   assert.match(popupHtml, /Approve reviewed cleanup/);
-  assert.match(popupHtml, /Grant reviewed access and run/);
-  assert.match(popupHtml, /Keep this popup open/);
-  assert.match(popupScript, /Grant access and clean/);
+  assert.match(popupHtml, /Open reviewed access tab/);
+  assert.match(popupHtml, /this popup may close/);
+  assert.doesNotMatch(`${popupHtml}\n${popupScript}`, /Keep this popup open|Grant access and clean/);
+  assert.match(popupScript, /Open reviewed access tab/);
   assert.match(popupScript, /approvalMode: 'detailed_review'/);
   assert.match(popupScript, /Browser-level storage\/cache/);
   assert.match(popupScript, /embedded third-party partitions under the selected site may also be deleted/i);

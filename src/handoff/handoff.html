@@ -17,23 +17,79 @@
         </p>
       </header>
 
+      <div id="status" class="status" role="status" aria-live="polite">Binding this exact handoff document…</div>
+      <p id="error" class="error" role="alert" hidden></p>
+
       <section class="handoff-card" aria-labelledby="targetTitle">
         <h2 id="targetTitle">Cleanup target</h2>
         <strong id="targetName">Loading…</strong>
-        <p>Only these preflight-bound patterns will be requested:</p>
+        <p id="originSummary">Only these preflight-bound patterns will be requested:</p>
         <ul id="originList" class="origin-list"></ul>
+      </section>
+
+      <section class="handoff-card" aria-labelledby="effectsTitle">
+        <h2 id="effectsTitle">Reviewed effects</h2>
+        <dl class="effects-list">
+          <div>
+            <dt>Mode and approval</dt>
+            <dd id="reviewedMode">Loading…</dd>
+          </div>
+          <div>
+            <dt>Browser-window scope</dt>
+            <dd id="reviewedWindowScope">Loading…</dd>
+          </div>
+          <div>
+            <dt>Associated targets</dt>
+            <dd id="reviewedAssociatedTargets">Loading…</dd>
+          </div>
+          <div>
+            <dt>Downloaded files</dt>
+            <dd id="reviewedDownloadedFiles">Loading…</dd>
+          </div>
+          <div>
+            <dt>Storage boundary</dt>
+            <dd id="reviewedStorageScope">Loading…</dd>
+          </div>
+          <div>
+            <dt>Browser data</dt>
+            <dd id="reviewedCategories">Loading…</dd>
+          </div>
+          <div>
+            <dt>History and download list</dt>
+            <dd id="reviewedBrowserRecords">Loading…</dd>
+          </div>
+          <div>
+            <dt>Request shield</dt>
+            <dd id="reviewedRequestShield">Loading…</dd>
+          </div>
+          <div>
+            <dt>Page progress overlay</dt>
+            <dd id="reviewedProgressOverlay">Loading…</dd>
+          </div>
+          <div>
+            <dt>Protected web-app origins</dt>
+            <dd id="reviewedProtectedOrigins">Loading…</dd>
+          </div>
+          <div>
+            <dt>Verification and report</dt>
+            <dd id="reviewedEvidence">Loading…</dd>
+          </div>
+          <div>
+            <dt>Matching tabs</dt>
+            <dd id="reviewedMatchingTabs">Loading…</dd>
+          </div>
+        </dl>
       </section>
 
       <section class="handoff-card safety" aria-labelledby="safetyTitle">
         <h2 id="safetyTitle">Before you continue</h2>
         <p>
-          No cleanup has started. Newly granted access is temporary and will be released after this one cleanup. Access
-          that existed before the review is preserved. Downloaded files follow the reviewed cleanup settings.
+          No cleanup has started. SiteWipe tracks access newly granted for this review and attempts to release only the
+          access it can prove this review created. If Chrome or Brave does not prove safe release, SiteWipe preserves
+          access and retains a recovery obligation. Access that existed before the review is preserved.
         </p>
       </section>
 
-      <div id="status" class="status" role="status" aria-live="polite">Binding this exact handoff document…</div>
-      <p id="error" class="error" role="alert" hidden></p>
       <button id="grantAccess" type="button" disabled>Grant reviewed access and run</button>
     </main>
     <script type="module" src="handoff.js"></script>

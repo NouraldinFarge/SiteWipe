@@ -24,6 +24,8 @@ let sidePanelWindowId = null;
 let sidePanelBindingGeneration = 0;
 let reportRefreshGeneration = 0;
 let bindingExpiryTimer = null;
+/** @type {{ isConnected?: boolean, disabled?: boolean, focus?: () => void } | null} */
+let panelStatusReturnFocus = null;
 const REPORT_STORAGE_KEYS = new Set([STORAGE_KEYS.settings, STORAGE_KEYS.reports, STORAGE_KEYS.activeReport]);
 
 onceDomReady(() =>
@@ -32,6 +34,7 @@ onceDomReady(() =>
 
 async function init() {
   bindTabs();
+  document.querySelector('#dismissPanelStatus')?.addEventListener('click', dismissPanelStatus);
   document.querySelector('#openOptions').addEventListener('click', () => chrome.runtime.openOptionsPage());
   document.querySelector('#clearHistory').addEventListener('click', clearHistory);
   document.querySelector('#exportReport').addEventListener('click', () => exportReportJson(false));
@@ -50,6 +53,9 @@ async function init() {
   document.querySelector('#matrixStatusFilter').addEventListener('change', renderMatrix);
   renderMatrix();
   clearBoundReportPresentation('Open a locally stored report from the SiteWipe popup.');
+  const initialSettingsState = await sendMessage(MESSAGE_TYPES.getSettings);
+  currentSettings = initialSettingsState.settings || {};
+  applySettings(currentSettings);
   await initializeSidePanelReportBinding();
 }
 
@@ -96,7 +102,11 @@ function handleSidePanelStorageChange(changes, area) {
     });
     return;
   }
-  if (area === 'local' && Object.keys(changes || {}).some((key) => REPORT_STORAGE_KEYS.has(key))) {
+  if (area === 'local' && changes?.[STORAGE_KEYS.settings]) {
+    currentSettings = changes[STORAGE_KEYS.settings].newValue || {};
+    applySettings(currentSettings);
+  }
+  if (area === 'local' && boundReportId && Object.keys(changes || {}).some((key) => REPORT_STORAGE_KEYS.has(key))) {
     const bindingGeneration = sidePanelBindingGeneration;
     void refreshBoundReport(bindingGeneration).catch((error) => {
       if (bindingGeneration !== sidePanelBindingGeneration) return;
@@ -1036,18 +1046,49 @@ function formatError(error) {
 
 function announceStatus(message, tone = 'info') {
   const status = document.querySelector('#panelStatus');
-  status.setAttribute('role', tone === 'error' ? 'alert' : 'status');
-  status.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
+  const messageCandidate = document.querySelector('#panelStatusMessage');
+  const messageElement = messageCandidate?.parentElement === status ? messageCandidate : status;
+  const dismissButton = document.querySelector('#dismissPanelStatus');
+  panelStatusReturnFocus = document.activeElement;
+  messageElement.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+  messageElement.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
   status.className = `toast panel-status ${tone}`;
   status.hidden = false;
-  status.textContent = '';
+  messageElement.textContent = '';
   requestAnimationFrame(() => {
-    status.textContent = message;
+    messageElement.textContent = message;
   });
   clearTimeout(announceStatus.timer);
-  announceStatus.timer = setTimeout(() => {
-    status.hidden = true;
-  }, 5000);
+  announceStatus.timer = null;
+  const autoDismissMs = tone === 'error' ? null : tone === 'success' ? 3200 : 8000;
+  if (autoDismissMs !== null) {
+    announceStatus.timer = setTimeout(
+      () => hidePanelStatus(status, dismissButton, dismissButton?.ownerDocument?.activeElement || null),
+      autoDismissMs
+    );
+  }
+  dismissButton?.setAttribute('aria-label', tone === 'error' ? 'Dismiss error message' : 'Dismiss message');
+  if (dismissButton) dismissButton.disabled = false;
+}
+
+function dismissPanelStatus() {
+  hidePanelStatus(
+    document.querySelector('#panelStatus'),
+    document.querySelector('#dismissPanelStatus'),
+    document.activeElement
+  );
+}
+
+function hidePanelStatus(status, dismissButton, activeElement) {
+  const restoreFocus = activeElement === dismissButton ? panelStatusReturnFocus : null;
+  clearTimeout(announceStatus.timer);
+  announceStatus.timer = null;
+  status.hidden = true;
+  if (dismissButton) dismissButton.disabled = true;
+  panelStatusReturnFocus = null;
+  if (restoreFocus?.isConnected && restoreFocus.disabled !== true && typeof restoreFocus.focus === 'function') {
+    restoreFocus.focus();
+  }
 }
 
 function filterEvents(events, filter) {

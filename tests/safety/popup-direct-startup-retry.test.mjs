@@ -28,12 +28,74 @@ test('popup preparation capabilities remain memory-only and are erased at every 
     'the popup must await durable arm before delegating handoff creation or focus to the worker'
   );
   assert.doesNotMatch(source, /chrome\.permissions\./, 'the action popup must not invoke native permission APIs');
-  assert.doesNotMatch(source, /chrome\.tabs\./, 'the action popup must not create or focus the handoff tab itself');
+  assert.doesNotMatch(
+    source,
+    /chrome\.tabs\??\.(?:create|duplicate|highlight|move|remove|update)/,
+    'the action popup must not create, focus, move, or remove the handoff tab itself'
+  );
   assert.doesNotMatch(
     source,
     /beginCleanupPermissionPrompt|confirmCleanupPermissionPromptInvocation|confirmCleanupPermissionGrantOutcome|resumeArmedCleanup|settleCleanupPermissionPrompt/,
     'the action popup must not retain any retired native-prompt continuation route'
   );
+});
+
+test('closing an uninvoked YouTube direct popup leaves a fresh Reddit popup ready after worker retirement', async () => {
+  const youtubePopup = await createPopupHarness({
+    cleanupMode: 'expert',
+    directCleanup: true,
+    activeTabDomain: 'youtube.com',
+    activeTabUrl: 'https://www.youtube.com/watch?v=synthetic',
+    prepareResponses: [
+      {
+        popupContextId: 'popup-context-youtube-abandoned',
+        review: directReview({
+          cleanupMode: 'expert',
+          domain: 'youtube.com',
+          approvalToken: '1'.repeat(48)
+        })
+      }
+    ]
+  });
+  await waitFor(() => youtubePopup.element('readyBadge').textContent === 'Direct cleanup ready');
+  assert.equal(youtubePopup.prepareCalls().length, 1);
+  assert.equal(youtubePopup.prepareCalls()[0].payload.input, 'youtube.com');
+  assert.equal(youtubePopup.runCalls().length, 0);
+  await youtubePopup.dispose();
+  assert.equal(
+    youtubePopup.cancelReviewCalls().length,
+    0,
+    'popup destruction cannot claim that an asynchronous cancellation reached the worker'
+  );
+
+  const redditPopup = await createPopupHarness({
+    cleanupMode: 'expert',
+    directCleanup: true,
+    activeTabDomain: 'reddit.com',
+    activeTabUrl: 'https://www.reddit.com/r/sitewipe_synthetic/',
+    prepareResponses: [
+      {
+        popupContextId: 'popup-context-reddit-fresh',
+        review: directReview({
+          cleanupMode: 'expert',
+          domain: 'reddit.com',
+          approvalToken: '2'.repeat(48)
+        })
+      }
+    ]
+  });
+  try {
+    await waitFor(() => redditPopup.element('readyBadge').textContent === 'Direct cleanup ready');
+    assert.equal(redditPopup.prepareCalls().length, 1);
+    assert.equal(redditPopup.prepareCalls()[0].payload.input, 'reddit.com');
+    assert.equal(redditPopup.element('targetInput').value, 'reddit.com');
+    assert.equal(redditPopup.element('targetError').textContent, '');
+    assert.equal(redditPopup.element('deepCleanButton').disabled, false);
+    assert.equal(redditPopup.runCalls().length, 0);
+    assert.equal(redditPopup.permissionCalls().length, 0);
+  } finally {
+    await redditPopup.dispose();
+  }
 });
 
 test('Open full report is prebound and opens synchronously in the exact verified window', async () => {
@@ -850,7 +912,7 @@ test('a handoff-open failure remains a retryable popup error without invoking na
     assert.equal(harness.retiredPromptRouteCalls().length, 0);
     assert.equal(harness.runCalls().length, 0);
     assert.equal(harness.element('reviewCard').hidden, false);
-    assert.equal(harness.element('approveCleanup').textContent, 'Grant reviewed access and run');
+    assert.equal(harness.element('approveCleanup').textContent, 'Open reviewed access tab');
     await waitFor(() => /could not be opened/i.test(harness.element('reviewApprovalError').textContent));
     assert.match(harness.element('reviewApprovalError').textContent, /could not be opened/i);
 
@@ -920,7 +982,7 @@ for (const scenario of [
   {
     name: 'a completed cleanup',
     grantResponse: { report: { id: 'handoff-report' }, resumedCompletedResult: true },
-    status: /Cleanup finished.*temporary target access was reconciled/i
+    status: /Cleanup finished.*final report.*retained target-access recovery/i
   },
   {
     name: 'an admitted running cleanup',
@@ -929,8 +991,8 @@ for (const scenario of [
   },
   {
     name: 'an expired approval reconciled after a late grant',
-    grantResponse: { approvalHandoffCanceled: true, cleanupStarted: false },
-    status: /No cleanup started.*reconciled the temporary target access/i
+    grantResponse: { approvalHandoffCanceled: true, cleanupStarted: false, temporaryAccessReleased: true },
+    status: /No cleanup started.*proved the temporary target access absent/i
   },
   {
     name: 'an outcome still under worker reconciliation',
@@ -992,17 +1054,17 @@ function lifecycleNotReady() {
   };
 }
 
-function directReview({ cleanupMode = 'standard', hostPermissionsGranted = true } = {}) {
-  const exactOrigins = [
-    'http://example.com/*',
-    'https://example.com/*',
-    'http://*.example.com/*',
-    'https://*.example.com/*'
-  ];
+function directReview({
+  cleanupMode = 'standard',
+  hostPermissionsGranted = true,
+  domain = 'example.com',
+  approvalToken = null
+} = {}) {
+  const exactOrigins = [`http://${domain}/*`, `https://${domain}/*`, `http://*.${domain}/*`, `https://*.${domain}/*`];
   return {
-    approvalToken: (cleanupMode === 'expert' ? 'b' : 'a').repeat(48),
+    approvalToken: approvalToken || (cleanupMode === 'expert' ? 'b' : 'a').repeat(48),
     approvalMode: 'settings_direct',
-    normalizedTarget: 'example.com',
+    normalizedTarget: domain,
     createdAt: '2026-08-20T12:00:00.000Z',
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
     hostPermissionsGranted,
@@ -1131,6 +1193,7 @@ async function createPopupHarness(options = {}) {
           });
         }
         if (request.type === 'sitewipe.getActiveTabTarget') {
+          const activeTabDomain = options.activeTabDomain || 'example.com';
           return envelope(request, {
             activeTab: {
               supported: true,
@@ -1139,12 +1202,12 @@ async function createPopupHarness(options = {}) {
                 windowId: options.activeTabWindowId ?? 7,
                 incognito: false,
                 title: 'Synthetic target',
-                url: 'https://example.com/path?private=redacted'
+                url: options.activeTabUrl || 'https://example.com/path?private=redacted'
               },
               normalized: {
                 ok: true,
-                input: 'example.com',
-                target: { domain: 'example.com' }
+                input: activeTabDomain,
+                target: { domain: activeTabDomain }
               }
             }
           });
@@ -1490,6 +1553,24 @@ async function createHandoffHarness(options = {}) {
             handoffCapability,
             temporaryHostPermissionOrigins: structuredClone(options.origins || origins),
             targetDisplayName: 'example.com',
+            reviewedEffects: {
+              cleanupMode: 'Standard',
+              approvalPath: 'Detailed per-run review completed',
+              windowScope:
+                'Matching data exposed in normal browser windows is included. Private-window data is not accessible.',
+              associatedTargetCount: 0,
+              downloadedFileSummary: 'On-disk downloaded-file deletion is off.',
+              storageSummary:
+                'Selected-site storage cleanup includes embedded third-party partitions beneath the reviewed site.',
+              categorySummary: 'cookies, browser storage, history, and download records',
+              browserRecordSummary:
+                'History: matching entries removed; 2 found in preflight. Download list: matching entries removed; 1 found in preflight.',
+              requestShieldSummary: 'Off.',
+              progressOverlaySummary: 'Off.',
+              protectedOriginSummary: 'Not included.',
+              evidenceSummary: 'Post-clean verification is on. Latest report retained for 30 minutes.',
+              matchingTabsClose: true
+            },
             expiresAt: new Date(Date.now() + 60_000).toISOString()
           });
         }

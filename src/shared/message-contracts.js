@@ -10,6 +10,7 @@ const EMPTY_PAYLOAD_TYPES = new Set([
   MESSAGE_TYPES.getReport,
   MESSAGE_TYPES.getHistory,
   MESSAGE_TYPES.clearHistory,
+  MESSAGE_TYPES.clearReports,
   MESSAGE_TYPES.getSettings,
   MESSAGE_TYPES.resetSettings,
   MESSAGE_TYPES.clearDebugLog,

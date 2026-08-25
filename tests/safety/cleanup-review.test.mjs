@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildCleanupReview,
   buildFileDeletionConfirmation,
+  describeReviewedRecordEffect,
   isReviewedFileRemovalCandidate,
   reviewedFileIds,
   validateCleanupReviewApproval
@@ -108,6 +109,10 @@ test('scope review exposes the entered target, normalized scope, associated targ
   assert.equal(review.effects.closeTabs.enabled, true);
   assert.equal(review.effects.removeHistory.enabled, true);
   assert.equal(review.effects.removeDownloadRecords.enabled, true);
+  assert.equal(review.effects.removeDownloadRecords.erasurePolicy, 'approved_file_removal_only');
+  assert.equal(review.effects.removeDownloadRecords.conditionalOnSuccessfulFileRemoval, true);
+  assert.equal(review.effects.removeDownloadRecords.approvedFileCandidateCount, 2);
+  assert.equal(review.effects.removeDownloadRecords.preservesUnapprovedOrFailedFileRecords, true);
   assert.equal(review.effects.removeDownloadedFiles.enabled, true);
   assert.equal(review.effects.requestShield.enabled, false);
   assert.equal(review.effects.requestShield.disabledForNormalOnlyReview, true);
@@ -123,6 +128,7 @@ test('scope review exposes the entered target, normalized scope, associated targ
   assert.match(review.categoriesAttempted.join(' '), /embedded third-party partitions under that site/i);
   assert.match(review.warnings.join(' '), /selected-top-level-site cleanup/i);
   assert.match(review.warnings.join(' '), /partitions under other top-level sites are not included/i);
+  assert.match(review.warnings.join(' '), /record only after its corresponding file deletion succeeds/i);
 });
 
 test('review binds and discloses cross-tab overlay scope plus every material Expert mutation/discovery option', () => {
@@ -367,6 +373,57 @@ test('private-context review promises no persisted report and unknown preview co
   assert.equal(review.effects.removeHistory.matchingCount, null);
   assert.equal(review.effects.removeDownloadedFiles.enabled, false);
   assert.equal(review.effects.removeDownloadedFiles.candidateReviewComplete, false);
+  assert.equal(review.effects.removeDownloadRecords.enabled, false);
+  assert.equal(review.effects.removeDownloadRecords.erasurePolicy, 'none_incomplete_file_inventory');
+  assert.equal(review.effects.removeDownloadRecords.approvedFileCandidateCount, null);
+  assert.match(review.warnings.join(' '), /no on-disk file removal or matching download-record erasure/i);
+});
+
+test('incomplete download discovery distinguishes record-only cleanup from file-deletion fail-closed scope', () => {
+  const incompleteEvidence = {
+    downloads: {
+      complete: false,
+      queryResultCapReached: true,
+      limitations: ['Synthetic download discovery reached its cap.']
+    }
+  };
+  const recordOnly = buildStandard({
+    impact: {
+      matchingTabs: 1,
+      matchingPrivateTabs: 0,
+      matchingHistoryEntries: 0,
+      matchingDownloadRecords: null,
+      matchingDownloadRecordsLowerBound: 3,
+      matchedCompletedFileCount: null,
+      matchedCompletedFileIds: null,
+      discoveryEvidence: incompleteEvidence,
+      limitations: []
+    }
+  });
+  assert.equal(recordOnly.effects.removeDownloadRecords.enabled, true);
+  assert.equal(recordOnly.effects.removeDownloadRecords.erasurePolicy, 'all_matching_records');
+  assert.match(recordOnly.warnings.join(' '), /only positively discovered matching records may be erased/i);
+  assert.doesNotMatch(recordOnly.warnings.join(' '), /no .*matching download-record erasure is authorized/i);
+  assert.match(describeReviewedRecordEffect(recordOnly.effects.removeDownloadRecords), /at least 3/i);
+  assert.match(describeReviewedRecordEffect(recordOnly.effects.removeDownloadRecords), /did not prove a full count/i);
+
+  const fileDeletion = build({
+    impact: {
+      matchingTabs: 1,
+      matchingPrivateTabs: 0,
+      matchingHistoryEntries: 0,
+      matchingDownloadRecords: null,
+      matchingDownloadRecordsLowerBound: 3,
+      matchedCompletedFileCount: null,
+      matchedCompletedFileIds: null,
+      discoveryEvidence: incompleteEvidence,
+      limitations: []
+    }
+  });
+  assert.equal(fileDeletion.effects.removeDownloadRecords.enabled, false);
+  assert.equal(fileDeletion.effects.removeDownloadRecords.erasurePolicy, 'none_incomplete_file_inventory');
+  assert.match(fileDeletion.warnings.join(' '), /no on-disk file deletion or matching download-record erasure/i);
+  assert.match(describeReviewedRecordEffect(fileDeletion.effects.removeDownloadRecords), /no file or matching record/i);
 });
 
 test('enabled private-window access keeps reports transient even from a normal source window', () => {

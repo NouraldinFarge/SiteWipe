@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "status": "approved",
+  "status": "owner_approved_technical_revalidation_pending",
   "reviewedAt": "2026-08-23",
   "reviewer": "owner confirmation and local automated/source audit",
-  "technicalStatus": "passed",
-  "technicalValidatedAt": "2026-08-23",
+  "technicalStatus": "pending_validation",
+  "technicalValidatedAt": null,
   "ownerApproval": true,
   "ownerApprovedAt": "2026-08-17",
   "ownerConfirmation": {
@@ -20,44 +20,39 @@
   "privateMaterialExclusionReviewed": true,
   "technicalEvidence": {
     "sourceClosurePrivatePathScan": {
-      "status": "passed",
-      "repositoryFiles": 317
+      "status": "pending",
+      "repositoryFiles": null
     },
     "runtimePackage": {
-      "status": "passed",
-      "runtimeFiles": 59,
-      "npmRuntimeDependencies": 0
+      "status": "pending",
+      "runtimeFiles": 61,
+      "npmRuntimeDependencies": null
     },
     "dependencyLicenseInventory": {
-      "status": "passed",
-      "lockedDevelopmentPackages": 406,
-      "legacyMetadataExceptionsResolved": 1,
-      "developmentSbomGeneration": "passed"
+      "status": "pending",
+      "lockedDevelopmentPackages": null,
+      "legacyMetadataExceptionsResolved": null,
+      "developmentSbomGeneration": "pending"
     },
     "thirdPartyNoticesAndPsl": {
-      "status": "passed",
-      "components": [
-        "Pinned Mozilla Public Suffix List snapshot and notice",
-        "Development-only npm dependency license inventory",
-        "Resolved svg-tags legacy MIT metadata exception"
-      ]
+      "status": "pending",
+      "components": []
     },
     "candidateIcon": {
-      "status": "passed",
+      "status": "pending",
       "editableSource": "assets/brand/icon-source.svg",
-      "generatedPngsVerified": 4,
-      "externalAssets": 0
+      "generatedPngsVerified": null,
+      "externalAssets": null
     },
     "sourceArchiveControls": {
-      "status": "passed",
-      "rejectsPrivateMaterialPatterns": true,
-      "rejectsSymbolicLinksAndDirectoryJunctions": true,
-      "exactSourceClosureRequired": true
+      "status": "pending",
+      "rejectsPrivateMaterialPatterns": null,
+      "rejectsSymbolicLinksAndDirectoryJunctions": null,
+      "exactSourceClosureRequired": null
     }
   },
   "notes": [
     "The owner confirmation and first-party rights decision remain recorded.",
-    "The 1.11.67 source closure, 59-file runtime allowlist, 317-file source archive, locked 406-package development graph, current development SBOM, notices, PSL snapshot, icon outputs, 317-file private-path scan, exact source-package equivalence, seven-file checksum verification, and consecutive local build comparison passed.",
-    "This technical pass does not replace the retained narrow exact-version installed evidence, the deferred extended browser/accessibility/performance work, exact-head remote checks, or later owner-controlled publication authorization."
+    "Every technical provenance result was reset by the version transaction and must be regenerated for the current source closure before publication."
   ]
 }

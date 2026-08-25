@@ -49,6 +49,7 @@ import {
   consumeCleanupReviewRequest,
   clearExpiredCleanupReview,
   clearCleanupReviewState,
+  retireAbandonedDirectReviewForPopupContext,
   CLEANUP_REVIEW_STORAGE_KEY,
   getCleanupPermissionPromptConfirmationDeadline,
   normalizeCleanupReviewRecord,
@@ -75,6 +76,7 @@ import {
 } from '../shared/host-permissions.js';
 import { withTimeoutReject } from './operation-control.js';
 import { hasPendingSiteWipeDnrMutation } from './dnr-shield.js';
+import { describeReviewedRecordEffect } from '../shared/cleanup-review.js';
 import {
   createSidePanelReportBinding,
   getSidePanelReportBindingStorageKey,
@@ -113,6 +115,7 @@ let maintenanceAlarmRefreshQueued = false;
 let maintenanceAlarmRefreshRequested = false;
 const ACTIVE_JOB_STALE_MS = 2 * 60 * 60 * 1000;
 const PERMISSION_INSPECTION_TIMEOUT_MS = 5_000;
+const SELF_PERMISSION_REMOVAL_EVENT_GRACE_MS = 30_000;
 const MAINTENANCE_READ_TIMEOUT_MS = 5_000;
 const MAINTENANCE_HANDOFF_TIMEOUT_MS = 8_000;
 const REPORT_STATE_MAINTENANCE_MUTATION = 'sitewipe.report-state';
@@ -177,9 +180,14 @@ chrome.alarms?.onAlarm?.addListener?.((alarm) =>
 
 chrome.permissions?.onAdded?.addListener?.((addedPermissions) => {
   const addedOrigins = getPermissionEventOrigins(addedPermissions);
+  pruneExpiredSelfPermissionRemovalRecognizers();
   for (const reservation of cleanupPermissionSelfRemovalReservations) {
     for (const origin of addedOrigins) {
-      if (reservation.observedOrigins.has(origin)) reservation.regrantedOrigins.add(origin);
+      if (!reservation.origins.has(origin)) continue;
+      // A regrant makes a later matching removal event ambiguous. Retain the
+      // bounded reservation as a generation barrier, but never recognize that
+      // later event as this older self-removal.
+      reservation.regrantedOrigins.add(origin);
     }
   }
   if (addedOrigins.some((origin) => cleanupPermissionRemovalPoisonOrigins.has(origin))) {
@@ -211,7 +219,17 @@ chrome.permissions?.onAdded?.addListener?.((addedPermissions) => {
 });
 
 chrome.permissions?.onRemoved?.addListener?.((removedPermissions) => {
-  const externalRemovedOrigins = observePermissionRemovalEvent(removedPermissions);
+  const { externalRemovedOrigins, selfRemovedOrigins } = observePermissionRemovalEvent(removedPermissions);
+  if (selfRemovedOrigins.length) {
+    void serializeCleanupReviewStateMutation(() => reconcileObservedSelfPermissionRemoval(selfRemovedOrigins)).catch(
+      (error) =>
+        appendDebug({
+          level: 'error',
+          message: 'Self-removed target access could not be reconciled',
+          errorName: error?.name || 'Error'
+        }).catch(() => {})
+    );
+  }
   if (!externalRemovedOrigins.length) return;
   reserveExternalCleanupPermissionInvalidation(externalRemovedOrigins);
   rememberRemovedCleanupPermissionOrigins({ origins: externalRemovedOrigins });
@@ -294,19 +312,25 @@ function rememberRemovedCleanupPermissionOrigins(permissions = {}) {
 }
 
 function observePermissionRemovalEvent(permissions = {}) {
-  const externalRemovedOrigins = [];
+  pruneExpiredSelfPermissionRemovalRecognizers();
+  const externalRemovedOrigins = new Set();
+  const selfRemovedOrigins = new Set();
   for (const origin of getPermissionEventOrigins(permissions)) {
     const reservation = [...cleanupPermissionSelfRemovalReservations].find((candidate) =>
-      candidate.origins.has(origin)
+      canRecognizeSelfPermissionRemoval(candidate, origin)
     );
     if (!reservation) {
-      externalRemovedOrigins.push(origin);
+      externalRemovedOrigins.add(origin);
       continue;
     }
     reservation.observedOrigins.add(origin);
     cleanupPermissionRemovalPoisonOrigins.add(origin);
+    selfRemovedOrigins.add(origin);
   }
-  return externalRemovedOrigins;
+  return {
+    externalRemovedOrigins: [...externalRemovedOrigins],
+    selfRemovedOrigins: [...selfRemovedOrigins]
+  };
 }
 
 function clearCleanupPermissionRemovalPoison(origins = []) {
@@ -314,10 +338,39 @@ function clearCleanupPermissionRemovalPoison(origins = []) {
   for (const origin of cleared) cleanupPermissionRemovalPoisonOrigins.delete(origin);
   for (const reservation of cleanupPermissionSelfRemovalReservations) {
     for (const origin of cleared) {
-      reservation.observedOrigins.delete(origin);
-      reservation.regrantedOrigins.delete(origin);
+      retireSelfPermissionRemovalOrigin(reservation, origin);
     }
-    if (!reservation.observedOrigins.size) cleanupPermissionSelfRemovalReservations.delete(reservation);
+  }
+}
+
+function canRecognizeSelfPermissionRemoval(reservation, origin, nowMs = Date.now()) {
+  if (!reservation.origins.has(origin) || reservation.regrantedOrigins.has(origin)) return false;
+  return (
+    reservation.removalSettled !== true ||
+    (Number.isFinite(reservation.lateEventExpiresAtMs) && nowMs <= reservation.lateEventExpiresAtMs)
+  );
+}
+
+function retireSelfPermissionRemovalOrigin(reservation, origin) {
+  reservation.origins.delete(origin);
+  reservation.observedOrigins.delete(origin);
+  reservation.regrantedOrigins.delete(origin);
+  reservation.verifiedAbsentOrigins.delete(origin);
+  if (!reservation.origins.size) cleanupPermissionSelfRemovalReservations.delete(reservation);
+}
+
+function pruneExpiredSelfPermissionRemovalRecognizers(nowMs = Date.now()) {
+  for (const reservation of cleanupPermissionSelfRemovalReservations) {
+    if (
+      reservation.removalSettled !== true ||
+      !Number.isFinite(reservation.lateEventExpiresAtMs) ||
+      nowMs <= reservation.lateEventExpiresAtMs
+    ) {
+      continue;
+    }
+    for (const origin of [...reservation.origins]) {
+      if (!reservation.observedOrigins.has(origin)) retireSelfPermissionRemovalOrigin(reservation, origin);
+    }
   }
 }
 
@@ -335,10 +388,34 @@ function selfRemovalInventoryMaySettle() {
 function settleSelfRemovalReservationsFromInventory(snapshot) {
   const exactOrigins = new Set(Array.isArray(snapshot?.origins) ? snapshot.origins.map(String) : []);
   for (const reservation of cleanupPermissionSelfRemovalReservations) {
-    if (reservation.regrantedOrigins.size) continue;
-    const absentObservedOrigins = [...reservation.observedOrigins].filter((origin) => !exactOrigins.has(origin));
+    const absentObservedOrigins = [];
+    for (const origin of [...reservation.origins]) {
+      if (exactOrigins.has(origin)) {
+        if (reservation.removalSettled === true && !reservation.observedOrigins.has(origin)) {
+          reservation.regrantedOrigins.add(origin);
+        } else if (reservation.observedOrigins.has(origin)) {
+          reservation.regrantedOrigins.add(origin);
+        }
+        continue;
+      }
+      if (reservation.observedOrigins.has(origin) && !reservation.regrantedOrigins.has(origin)) {
+        absentObservedOrigins.push(origin);
+      } else if (reservation.removalSettled === true) {
+        reservation.verifiedAbsentOrigins.add(origin);
+      }
+    }
     clearCleanupPermissionRemovalPoison(absentObservedOrigins);
   }
+  pruneExpiredSelfPermissionRemovalRecognizers();
+}
+
+async function reconcileObservedSelfPermissionRemoval(origins) {
+  const snapshot = await readHostPermissionInventoryStrict();
+  settleSelfRemovalReservationsFromInventory(snapshot);
+  if (cleanupPermissionRemovalPoisonIntersects(origins)) {
+    throw new Error('Self-removed target access could not be proved absent after the browser event.');
+  }
+  return true;
 }
 
 function cleanupPermissionRemovalPoisonIntersects(origins = []) {
@@ -742,7 +819,7 @@ async function resumeArmedCleanupAfterGrant(reason, expectedNonce = null) {
     }
     if (!ready) break;
     if (expectedNonce && ready.handoffNonce !== expectedNonce) {
-      throw new Error('The armed cleanup handoff changed before Chrome target access settled.');
+      throw new Error('The armed cleanup handoff changed before browser target access settled.');
     }
     const peerReservation = cleanupLifecycleReservation;
     if (!peerReservation || peerReservation.kind === 'cleanup') break;
@@ -1010,7 +1087,7 @@ async function reconcileLateCleanupPermissionGrant(reason, expectedNonce = null)
   );
   if (initialHandoff?.status !== 'prompt_tombstone' && !expiredFinalClick) return null;
   if (expectedNonce && initialHandoff?.nonce !== expectedNonce) {
-    throw new Error('The cleanup permission handoff changed before Chrome target access settled.');
+    throw new Error('The cleanup permission handoff changed before browser target access settled.');
   }
 
   return runPermissionPromptSettlementLifecycleAction(`reconcile ${reason} target site access`, () =>
@@ -1018,7 +1095,7 @@ async function reconcileLateCleanupPermissionGrant(reason, expectedNonce = null)
       let review = await readCleanupReviewRecord(chrome.storage.session);
       if (!review?.approvalHandoff) return null;
       if (expectedNonce && review.approvalHandoff.nonce !== expectedNonce) {
-        throw new Error('The cleanup permission handoff changed before Chrome target access settled.');
+        throw new Error('The cleanup permission handoff changed before browser target access settled.');
       }
       if (
         ['arming', 'armed'].includes(review.approvalHandoff.status) &&
@@ -1157,6 +1234,19 @@ async function handleMessage(message, sender, internalContext = {}) {
       };
     }
     case MESSAGE_TYPES.getPopupState: {
+      if (isExactPopupSender(sender)) {
+        const hydratingPopupContext = await inspectExactPreparingPopupContext();
+        const retirement = await serializeCleanupReviewStateMutation(() =>
+          retireAbandonedDirectReviewForPopupContext({
+            storageSession: chrome.storage.session,
+            storageLocal: chrome.storage.local,
+            preparationContextId: hydratingPopupContext.contextId,
+            isPreparationContextActive: inspectPreparationContextActive,
+            getPendingPromptContextId: getPendingCleanupApprovalPromptContextId
+          })
+        );
+        if (retirement.retired) queueAlarmClear(ALARMS.reviewExpiry);
+      }
       const [settings, report, incognitoAccess, activeJob, temporaryHostAccess] = await Promise.all([
         getSettings(),
         getLastReport(),
@@ -1635,6 +1725,7 @@ async function handleMessage(message, sender, internalContext = {}) {
             broadDiscoveryFallback: settings.broadDiscoveryFallback,
             deleteDownloadedFiles: settings.deleteDownloadedFiles,
             approvedDownloadFileIds: approval.approvedDownloadFileIds || [],
+            reviewedQueryCapacityPlan: approval.impact?.queryCapacityPlan || null,
             temporaryDnrShield: settings.temporaryDnrShield,
             progressOverlay: settings.progressOverlay,
             progressOverlayCancelButton: settings.progressOverlayCancelButton,
@@ -1809,6 +1900,13 @@ async function handleMessage(message, sender, internalContext = {}) {
         return { reports: [] };
       });
     }
+    case MESSAGE_TYPES.clearReports: {
+      return runAdministrativeLifecycleAction('clear all cleanup reports', async () => {
+        await clearReports();
+        queueMaintenanceAlarmRefresh();
+        return { report: null, reports: [] };
+      });
+    }
     case MESSAGE_TYPES.getSettings: {
       return { settings: await getSettings(), debugLog: await getDebugLog() };
     }
@@ -1841,9 +1939,9 @@ async function handleMessage(message, sender, internalContext = {}) {
       return runAdministrativeLifecycleAction('reset settings', async () => {
         await invalidatePendingCleanupReview();
         const settings = await resetSettings();
-        await removeNamedPermission('webNavigation');
+        const optionalFramePermission = await removeNamedPermissionWithVerification('webNavigation');
         queueMaintenanceAlarmRefresh();
-        return { settings };
+        return { settings, optionalFramePermission };
       });
     }
     case MESSAGE_TYPES.clearDebugLog: {
@@ -3391,7 +3489,7 @@ async function settleCleanupPermissionPromptByLeaseId(permissionLeaseId, options
         review.approvalHandoff.nonce !== options.expectedHandoffNonce ||
         review.approvalHandoff.promptContextId !== options.expectedPromptContextId)
     ) {
-      throw new Error('Only the initiating popup context can settle this Chrome target-access prompt.');
+      throw new Error('Only the initiating popup context can settle this browser target-access prompt.');
     }
   }
   if (review && review.permissionLeaseId !== permissionLeaseId) {
@@ -3445,7 +3543,7 @@ async function settleCleanupPermissionPromptByLeaseId(permissionLeaseId, options
   if (options.expectedOutcome === 'not_invoked') {
     if (settlement?.ownershipCleared !== true || settlement?.permissionsPreserved !== true) {
       throw new Error(
-        'Chrome target-access non-invocation could not be recorded safely. No cleanup was admitted; review extension site-access controls.'
+        'Browser target-access non-invocation could not be recorded safely. No cleanup was admitted; review extension site-access controls.'
       );
     }
     queueAlarmClear(ALARMS.reviewExpiry);
@@ -3459,7 +3557,7 @@ async function settleCleanupPermissionPromptByLeaseId(permissionLeaseId, options
   }
   if (settlement?.released !== true || settlement?.accessRemains !== false || settlement?.recordRetained !== false) {
     throw new Error(
-      'Chrome did not prove temporary target site access reconciled. No cleanup was admitted; review extension site-access controls.'
+      'The browser did not prove temporary target site access reconciled. No cleanup was admitted; review extension site-access controls.'
     );
   }
   queueAlarmClear(ALARMS.reviewExpiry);
@@ -3818,32 +3916,68 @@ async function getMaintenanceStatusSnapshot(prefetched = {}) {
 }
 
 async function resetExtensionLocalState() {
+  const recoveryFailures = [];
+  // A same-session or otherwise unresolved DNR mutation can still settle
+  // after this call returns. Let reconciliation throw before clearing any
+  // unrelated extension-local state: preserving the whole reset boundary
+  // keeps the job/settings evidence needed to understand and recover the old
+  // shield after the required browser-session transition.
   const shieldClear = await reconcileOwnedShieldStateWithSettlement();
-  const cleanupReview = await serializeCleanupReviewStateMutation(() =>
-    clearCleanupReviewState(chrome.storage.session, {
-      hasHostPermissions,
-      containsHostPermissions: containsHostPermissionsStrict,
-      getAllHostPermissions: getAllHostPermissionsStrict,
-      releaseHostPermissions: releaseTemporaryHostPermissions,
-      storageLocal: chrome.storage.local,
-      preserveLivePrepared: true,
-      retainPreparedPromptOwnership: true,
-      getPendingPromptContextId: getPendingCleanupApprovalPromptContextId,
-      onPromptTombstoneRestored: requeueRestoredCleanupPromptTombstone
-    })
-  );
-  const preservedCleanupReview = await inspectLiveCleanupReview(chrome.storage.session);
-  const permissionLeaseRecovery = await recoverTemporaryPermissionLease('local-state-reset', null, {
-    preservedCleanupReview,
-    forcePromptSettlement: !preservedCleanupReview
-  });
+  let cleanupReview = {
+    cleared: false,
+    hostPermissionCleanup: null,
+    recoveryUncertain: true
+  };
+  try {
+    cleanupReview = await serializeCleanupReviewStateMutation(() =>
+      clearCleanupReviewState(chrome.storage.session, {
+        hasHostPermissions,
+        containsHostPermissions: containsHostPermissionsStrict,
+        getAllHostPermissions: getAllHostPermissionsStrict,
+        releaseHostPermissions: releaseTemporaryHostPermissions,
+        storageLocal: chrome.storage.local,
+        preserveLivePrepared: true,
+        retainPreparedPromptOwnership: true,
+        getPendingPromptContextId: getPendingCleanupApprovalPromptContextId,
+        onPromptTombstoneRestored: requeueRestoredCleanupPromptTombstone
+      })
+    );
+  } catch (error) {
+    recoveryFailures.push({
+      step: 'cleanup-review recovery',
+      message: error?.message || String(error)
+    });
+  }
+  let preservedCleanupReview = null;
+  let cleanupReviewInspectionSucceeded = false;
+  try {
+    preservedCleanupReview = await inspectLiveCleanupReview(chrome.storage.session);
+    cleanupReviewInspectionSucceeded = true;
+  } catch (error) {
+    recoveryFailures.push({
+      step: 'cleanup-review recovery inspection',
+      message: error?.message || String(error)
+    });
+  }
+  let permissionLeaseRecovery = { recordRetained: false, recoveryUncertain: true };
+  try {
+    permissionLeaseRecovery = await recoverTemporaryPermissionLease('local-state-reset', null, {
+      preservedCleanupReview,
+      forcePromptSettlement: cleanupReviewInspectionSucceeded && !preservedCleanupReview
+    });
+  } catch (error) {
+    recoveryFailures.push({
+      step: 'target-access recovery',
+      message: error?.message || String(error)
+    });
+  }
   if (cleanupReview.confirmationDeadlineAt) {
     queueAlarmAt(ALARMS.reviewPromptConfirmation, cleanupReview.confirmationDeadlineAt);
   } else {
     queueAlarmClear(ALARMS.reviewExpiry);
     queueAlarmClear(ALARMS.reviewPromptConfirmation);
   }
-  const optionalFramePermissionRemoved = await removeNamedPermission('webNavigation');
+  const optionalFramePermission = await removeNamedPermissionWithVerification('webNavigation');
   const resetSteps = [
     ['reports and current report', clearReports()],
     ['debug log', clearDebugLog()],
@@ -3864,26 +3998,62 @@ async function resetExtensionLocalState() {
     )
     .filter(Boolean);
   queueMaintenanceAlarmRefresh();
-  await appendDebug({
-    level: 'info',
-    message: 'Extension-local SiteWipe state reset by user request'
-  }).catch(() => {});
+  const cleanupReviewRecoveryRetained = Boolean(
+    !cleanupReviewInspectionSucceeded ||
+    cleanupReview.recoveryUncertain ||
+    cleanupReview.promptIntentConfirmationPending ||
+    cleanupReview.promptTombstoneRetained ||
+    cleanupReview.hostPermissionCleanup?.recordRetained
+  );
+  const temporaryHostAccessRecoveryPending = Boolean(
+    permissionLeaseRecovery?.recordRetained || permissionLeaseRecovery?.recoveryUncertain
+  );
+  const shieldRecoveryRecordRetained = Boolean(!shieldClear.cleared && shieldClear.recordRetained);
+  const shieldRecoveryUnresolved = shieldClear.cleared !== true;
+  const recoveryObligationsRetained = Boolean(
+    cleanupReviewRecoveryRetained ||
+    temporaryHostAccessRecoveryPending ||
+    shieldRecoveryUnresolved ||
+    !optionalFramePermission.verifiedAbsent ||
+    recoveryFailures.length > 0
+  );
+  const dataCleared = resetFailures.length === 0;
+  const status = !dataCleared ? 'failed' : recoveryObligationsRetained ? 'partial' : 'complete';
+  const note =
+    status === 'failed'
+      ? `Some extension-local reset steps failed (${resetFailures.map((item) => item.step).join(', ')}). SiteWipe retained any permission or request-shield recovery obligation whose absence was not proved. Website data was not deleted.`
+      : status === 'partial'
+        ? `Cleared the resettable SiteWipe-local data, but retained or could not disprove ${[
+            cleanupReviewRecoveryRetained || temporaryHostAccessRecoveryPending
+              ? 'a target-access recovery obligation'
+              : null,
+            shieldRecoveryUnresolved ? 'a request-shield recovery obligation' : null,
+            !optionalFramePermission.verifiedAbsent ? 'optional webNavigation access' : null,
+            recoveryFailures.length > 0 ? 'one or more recovery checks' : null
+          ]
+            .filter(Boolean)
+            .join(' and ')}. Website data was not deleted.`
+        : 'Cleared SiteWipe-local reports, latest report, debug log, active job/shield records, toolbar badge, and settings, and proved optional webNavigation access absent. It did not delete website data.';
   return {
     at: new Date().toISOString(),
     browserWebsiteDataChanged: false,
     dnrRulesCleared: Boolean(shieldClear.cleared),
     cleanupReviewCleared: Boolean(cleanupReview.cleared),
     cleanupReviewHostAccessReleased: Boolean(cleanupReview.hostPermissionCleanup?.released),
-    temporaryHostAccessRecoveryPending: Boolean(permissionLeaseRecovery?.recordRetained),
-    optionalFramePermissionRemoved,
-    localStateResetComplete: resetFailures.length === 0,
+    cleanupReviewRecoveryRetained,
+    temporaryHostAccessRecoveryPending,
+    optionalFramePermission,
+    optionalFramePermissionRemoved: optionalFramePermission.removed === true,
+    optionalFramePermissionVerifiedAbsent: optionalFramePermission.verifiedAbsent,
+    dataCleared,
+    recoveryObligationsRetained,
+    recoveryFailures,
+    status,
+    localStateResetComplete: status === 'complete',
     resetFailures,
-    shieldRecoveryRecordRetained: Boolean(!shieldClear.cleared && shieldClear.recordRetained),
-    note: resetFailures.length
-      ? `Some extension-local reset steps failed (${resetFailures.map((item) => item.step).join(', ')}). SiteWipe retained any permission or request-shield recovery obligation whose absence was not proved. Website data was not deleted.`
-      : shieldClear.cleared && !permissionLeaseRecovery?.recordRetained
-        ? 'Cleared SiteWipe-local reports, latest report, debug log, active job/shield records, toolbar badge, and settings. It did not delete website data.'
-        : 'Cleared other SiteWipe-local state, but retained a permission or request-shield recovery obligation because the browser did not prove it empty. It did not delete website data.'
+    shieldRecoveryRecordRetained,
+    shieldRecoveryUnresolved,
+    note
   };
 }
 
@@ -4564,7 +4734,7 @@ async function recoverStaleJob(reason, options = {}) {
     label: 'Cleanup interrupted',
     detail: shieldReconciled
       ? 'The browser stopped the extension service worker before the cleanup could report completion. The temporary request-shield range was verified empty unless a post-wipe shield was active.'
-      : 'The browser stopped the extension service worker before completion. Request-shield recovery remains tracked because Chrome did not prove the owned rule range empty.',
+      : 'The browser stopped the extension service worker before completion. Request-shield recovery remains tracked because the browser did not prove the owned rule range empty.',
     updatedAt: new Date().toISOString(),
     interruptedAt: new Date().toISOString(),
     recoveryReason: reason
@@ -4701,23 +4871,34 @@ async function containsHostPermissionsStrict(origins) {
   if (cleanupPermissionRemovalPoisonIntersects(inspectedOrigins)) {
     throw new Error('Target-site access was removed during cleanup approval inspection. Start again.');
   }
-  return Boolean(contained);
+  if (contained !== true && contained !== false) {
+    throw new Error('Host-permission inspection returned an invalid response.');
+  }
+  return contained;
 }
 
 async function getAllHostPermissionsStrict() {
   if (cleanupPermissionRemovalPoisonOrigins.size && !selfRemovalInventoryMaySettle()) {
     throw new Error('Target-site access removal is still being reconciled. Start again.');
   }
+  const snapshot = await readHostPermissionInventoryStrict();
+  if (!snapshot || typeof snapshot !== 'object' || !Array.isArray(snapshot.origins)) {
+    throw new Error('Host-permission inventory returned an invalid response.');
+  }
+  settleSelfRemovalReservationsFromInventory(snapshot);
+  if (cleanupPermissionRemovalPoisonOrigins.size) {
+    throw new Error('Target-site access was removed during cleanup approval inventory. Start again.');
+  }
+  return snapshot;
+}
+
+async function readHostPermissionInventoryStrict() {
   if (!chrome.permissions?.getAll) throw new Error('Host-permission inventory is unavailable.');
   const snapshot = await withTimeoutReject(
     chrome.permissions.getAll(),
     PERMISSION_INSPECTION_TIMEOUT_MS,
     'Host-permission inventory'
   );
-  settleSelfRemovalReservationsFromInventory(snapshot);
-  if (cleanupPermissionRemovalPoisonOrigins.size) {
-    throw new Error('Target-site access was removed during cleanup approval inventory. Start again.');
-  }
   if (!snapshot || typeof snapshot !== 'object' || !Array.isArray(snapshot.origins)) {
     throw new Error('Host-permission inventory returned an invalid response.');
   }
@@ -4734,18 +4915,24 @@ async function hasNamedPermission(permission) {
 
 async function containsNamedPermissionStrict(permission) {
   if (!chrome.permissions?.contains) throw new Error(`${permission} permission inspection is unavailable.`);
-  return Boolean(
-    await withTimeoutReject(
-      chrome.permissions.contains({ permissions: [permission] }),
-      PERMISSION_INSPECTION_TIMEOUT_MS,
-      `${permission} permission inspection`
-    )
+  const contained = await withTimeoutReject(
+    chrome.permissions.contains({ permissions: [permission] }),
+    PERMISSION_INSPECTION_TIMEOUT_MS,
+    `${permission} permission inspection`
   );
+  if (contained !== true && contained !== false) {
+    throw new Error(`${permission} permission inspection returned an invalid response.`);
+  }
+  return contained;
 }
 
 async function removeNamedPermissionStrict(permission) {
   if (!chrome.permissions?.remove) throw new Error(`${permission} permission removal is unavailable.`);
-  return Boolean(await chrome.permissions.remove({ permissions: [permission] }));
+  const removed = await chrome.permissions.remove({ permissions: [permission] });
+  if (removed !== true && removed !== false) {
+    throw new Error(`${permission} permission removal returned an invalid response.`);
+  }
+  return removed;
 }
 
 async function removeNamedPermission(permission) {
@@ -4754,6 +4941,41 @@ async function removeNamedPermission(permission) {
   } catch {
     return false;
   }
+}
+
+async function removeNamedPermissionWithVerification(permission) {
+  let presentBefore = null;
+  let removalAttempted = false;
+  let removed = false;
+  const errors = [];
+  try {
+    presentBefore = await containsNamedPermissionStrict(permission);
+  } catch (error) {
+    errors.push(`Before removal: ${error?.message || String(error)}`);
+  }
+  if (presentBefore !== false) {
+    removalAttempted = true;
+    try {
+      removed = await removeNamedPermissionStrict(permission);
+    } catch (error) {
+      errors.push(`Removal: ${error?.message || String(error)}`);
+    }
+  }
+  let presentAfter = null;
+  try {
+    presentAfter = await containsNamedPermissionStrict(permission);
+  } catch (error) {
+    errors.push(`After removal: ${error?.message || String(error)}`);
+  }
+  return {
+    permission,
+    presentBefore,
+    removalAttempted,
+    removed,
+    presentAfter,
+    verifiedAbsent: presentAfter === false,
+    errors
+  };
 }
 
 async function getPermissionAwareSettings() {
@@ -4921,7 +5143,7 @@ async function finalizeRunHostPermissions(
         permissionLeaseRecovery,
         releaseAfterRun,
         note: releaseFailed
-          ? 'Chrome still reports access to one or more preflight-bound target patterns. Review extension site-access settings if you want to revoke it manually.'
+          ? 'The browser still reports access to one or more preflight-bound target patterns. Review extension site-access settings if you want to revoke it manually.'
           : releaseAfterRun
             ? 'Only exact target-specific host access absent before this review was released after browser cleanup and verification finished. Every broader or pre-existing user-controlled grant was preserved.'
             : 'Site access already existed before the review, so SiteWipe preserved every exact and broader user-controlled permission.'
@@ -4931,7 +5153,7 @@ async function finalizeRunHostPermissions(
       addError(
         report,
         'Release temporary target site access',
-        new Error('Chrome did not release every preflight-bound target origin permission.')
+        new Error('The browser did not release every preflight-bound target origin permission.')
       );
     return {
       granted: targetAllowedBeforeRelease,
@@ -5294,14 +5516,35 @@ async function releaseTemporaryHostPermissions(origins, options = {}) {
   ) {
     throw new Error('Target-site access removal was invalidated before browser removal.');
   }
+  pruneExpiredSelfPermissionRemovalRecognizers();
+  for (const pending of cleanupPermissionSelfRemovalReservations) {
+    const overlaps = exactTargetOrigins.filter((origin) => pending.origins.has(origin));
+    if (!overlaps.length) continue;
+    // permissions.onRemoved carries no request or generation identifier. A
+    // second same-origin removal must not exist while the prior bounded event
+    // recognizer could consume its event (or vice versa).
+    throw new Error('A previous target-site access removal is still awaiting its bounded browser event window.');
+  }
   const reservation = {
     origins: new Set(exactTargetOrigins),
     observedOrigins: new Set(),
-    regrantedOrigins: new Set()
+    regrantedOrigins: new Set(),
+    verifiedAbsentOrigins: new Set(),
+    removalSettled: false,
+    lateEventExpiresAtMs: null
   };
   cleanupPermissionSelfRemovalReservations.add(reservation);
   try {
-    return Boolean(await chrome.permissions.remove({ origins: exactTargetOrigins }));
+    const removed = await chrome.permissions.remove({ origins: exactTargetOrigins });
+    if (removed !== true && removed !== false) {
+      throw new Error('Target-site access removal returned an invalid response.');
+    }
+    reservation.removalSettled = true;
+    reservation.lateEventExpiresAtMs = Date.now() + SELF_PERMISSION_REMOVAL_EVENT_GRACE_MS;
+    if (removed === false && !reservation.observedOrigins.size) {
+      cleanupPermissionSelfRemovalReservations.delete(reservation);
+    }
+    return removed;
   } catch (error) {
     if (!reservation.observedOrigins.size) cleanupPermissionSelfRemovalReservations.delete(reservation);
     throw error;
@@ -5312,12 +5555,14 @@ async function getActiveTabTarget() {
   let tabs;
   try {
     tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (!Array.isArray(tabs)) throw new TypeError('Active-tab inspection returned a non-array result.');
   } catch {
     tabs = [];
   }
   if (!tabs.length) {
     try {
       tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!Array.isArray(tabs)) throw new TypeError('Active-tab fallback returned a non-array result.');
     } catch {
       tabs = [];
     }
@@ -5366,7 +5611,13 @@ async function isIncognitoAllowed() {
         settled = true;
         callback(value);
       };
-      const resolveOnce = finish((allowed) => resolve(Boolean(allowed)));
+      const resolveOnce = finish((allowed) => {
+        if (allowed !== true && allowed !== false) {
+          reject(new TypeError('Private-window access inspection returned a non-boolean result.'));
+          return;
+        }
+        resolve(allowed);
+      });
       const rejectOnce = finish(reject);
       const callback = (allowed) => {
         const lastError = chrome.runtime?.lastError;
@@ -5501,7 +5752,7 @@ async function openCleanupPermissionHandoff(payload) {
   }
 
   if (typeof chrome.tabs?.create !== 'function') {
-    throw new Error('Chrome cannot open the persistent target-access handoff tab.');
+    throw new Error('The browser cannot open the persistent target-access handoff tab.');
   }
   const tab = await chrome.tabs.create({ windowId: reviewedWindowId, url: 'about:blank', active: true });
   if (
@@ -5512,7 +5763,7 @@ async function openCleanupPermissionHandoff(payload) {
     tab.windowId !== reviewedWindowId
   ) {
     if (Number.isInteger(tab?.id) && tab.id >= 0) await chrome.tabs.remove(tab.id).catch(() => {});
-    throw new Error('Chrome did not return the persistent target-access handoff tab.');
+    throw new Error('The browser did not return the persistent target-access handoff tab.');
   }
   const openedAtMs = Date.now();
   const record = {
@@ -5589,9 +5840,73 @@ async function claimCleanupPermissionHandoff(sender) {
       handoffCapability,
       expiresAt: new Date(review.expiresAtMs).toISOString(),
       targetDisplayName: String(review.target?.displayName || review.target?.domain || review.canonicalInput),
-      temporaryHostPermissionOrigins: canonicalizeHostPermissionOrigins(getTemporaryReviewHostPermissionOrigins(review))
+      temporaryHostPermissionOrigins: canonicalizeHostPermissionOrigins(
+        getTemporaryReviewHostPermissionOrigins(review)
+      ),
+      reviewedEffects: buildCleanupPermissionHandoffEffects(review)
     };
   });
+}
+
+function buildCleanupPermissionHandoffEffects(review) {
+  const snapshot = review.reviewSnapshot || {};
+  const fileEffect = snapshot.effects?.removeDownloadedFiles || {};
+  const storageEffect = snapshot.effects?.browserLevelStorage || {};
+  const historyEffect = snapshot.effects?.removeHistory || {};
+  const downloadRecordEffect = snapshot.effects?.removeDownloadRecords || {};
+  const shieldEffect = snapshot.effects?.requestShield || {};
+  const overlayEffect = snapshot.effects?.progressOverlay || {};
+  const categories = Array.isArray(snapshot.categoriesAttempted)
+    ? snapshot.categoriesAttempted
+        .filter((value) => typeof value === 'string' && value.trim())
+        .map((value) => value.trim())
+    : [];
+  const fileCount = Number.isInteger(fileEffect.matchingCompletedFileCount) ? fileEffect.matchingCompletedFileCount : 0;
+  return {
+    cleanupMode: snapshot.settingsSnapshot?.cleanupMode === 'expert' ? 'Expert' : 'Standard',
+    approvalPath:
+      review.approvalMode === 'settings_direct'
+        ? 'Saved direct mode; no per-run detailed screen was shown'
+        : 'Detailed per-run review completed',
+    windowScope: `${snapshot.normalWindowScope?.summary || 'Matching normal-window data is included.'} ${snapshot.privateWindowScope?.summary || 'Private-window scope is unavailable.'}`,
+    associatedTargetCount: Array.isArray(snapshot.associatedTargets) ? snapshot.associatedTargets.length : 0,
+    downloadedFileSummary:
+      fileEffect.enabled === true
+        ? `${fileCount} preflight-bound completed downloaded file${fileCount === 1 ? '' : 's'} will be removed from disk.`
+        : fileEffect.settingEnabled === true
+          ? 'No on-disk file removal is authorized by this preflight.'
+          : 'On-disk downloaded-file deletion is off.',
+    storageSummary: storageEffect.exactOriginOnlyCleanupSkipped
+      ? 'Closed-page browser storage/cache is skipped to preserve the reviewed exact-origin port boundary.'
+      : storageEffect.selectedSiteCleanupEnabled
+        ? 'Selected-site storage cleanup includes embedded third-party partitions beneath the reviewed site.'
+        : 'The reviewed browser-storage scope applies.',
+    categorySummary: categories.length ? categories.join(', ') : 'The reviewed cleanup categories are unavailable.',
+    browserRecordSummary: `History: ${describeReviewedRecordEffect(historyEffect)} Download list: ${describeReviewedRecordEffect(downloadRecordEffect)}`,
+    requestShieldSummary: describeReviewedRequestShield(shieldEffect),
+    progressOverlaySummary:
+      overlayEffect.enabled === true
+        ? `Shown temporarily in ${overlayEffect.scopeDescription || 'the reviewed accessible tabs'}; its in-page cancel button is ${overlayEffect.cancelButtonEnabled === true ? 'on' : 'off'}.`
+        : 'Off.',
+    protectedOriginSummary:
+      snapshot.effects?.configuredCleanup?.protectedWebOrigins === true
+        ? 'Included under the separate reviewed acknowledgement.'
+        : 'Not included.',
+    evidenceSummary: `${snapshot.effects?.verification?.enabled ? 'Post-clean verification is on.' : 'Post-clean verification is off.'} ${snapshot.effects?.localReport?.summary || 'Local report behavior is unavailable.'}`,
+    matchingTabsClose: snapshot.effects?.closeTabs?.enabled === true
+  };
+}
+
+function describeReviewedRequestShield(effect) {
+  if (effect?.enabled === true) {
+    return effect.remainsAfterCleanup === true
+      ? `Installed during cleanup and retained for up to ${Number(effect.expiresMinutes) || 'the reviewed number of'} minutes.`
+      : 'Installed during cleanup and removed during recovery.';
+  }
+  if (effect?.requested === true) {
+    return `Requested but unavailable for this review${effect.disabledReason ? `: ${String(effect.disabledReason)}` : '.'}`;
+  }
+  return 'Off.';
 }
 
 async function assertCleanupPermissionHandoffBinding(payload, sender, options = {}) {
@@ -5612,7 +5927,7 @@ async function assertCleanupPermissionHandoffBinding(payload, sender, options = 
     throw new Error('The target-access handoff capability has already been used.');
   }
   if (options.requireUsedCapability === true && !Number.isSafeInteger(record.capabilityUsedAtMs)) {
-    throw new Error('The target-access handoff has not initiated Chrome access.');
+    throw new Error('The target-access handoff has not initiated browser access.');
   }
   if (options.requireCapability === true) {
     const actualDigest = await digestCleanupPopupPreparationCapability(payload.handoffCapability);
@@ -5801,7 +6116,7 @@ async function inspectExactPermissionHandoffSender(sender, record, action) {
 
 async function inspectExactPermissionHandoffRuntimeContext(record, expectedWindowId, senderDocumentId = null) {
   if (typeof chrome.runtime.getContexts !== 'function') {
-    throw new Error('Chrome cannot verify the exact SiteWipe handoff document context.');
+    throw new Error('The browser cannot verify the exact SiteWipe handoff document context.');
   }
   const handoffUrl = chrome.runtime.getURL('handoff/handoff.html');
   const extensionOrigin = chrome.runtime.getURL('').replace(/\/$/, '');
@@ -5819,7 +6134,7 @@ async function inspectExactPermissionHandoffRuntimeContext(record, expectedWindo
     'Cleanup permission-handoff context inspection'
   );
   if (!Array.isArray(contexts) || contexts.length !== 1) {
-    throw new Error('Chrome could not identify exactly one SiteWipe handoff document context.');
+    throw new Error('The browser could not identify exactly one SiteWipe handoff document context.');
   }
   const context = contexts[0];
   const contextId = normalizeRuntimePopupContextId(context?.contextId);
@@ -5840,7 +6155,7 @@ async function inspectExactPermissionHandoffRuntimeContext(record, expectedWindo
     (record.contextId && record.contextId !== contextId) ||
     (record.documentId && contextDocumentId && record.documentId !== contextDocumentId)
   ) {
-    throw new Error('Chrome returned a malformed or mismatched SiteWipe handoff document context.');
+    throw new Error('The browser returned a malformed or mismatched SiteWipe handoff document context.');
   }
   return { ...context, contextId };
 }
@@ -5937,6 +6252,21 @@ function assertExactPopupSender(sender, action) {
   }
 }
 
+function isExactPopupSender(sender) {
+  const popupUrl = chrome.runtime.getURL('popup/popup.html');
+  const extensionOrigin = chrome.runtime.getURL('').replace(/\/$/, '');
+  const reportedUrls = [sender?.documentUrl, sender?.url].filter(
+    (value) => typeof value === 'string' && value.length > 0
+  );
+  return !(
+    sender?.id !== chrome.runtime.id ||
+    sender?.tab != null ||
+    (sender?.origin != null && sender.origin !== extensionOrigin) ||
+    reportedUrls.length === 0 ||
+    reportedUrls.some((value) => value !== popupUrl)
+  );
+}
+
 function normalizeRuntimePopupContextId(value) {
   if (typeof value !== 'string' || value !== value.trim() || !value || value.length > 256) return null;
   return value;
@@ -5956,14 +6286,14 @@ function validateRuntimePopupContext(context, { expectedContextId = null } = {})
     typeof context?.incognito !== 'boolean' ||
     (sharedExtensionProfile && context.incognito)
   ) {
-    throw new Error('Chrome returned a malformed or mismatched SiteWipe popup context. Reopen SiteWipe.');
+    throw new Error('The browser returned a malformed or mismatched SiteWipe popup context. Reopen SiteWipe.');
   }
   return { contextId, windowId: context.windowId, incognito: context.incognito };
 }
 
 async function inspectExactPreparingPopupContext() {
   if (typeof chrome.runtime.getContexts !== 'function') {
-    throw new Error('Chrome cannot verify the SiteWipe popup context. Reopen SiteWipe.');
+    throw new Error('The browser cannot verify the SiteWipe popup context. Reopen SiteWipe.');
   }
   const popupUrl = chrome.runtime.getURL('popup/popup.html');
   const contexts = await withTimeoutReject(
@@ -5976,10 +6306,10 @@ async function inspectExactPreparingPopupContext() {
     PERMISSION_INSPECTION_TIMEOUT_MS,
     'Cleanup popup context inspection'
   );
-  if (!Array.isArray(contexts)) throw new Error('Chrome returned an invalid extension-context inspection.');
+  if (!Array.isArray(contexts)) throw new Error('The browser returned an invalid extension-context inspection.');
   if (contexts.length !== 1) {
     throw new Error(
-      'Chrome could not identify exactly one SiteWipe popup context. Close duplicate popups and reopen SiteWipe.'
+      'The browser could not identify exactly one SiteWipe popup context. Close duplicate popups and reopen SiteWipe.'
     );
   }
   return validateRuntimePopupContext(contexts[0]);
@@ -5988,16 +6318,16 @@ async function inspectExactPreparingPopupContext() {
 async function inspectPreparationContextActive(contextId) {
   const normalizedContextId = normalizeRuntimePopupContextId(contextId);
   if (!normalizedContextId || typeof chrome.runtime.getContexts !== 'function') {
-    throw new Error('Chrome cannot prove whether the previous SiteWipe popup context is still active.');
+    throw new Error('The browser cannot prove whether the previous SiteWipe popup context is still active.');
   }
   const contexts = await withTimeoutReject(
     Promise.resolve(chrome.runtime.getContexts({ contextIds: [normalizedContextId] })),
     PERMISSION_INSPECTION_TIMEOUT_MS,
     'Previous cleanup popup context inspection'
   );
-  if (!Array.isArray(contexts)) throw new Error('Chrome returned an invalid extension-context inspection.');
+  if (!Array.isArray(contexts)) throw new Error('The browser returned an invalid extension-context inspection.');
   if (contexts.length === 0) return false;
-  if (contexts.length !== 1) throw new Error('Chrome returned multiple matches for one popup context id.');
+  if (contexts.length !== 1) throw new Error('The browser returned multiple matches for one popup context id.');
   validateRuntimePopupContext(contexts[0], { expectedContextId: normalizedContextId });
   return true;
 }
@@ -6035,7 +6365,7 @@ async function repairSiteWipeRuntime(reason, options = {}) {
     orphanShieldRepaired = Boolean(!activeShield && diagnostics.activeRuleIds?.length && reconciliation.cleared);
     if (!reconciliation.cleared) {
       const error = new Error(
-        'Chrome did not prove the SiteWipe-owned request-shield range empty; recovery state was retained. Cleanup was stopped before browser-data mutation.'
+        'The browser did not prove the SiteWipe-owned request-shield range empty; recovery state was retained. Cleanup was stopped before browser-data mutation.'
       );
       await appendDebug({
         level: 'error',

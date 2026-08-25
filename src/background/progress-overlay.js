@@ -3,6 +3,7 @@ import { tabIsWithinReviewedPrivateScope } from '../shared/target-scope.js';
 import { PROGRESS_OVERLAY_MAX_TABS } from '../shared/constants.js';
 import { mapWithConcurrency, readableMessage } from './operation-control.js';
 import { addSection } from './report.js';
+import { MAX_PROGRESS_OVERLAY_SHOW_UPDATES } from './cleanup-capacity.js';
 
 const PROGRESS_OVERLAY_CONCURRENCY = 8;
 const OVERLAY_MESSAGE_TYPE = 'sitewipe.progressOverlay.render.v1';
@@ -32,11 +33,19 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
   };
   const visibleTabIds = new Set();
   const reviewedWindowByTabId = new Map();
+  const fixedTabs = buildFixedOverlaySnapshot(options.overlayTabsSnapshot, target, scope, options);
   let cachedTabs = null;
   let lastPayloadKey = '';
 
   async function render(action, percent, label, detail) {
     if (!enabled) return;
+    if (action !== 'hide' && stats.showUpdates >= MAX_PROGRESS_OVERLAY_SHOW_UPDATES) {
+      const error = new Error(
+        `Cleanup attempted more than the reviewed ${MAX_PROGRESS_OVERLAY_SHOW_UPDATES} progress-overlay updates.`
+      );
+      error.name = 'OperationBudgetExceededError';
+      throw error;
+    }
     const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
     const payload = {
       action,
@@ -63,6 +72,8 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
     try {
       if (action === 'hide' && visibleTabIds.size) {
         tabs = [...visibleTabIds].map((id) => ({ id, windowId: reviewedWindowByTabId.get(id) }));
+      } else if (fixedTabs) {
+        tabs = fixedTabs.map((tab) => ({ ...tab }));
       } else if (scope !== 'target_tabs' && cachedTabs && stats.showUpdates > 1 && stats.showUpdates % 4 !== 1) {
         tabs = cachedTabs.map((tab) => ({ ...tab }));
       } else {
@@ -72,10 +83,11 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
               ? { windowId: options.sourceWindowId }
               : { currentWindow: true }
             : {};
+        options.operationBudget?.claimQuery('progress-overlay tab discovery');
         const queried = await chrome.tabs.query(queryInfo);
         const candidates = queried
           .filter((tab) => isProgressOverlayInjectableTab(tab, options.incognitoAccess))
-          .filter((tab) => overlayScopeAllowsTab(tab, target, scope));
+          .filter((tab) => overlayScopeAllowsTab(tab, target, scope, options.sourceWindowId));
         // Prefer already-visible, still-eligible tabs within this update's fixed
         // ceiling. Tracked tabs that temporarily leave scope remain tracked for
         // final cleanup; their page-side watchdog removes stale UI independently.
@@ -93,6 +105,7 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
           Math.max(0, queried.length - candidates.length) + Math.max(0, candidates.length - capped.length);
       }
     } catch (error) {
+      rethrowOperationBudgetError(error);
       stats.injectionErrors += 1;
       if (stats.sampleErrors.length < 12) {
         stats.sampleErrors.push({
@@ -111,8 +124,10 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
         const expectedWindowId = reviewedOverlayWindowId(tab, options, reviewedWindowByTabId);
         let liveTab;
         try {
+          options.operationBudget?.claimQuery('progress-overlay tab revalidation');
           liveTab = await chrome.tabs.get(tab.id);
-        } catch {
+        } catch (error) {
+          rethrowOperationBudgetError(error);
           // Tabs commonly disappear while SiteWipe is closing the reviewed
           // target. That is a normal revalidation skip, not an overlay error
           // and must not degrade an otherwise successful cleanup report.
@@ -136,9 +151,15 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
             stats.receiverUpdates += 1;
           } catch {
             // A navigation removes the isolated-world receiver. Reinstall it below.
+            if (action === 'hide') {
+              skipOverlayTab(tab.id, stats, visibleTabIds, reviewedWindowByTabId);
+              return;
+            }
             try {
+              options.operationBudget?.claimQuery('progress-overlay receiver revalidation');
               liveTab = await chrome.tabs.get(tab.id);
-            } catch {
+            } catch (error) {
+              rethrowOperationBudgetError(error);
               skipOverlayTab(tab.id, stats, visibleTabIds, reviewedWindowByTabId);
               return;
             }
@@ -169,6 +190,7 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
           }
         }
       } catch (error) {
+        rethrowOperationBudgetError(error);
         if (isMissingTabError(error)) {
           skipOverlayTab(tab.id, stats, visibleTabIds, reviewedWindowByTabId);
           return;
@@ -218,15 +240,35 @@ export function createCleanupProgressOverlay(target, report, options = {}) {
           ...stats,
           completionStatus: status,
           maxTabsPerUpdate: PROGRESS_OVERLAY_MAX_TABS,
-          perUpdateCapDoesNotGuaranteeSimultaneousVisibleTotal: true,
+          fixedSnapshotUsed: Boolean(fixedTabs),
+          perUpdateCapDoesNotGuaranteeSimultaneousVisibleTotal: !fixedTabs,
           watchdogMs: 15_000,
           note: enabled
-            ? 'SiteWipe targets at most 120 accessible http/https tabs per overlay update while cleanup is running, then reuses a versioned isolated-world receiver for phase updates instead of reinjecting the renderer each time. It removes tracked overlays and receivers at the end. Tab eligibility can change between updates, so a stale overlay may remain until its approximately 15-second watchdog removes the UI and listener; the per-update cap is not a guaranteed simultaneous-visible total. Chrome blocks injection on restricted pages such as chrome://, extension pages, the Web Store, unloaded/discarded pages, and incognito pages when incognito access is not allowed.'
+            ? fixedTabs
+              ? 'SiteWipe uses the fixed, cleanup-start reviewed set of at most 120 accessible http/https tabs and never expands it with tabs opened later. Every update revalidates each tab before messaging or injection, and the page-side watchdog removes stale UI if a tab disappears or navigates. The browser blocks injection on restricted pages such as chrome:// or brave:// pages, extension pages, the browser extension store, unloaded/discarded pages, and incognito pages when incognito access is not allowed.'
+              : 'SiteWipe targets at most 120 accessible http/https tabs per overlay update while cleanup is running, then reuses a versioned isolated-world receiver for phase updates instead of reinjecting the renderer each time. It removes tracked overlays and receivers at the end. Tab eligibility can change between updates, so a stale overlay may remain until its approximately 15-second watchdog removes the UI and listener; the per-update cap is not a guaranteed simultaneous-visible total. The browser blocks injection on restricted pages such as chrome:// or brave:// pages, extension pages, the browser extension store, unloaded/discarded pages, and incognito pages when incognito access is not allowed.'
             : 'Progress overlay is disabled in settings or chrome.scripting/chrome.tabs is unavailable.'
         }
       );
     }
   };
+}
+
+function buildFixedOverlaySnapshot(value, target, scope, options) {
+  if (!Array.isArray(value)) return null;
+  return value
+    .filter((tab) => isProgressOverlayInjectableTab(tab, options.incognitoAccess))
+    .filter((tab) => overlayScopeAllowsTab(tab, target, scope, options.sourceWindowId))
+    .slice(0, PROGRESS_OVERLAY_MAX_TABS)
+    .map((tab) => ({
+      id: tab.id,
+      windowId: Number.isInteger(tab.windowId) ? tab.windowId : null,
+      url: String(tab.url || '')
+    }));
+}
+
+function rethrowOperationBudgetError(error) {
+  if (error?.name === 'OperationBudgetExceededError' || error?.name === 'AbortError') throw error;
 }
 
 function createOverlayChannelId() {
@@ -239,8 +281,11 @@ function normalizeOverlayScope(value, sourceWindowId) {
   return value === 'current_window' && !Number.isInteger(sourceWindowId) ? 'target_tabs' : value;
 }
 
-function overlayScopeAllowsTab(tab, target, scope) {
+function overlayScopeAllowsTab(tab, target, scope, sourceWindowId) {
   if (scope === 'target_tabs') return Boolean(tab?.url && urlMatchesTarget(tab.url, target));
+  if (scope === 'current_window') {
+    return Number.isInteger(sourceWindowId) && tab?.windowId === sourceWindowId;
+  }
   return true;
 }
 

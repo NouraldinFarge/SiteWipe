@@ -61,7 +61,7 @@ export async function removeHistory(target, report, context, options = {}) {
       }),
       perCallTimeoutMs: HISTORY_DELETE_TIMEOUT_MS,
       note: timeouts
-        ? 'Timed-out deletions remain unknown because Chrome may still complete the underlying call; SiteWipe does not count them as removed.'
+        ? 'Timed-out deletions remain unknown because the browser may still complete the underlying call; SiteWipe does not count them as removed.'
         : 'Only exact target matches from bounded discovery were submitted for deletion.'
     });
   } catch (error) {
