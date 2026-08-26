@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "local_automated_checks_passed",
+  "status": "local_automated_validation_failed",
   "validatedAt": "2026-08-25T23:07:25.9126997-05:00",
   "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
   "environment": {
@@ -9,7 +9,7 @@
     "processArchitecture": "X64",
     "node": "v24.18.1",
     "npm": "11.16.0",
-    "scope": "Local source, locked-dependency, safety, property, coverage, accessibility-source, and loopback fixture-contract validation. Exact installed-browser, clean-commit artifact, and remote publication evidence remain separate."
+    "scope": "Exact local 1.11.98 source, locked-dependency, safety, property, coverage, accessibility-source, and loopback fixture-contract validation passed, and one clean-commit calibration build completed. Post-binding focused release-contract validation then failed because a reusable test fixture inherited the real candidate artifact binding while supplying unrelated synthetic artifact bytes. Exact 1.11.98 was superseded before reproducibility, installed-browser, or remote publication evidence."
   },
   "baseline": {
     "beforeState": "The 1.11.97 record remains unchanged in automated-validation-2026-08-25-v1.11.97.json.",
@@ -188,20 +188,20 @@
     "note": "The deterministic loopback fixture server contract passed. No installed Chrome or Brave execution is claimed."
   },
   "gitInitialization": {
-    "status": "pending_exact_candidate_validation",
-    "branch": null,
-    "commitCount": null,
-    "remoteCount": null,
+    "status": "local_candidate_commit_created_not_publication_eligible",
+    "branch": "candidate/sitewipe-1.11.98",
+    "commitCount": 24,
+    "remoteCount": 1,
     "tagCount": null,
     "parentContainerIsGitRepository": null,
     "ignoredLocalDirectoriesVerified": [],
-    "note": "Exact candidate commit, clean checkout, remote checks, and repository state require fresh validation."
+    "note": "Local source commit 1df030d20ca81ec67d15dc01075da99fdcbf8303 and tree a45f101d79bc276a263245401bc8475e3b9d1698 were created and used for the calibration build. The post-binding focused test failure makes that commit ineligible for candidate publication; no push or exact-head remote validation is claimed."
   },
   "artifacts": {
-    "status": "pending_rebuild",
+    "status": "calibration_build_completed_post_build_validation_failed",
     "runtimeZip": "sitewipe-unreleased-candidate-1.11.98.zip",
-    "runtimeZipSha256": null,
-    "runtimeZipBytes": null,
+    "runtimeZipSha256": "BCF1AF441700F5E8BFEFF6428425615BED01212A3B8722F866BDF65E6707811B",
+    "runtimeZipBytes": 355075,
     "runtimeFiles": 61,
     "sourceZip": "sitewipe-unreleased-candidate-1.11.98-source.zip",
     "sourceZipSha256": null,
@@ -215,23 +215,47 @@
     "remoteAttestation": "pending",
     "sourceArchiveCompression": "stored",
     "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
-    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence",
+    "calibrationBuild": {
+      "status": "passed",
+      "sourceCommit": "1df030d20ca81ec67d15dc01075da99fdcbf8303",
+      "sourceTree": "a45f101d79bc276a263245401bc8475e3b9d1698",
+      "runtimeZipSha256": "BCF1AF441700F5E8BFEFF6428425615BED01212A3B8722F866BDF65E6707811B",
+      "runtimeZipBytes": 355075,
+      "runtimeFiles": 61,
+      "sourceZipSha256": "62578C4633644954582C2F9B7AF42F3DF34BD013D29524C92D615EB46CF3D0A7",
+      "sourceZipBytes": 10946109,
+      "sourceFiles": 420,
+      "sourceArchiveCompression": "stored",
+      "sourcePackageEquivalence": "exact"
+    },
+    "postBindingFocusedValidation": {
+      "status": "failed",
+      "capturedAt": "2026-08-25T23:31:49.1120951-05:00",
+      "tests": 138,
+      "passed": 137,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 74120.2968,
+      "failedTest": "the reusable version contract rejects source changes after a recorded fingerprint",
+      "failure": "The committed-mode fixture supplied literal synthetic runtime bytes while inheriting the real calibration artifact hash and byte count, so the validator correctly rejected stale automated-evidence artifact hash and size values."
+    }
   },
   "publicationGate": {
     "command": "npm run check:publication-gates",
-    "publicationRecommendation": "not_evaluated",
+    "publicationRecommendation": "blocked",
     "blockerCount": null,
     "originalBlockerCount": null,
     "closedOriginalBlockers": [],
     "remainingClasses": [
-      "Clean-commit exact-artifact construction, verification, and reproducibility remain pending.",
-      "Installed Chrome, Brave, and accessibility validation remain pending.",
-      "Exact-artifact performance and authentic media evidence remain pending.",
-      "Distinct independent review, hosted privacy-policy parity, exact-head remote checks, and attestation remain pending."
+      "The clean calibration build passed, but post-binding focused release-contract validation failed 1 of 138 tests because its committed-mode fixture did not bind its synthetic artifact bytes independently of mutable current-candidate evidence.",
+      "Exact 1.11.98 is superseded. A forward test-only successor must pass complete validation and the full clean-commit artifact/reproducibility sequence.",
+      "Installed Chrome, Brave, and accessibility validation; exact-artifact performance and authentic media; distinct independent review; hosted privacy-policy parity; exact-head remote checks; and attestation remain pending."
     ]
   },
   "limitations": [
-    "The exact 1.11.98 local automated, coverage, dependency, provenance, and accessibility source-contract results are recorded above; they do not establish a built or supported public binary.",
+    "The exact 1.11.98 local automated, coverage, dependency, provenance, and accessibility source-contract results and its one clean calibration build are recorded above; they do not establish a reproducible or supported public binary.",
+    "The post-binding focused release-contract run failed one deterministic fixture case. Exact 1.11.98 is superseded and none of its artifact bytes may be reused as current successor evidence.",
     "Exact-artifact reproducibility, installed Chrome and Brave, installed accessibility, performance, media, distinct independent review, hosted privacy-policy parity, exact-head remote checks, and attestation remain pending.",
     "Automated tests do not prove complete erasure or installed-browser behavior."
   ]
