@@ -2,7 +2,7 @@
 
 > **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-There is no supported public binary release yet. Security review applies to the public-source `1.12.0` prerelease and its locally generated artifacts.
+There is no supported public binary release yet. Security review applies to the public-source `1.12.2` prerelease and its locally generated artifacts.
 
 ## Reporting a vulnerability
 

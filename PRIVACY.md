@@ -2,7 +2,7 @@
 
 > **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-This policy describes the public-source prerelease under the owner-approved custom identity SiteWipe `1.12.0`. The first-party project source is MIT-licensed, and the repository is independently reachable at [`NouraldinFarge/SiteWipe`](https://github.com/NouraldinFarge/SiteWipe). The default branch still hosts an older policy until this exact candidate is proposed and reviewed, so that repository copy must not yet be cited as the hosted policy for this version. Source availability does not approve a binary release or store submission, and this policy must not be represented as a Chrome Web Store policy until the exact artifact, installed evidence, live disclosures, and submission are separately approved.
+This policy describes the public-source prerelease under the owner-approved custom identity SiteWipe `1.12.2`. The first-party project source is MIT-licensed, and the repository is independently reachable at [`NouraldinFarge/SiteWipe`](https://github.com/NouraldinFarge/SiteWipe). The default branch still hosts an older policy until this exact candidate is proposed and reviewed, so that repository copy must not yet be cited as the hosted policy for this version. Source availability does not approve a binary release or store submission, and this policy must not be represented as a Chrome Web Store policy until the exact artifact, installed evidence, live disclosures, and submission are separately approved.
 
 Last reviewed: 2026-08-25. This is the current engineering/privacy-policy review date, not an independent publication, hosted-policy, or browser-store approval.
 

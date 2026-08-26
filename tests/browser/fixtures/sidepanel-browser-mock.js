@@ -29,7 +29,7 @@
     : '[redacted-target]';
   const report = {
     id: 'sitewipe-synthetic-sidepanel-report',
-    appVersion: '1.12.0',
+    appVersion: '1.12.2',
     status: runtimeErrorOutcome ? 'completed_with_warnings' : 'completed',
     startedAt: '2026-08-20T22:25:13.089Z',
     finishedAt: '2026-08-20T22:25:13.899Z',

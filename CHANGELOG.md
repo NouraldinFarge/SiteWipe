@@ -6,6 +6,23 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.12.2 — public-source prerelease work — 2026-08-26
+
+### Forward 1.12.2 stable release-status truth correction
+
+- Preserve exact local 1.12.1 as fully source-validated but superseded before commit, artifact build, or installed-browser execution. Its complete pinned check passed 1,407 of 1,410 tests with zero failures and three explicit platform skips plus 11/11 property tests; required coverage passed at 86.81% statements/lines, 76.31% branches, and 93.7% functions; the locked dependency audit found zero vulnerabilities; and accessibility source contracts passed 48/48.
+- Record SW-098 from the post-validation diff audit: two current-facing readiness rows still said fresh 1.12.1 validation and coverage were required, and SW-097 still described its repair as merely staged. Those stable statements contradicted the active dated 1.12.1 evidence after the runs completed.
+- Make the affected status wording permanently outcome-neutral and direct current exact-source results to the active dated evidence record. Advance only stable chronology, required version metadata, mutable candidate bindings, and reset evidence; the inherited SW-097 harness repair is unchanged, and extension runtime cleanup, permission authority, data scope, downloaded-file behavior, storage, and messaging remain unchanged.
+
+## 1.12.1 — public-source prerelease work — 2026-08-26
+
+### Forward 1.12.1 Windows-serviced PowerShell identity compatibility
+
+- Preserve exact 1.12.0 as the clean reproducible source-and-package checkpoint at commit `306683b0a3eb11ce2fe70aad94b1964461b8bcc5`. Its complete local safeguards, required coverage, locked dependency audit, accessibility source contracts, release verification, and repeated reproducibility checks passed; its exact 61-file runtime ZIP has SHA-256 `10DA4B567510DAB3EBBD7F8DB220ECA9397C1CF669D9A91AC72D3DF098AE0971`.
+- Record SW-097 from the first create-only installed-browser plan attempt. The planner correctly launched no browser and wrote no plan because the exact policy-pinned Windows PowerShell executable, despite matching its canonical path and SHA-256, is legitimately serviced through two hard links (`System32` and `WinSxS`) while the generic identity helper required exactly one.
+- Permit a stable nonzero hard-link count only at the three exact Windows PowerShell verification call sites: unattended planning/revalidation, runtime process observation, and native permission-dialog launch. Retain the canonical path, exact policy SHA-256, regular non-reparse type, BigInt retained-handle identity, unchanged link count, and plan-to-run revalidation. Browser executables, helpers, artifacts, profiles, evidence, synthetic downloads, and all other files retain their original single-link rule.
+- Focused regression validation passed 88/88 before the version transaction. No installed Chrome or Brave scenario, native permission action, cleanup, downloaded-file operation, reviewer approval, publication gate, or supported-binary result is claimed by that source-only repair.
+
 ## 1.12.0 — public-source prerelease work — 2026-08-25
 
 ### Forward 1.12.0 stable threat-model truth correction

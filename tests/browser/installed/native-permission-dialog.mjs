@@ -216,7 +216,9 @@ export async function startNativePermissionPromptHelper(request) {
   if (browserIdentity.sha256 !== exact.expectedProcessSha256) {
     throw new Error('Pinned browser executable bytes changed before native prompt helper launch.');
   }
-  const powerShell = await exactFileIdentity(policy.powershell.path, 'Pinned Windows PowerShell');
+  const powerShell = await exactFileIdentity(policy.powershell.path, 'Pinned Windows PowerShell', {
+    allowWindowsSystemPowerShellHardLinks: true
+  });
   if (powerShell.sha256 !== policy.powershell.sha256) {
     throw new Error('Pinned Windows PowerShell bytes differ from native prompt policy.');
   }
@@ -580,19 +582,19 @@ export async function exactNativeHandleStat(handle) {
   return handle.stat(EXACT_STAT_OPTIONS);
 }
 
-async function exactFileIdentity(path, label) {
+async function exactFileIdentity(path, label, { allowWindowsSystemPowerShellHardLinks = false } = {}) {
   const expected = resolve(path);
   const before = await exactNativePathStat(expected);
-  assertExactPhysicalNativeFile(before, label);
+  assertExactPhysicalNativeFile(before, label, { allowWindowsSystemPowerShellHardLinks });
   const actual = await realpath(expected);
   if (!sameHostPath(actual, expected)) throw new Error(`${label} path is aliased.`);
   const handle = await open(actual, 'r');
   try {
     const opened = await exactNativeHandleStat(handle);
-    assertExactPhysicalNativeFile(opened, label);
+    assertExactPhysicalNativeFile(opened, label, { allowWindowsSystemPowerShellHardLinks });
     const bytes = await handle.readFile();
     const after = await exactNativeHandleStat(handle);
-    assertExactPhysicalNativeFile(after, label);
+    assertExactPhysicalNativeFile(after, label, { allowWindowsSystemPowerShellHardLinks });
     if (
       !sameNativeFileIdentity(before, opened) ||
       !sameNativeFileIdentity(opened, after) ||
@@ -652,7 +654,7 @@ function minimalWindowsEnvironment() {
   );
 }
 
-function assertExactPhysicalNativeFile(stat, label) {
+function assertExactPhysicalNativeFile(stat, label, { allowWindowsSystemPowerShellHardLinks = false } = {}) {
   if (
     !stat?.isFile() ||
     stat.isSymbolicLink() ||
@@ -660,11 +662,20 @@ function assertExactPhysicalNativeFile(stat, label) {
     stat.dev < 0n ||
     stat.ino < 0n ||
     stat.mode < 0n ||
-    stat.nlink !== 1n ||
+    !hasApprovedNativeFileLinkCount(stat, { allowWindowsSystemPowerShellHardLinks }) ||
     stat.size < 0n
   ) {
-    throw new Error(`${label} must be a singly linked regular non-reparse file with exact bigint identity.`);
+    throw new Error(
+      allowWindowsSystemPowerShellHardLinks
+        ? `${label} must be a regular non-reparse file with a stable nonzero link count and exact bigint identity.`
+        : `${label} must be a singly linked regular non-reparse file with exact bigint identity.`
+    );
   }
+}
+
+export function hasApprovedNativeFileLinkCount(stat, { allowWindowsSystemPowerShellHardLinks = false } = {}) {
+  if (typeof stat?.nlink !== 'bigint') return false;
+  return allowWindowsSystemPowerShellHardLinks ? stat.nlink > 0n : stat.nlink === 1n;
 }
 
 export function sameNativeFileIdentity(left, right) {

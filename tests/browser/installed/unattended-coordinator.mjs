@@ -18,7 +18,8 @@ import {
   NATIVE_PROMPT_HELPER_PATH,
   NATIVE_PROMPT_HELPER_SHA256,
   NATIVE_PROMPT_POLICY_PATH,
-  NATIVE_PROMPT_POLICY_SHA256
+  NATIVE_PROMPT_POLICY_SHA256,
+  hasApprovedNativeFileLinkCount
 } from './native-permission-dialog.mjs';
 import {
   assertApprovedBrowserPlanObservation,
@@ -196,7 +197,9 @@ async function captureProcessObserverIdentity() {
   if (!isDriveQualifiedWindowsAbsolutePath(policy?.powershell?.path) || !isSha256(policy?.powershell?.sha256)) {
     throw new Error('Native prompt policy lacks the exact pinned PowerShell identity.');
   }
-  const powershell = await exactFileIdentity(policy.powershell.path, 'Pinned Windows PowerShell');
+  const powershell = await exactFileIdentity(policy.powershell.path, 'Pinned Windows PowerShell', {
+    allowWindowsSystemPowerShellHardLinks: true
+  });
   if (powershell.sha256 !== policy.powershell.sha256) {
     throw new Error('Pinned Windows PowerShell bytes changed while capturing the process-observer identity.');
   }
@@ -687,28 +690,48 @@ async function assertExactDirectoryIdentity(identity, label) {
   return observed;
 }
 
-async function exactFileIdentity(path, label, { allowInputAlias = false } = {}) {
+async function exactFileIdentity(
+  path,
+  label,
+  { allowInputAlias = false, allowWindowsSystemPowerShellHardLinks = false } = {}
+) {
   const requested = resolve(assertNativeAbsolutePath(path, `${label} path`));
   const actual = await realpath(requested);
   if (!allowInputAlias && !samePath(actual, requested)) throw new Error(`${label} is aliased.`);
   const expected = actual;
   const before = await lstat(expected, { bigint: true });
-  if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1n) {
-    throw new Error(`${label} must be one singly linked regular non-reparse file.`);
+  if (
+    !before.isFile() ||
+    before.isSymbolicLink() ||
+    !hasApprovedNativeFileLinkCount(before, { allowWindowsSystemPowerShellHardLinks })
+  ) {
+    throw new Error(
+      allowWindowsSystemPowerShellHardLinks
+        ? `${label} must be one regular non-reparse file with a stable nonzero link count.`
+        : `${label} must be one singly linked regular non-reparse file.`
+    );
   }
   const handle = await open(actual, 'r');
   try {
     const opened = await handle.stat({ bigint: true });
-    if (!opened.isFile() || opened.isSymbolicLink() || opened.nlink !== 1n) {
-      throw new Error(`${label} opened handle is not singly linked.`);
+    if (
+      !opened.isFile() ||
+      opened.isSymbolicLink() ||
+      !hasApprovedNativeFileLinkCount(opened, { allowWindowsSystemPowerShellHardLinks })
+    ) {
+      throw new Error(
+        allowWindowsSystemPowerShellHardLinks
+          ? `${label} opened handle has no stable nonzero link count.`
+          : `${label} opened handle is not singly linked.`
+      );
     }
     const bytes = await handle.readFile();
     const after = await handle.stat({ bigint: true });
     const finalPath = await lstat(expected, { bigint: true });
     const finalRealPath = await realpath(expected);
     if (
-      after.nlink !== 1n ||
-      finalPath.nlink !== 1n ||
+      !hasApprovedNativeFileLinkCount(after, { allowWindowsSystemPowerShellHardLinks }) ||
+      !hasApprovedNativeFileLinkCount(finalPath, { allowWindowsSystemPowerShellHardLinks }) ||
       !finalPath.isFile() ||
       finalPath.isSymbolicLink() ||
       !samePath(finalRealPath, actual) ||

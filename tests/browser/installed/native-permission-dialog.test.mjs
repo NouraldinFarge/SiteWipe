@@ -16,6 +16,7 @@ import {
   createNativePromptHelperLifecycle,
   exactNativeHandleStat,
   exactNativePathStat,
+  hasApprovedNativeFileLinkCount,
   nativePromptArguments,
   sameNativeFileIdentity,
   validateNativePromptEvidence,
@@ -207,6 +208,48 @@ test('native helper file identity remains exact above Number.MAX_SAFE_INTEGER an
   assert.equal(source.match(/\bexactNativeHandleStat\(/gu)?.length, 3);
   assert.equal(source.match(/\bhandle\.stat\(/gu)?.length, 1);
   assert.equal(source.match(/\bnativeLstat\(/gu), null);
+});
+
+test('only pinned Windows PowerShell may use a stable nonzero hard-link count', async () => {
+  const singleLink = syntheticExactFileStat();
+  const twoLinks = syntheticExactFileStat({ nlink: 2n });
+  assert.equal(hasApprovedNativeFileLinkCount(singleLink), true);
+  assert.equal(hasApprovedNativeFileLinkCount(twoLinks), false);
+  assert.equal(hasApprovedNativeFileLinkCount(twoLinks, { allowWindowsSystemPowerShellHardLinks: true }), true);
+  assert.equal(
+    hasApprovedNativeFileLinkCount(syntheticExactFileStat({ nlink: 0n }), {
+      allowWindowsSystemPowerShellHardLinks: true
+    }),
+    false
+  );
+  assert.equal(hasApprovedNativeFileLinkCount({ nlink: 2 }), false);
+  assert.equal(sameNativeFileIdentity(twoLinks, syntheticExactFileStat({ nlink: 3n })), false);
+
+  const sourceContracts = [
+    {
+      path: new URL('./native-permission-dialog.mjs', import.meta.url),
+      defaultOnly: /exactFileIdentity\(exact\.expectedProcessPath, 'Pinned browser executable'\);/u
+    },
+    {
+      path: new URL('./unattended-coordinator.mjs', import.meta.url),
+      defaultOnly: /exactFileIdentity\(pin\.executablePath, `Pinned \$\{pin\.name\} executable`\)/u
+    },
+    {
+      path: new URL('./runtime-executor.mjs', import.meta.url),
+      defaultOnly: /exactFileIdentity\(browserPin\.executablePath, `Pinned \$\{browserName\} executable`\)/u
+    }
+  ];
+  for (const contract of sourceContracts) {
+    const source = await readFile(contract.path, 'utf8');
+    assert.equal(source.match(/allowWindowsSystemPowerShellHardLinks:\s*true/gu)?.length, 1, contract.path.href);
+    assert.match(
+      source,
+      /exactFileIdentity\([^;]*'Pinned Windows PowerShell'[^;]*allowWindowsSystemPowerShellHardLinks:\s*true[^;]*\);/su,
+      contract.path.href
+    );
+    assert.match(source, /allowWindowsSystemPowerShellHardLinks\s*=\s*false/u, contract.path.href);
+    assert.match(source, contract.defaultOnly, contract.path.href);
+  }
 });
 
 test('native helper lifecycle terminates only its exact child, waits for close, and is single use', async () => {
