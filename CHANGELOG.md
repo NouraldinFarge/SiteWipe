@@ -6,6 +6,42 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.12.7 — public-source prerelease work — 2026-08-26
+
+### Forward historical stage-semantics truth correction
+
+- Preserve exact local 1.12.6 as post-transaction, truth-defective history. It completed its guarded version transaction with runtime fingerprint `0545E7535C94466341F4B32FE5D1086A2ECB4380B07DB13B9913B3F386EC774F` and 312-input stable-release fingerprint `151395F2A440DCC490D8B523BEFB81A9FC08A0FD4C2C5CF65AF906EACDA052C5`.
+- Record SW-103 from the exhaustive post-transaction audit. Stable 1.12.5 documents explicitly denied the later direct 1.12.4 version check, while the three mutable decision histories only omitted that refusal; the 1.12.6 wording incorrectly attributed the explicit denial to both. It also called the defective 1.12.5 chronology truthful and said separately counted accessibility-source validation did not run after the concurrent unit suite had begun, when the supported fact is only that no complete, valid, separately counted accessibility-source result exists.
+- Preserve the separate 1.12.6 validation boundary. Its locked lifecycle-disabled install and scoped format, version, documentation, and diff checks passed. Its complete check then passed format, version, syntax, types, lint, HTML, CSS, manifest, remote-code/runtime-secret, and repository secret/private-path gates before being intentionally stopped immediately after the secret scan when SW-103 was confirmed. No later complete-check gate, unit/property/coverage run, dependency audit, accessibility-source result, release artifact, browser run, commit, remote result, reviewer result, or publication result exists.
+- Limit 1.12.7 to correcting those historical wording and stage-semantics defects, advancing required version metadata and the three mutable exact-candidate bindings, and resetting candidate-sensitive evidence. SW-100 helper behavior, the mechanically formatted regression, browser launch policy, extension runtime behavior, and every safety and publication boundary remain unchanged; all 1.12.7 validation begins fresh.
+
+## 1.12.6 — public-source prerelease work — 2026-08-26
+
+### Forward direct-version-check chronology correction
+
+- Preserve exact local 1.12.5 as post-transaction, truth-defective history. It completed its guarded version transaction with runtime fingerprint `7459F96C61348B29931929507B9DA76919EAE23CA24AA8E38A00BA97FF407F3A` and 312-input stable-release fingerprint `1A30D968E07C823D3571AA6064A207A3E3CFB3A5172BDB4C9CB7CB0828F6E2A7`.
+- Record SW-102 from the post-transaction truth audit: the new 1.12.5 stable chronology correctly recorded the first 1.12.4 `npm run check` stopping at formatting but incorrectly said that no exact-version check followed the mechanical correction; the three mutable decision histories recorded the first stop but materially omitted the later direct refusal. The exact dated 1.12.4 evidence records that later direct `npm run check:version` refusal: sealed fingerprint `D4A80F3CCAC0DBF5BF4A49EE2C4627BC871D656389BEF7560F32DB7B33DD52A9` differed from observed formatted fingerprint `3BE9AED936BE1F2C07E05E684AB5356A25BDBA5F6DEE0C58C203E74D1E3725E1`.
+- Preserve the separate 1.12.5 validation boundary. Its locked lifecycle-disabled install and focused Windows process-identity validation passed 31/31. Its first complete check passed every ordered gate through the legacy self-test, entered the unit suite, and was intentionally interrupted when SW-102 was confirmed; it has no valid aggregate or unit total, no complete valid separately counted accessibility-source result, and no property, coverage, dependency-audit, artifact-build, package-verification, browser, commit, remote, reviewer, or publication result.
+- Limit 1.12.6 to correcting that stable chronology and the incomplete mutable decision histories, advancing required version metadata and the three mutable exact-candidate bindings, and resetting candidate-sensitive evidence. SW-100 helper behavior, the mechanically formatted regression, browser launch policy, extension runtime behavior, and every safety and publication boundary remain unchanged; transaction-time validation status belongs only to the active dated evidence.
+
+## 1.12.5 — public-source prerelease work — 2026-08-26
+
+### Forward canonical installed-runner test-format correction
+
+- Preserve exact local 1.12.4 as failed post-transaction history. It completed its guarded version transaction with runtime fingerprint `4BB6820E25AD0B6D449F8C15A9A059138D94ACAD4837BBD00C389940950B0592` and 312-input stable-release fingerprint `D4A80F3CCAC0DBF5BF4A49EE2C4627BC871D656389BEF7560F32DB7B33DD52A9`.
+- Record SW-101 from its first `npm run check` attempt: the initial `check:format` gate stopped because `tests/browser/installed/runtime-executor.test.mjs` was not in canonical Prettier form. After mechanically formatting only that test, a separate direct `npm run check:version` correctly refused the changed stable inputs: sealed fingerprint `D4A80F3CCAC0DBF5BF4A49EE2C4627BC871D656389BEF7560F32DB7B33DD52A9` differed from observed fingerprint `3BE9AED936BE1F2C07E05E684AB5356A25BDBA5F6DEE0C58C203E74D1E3725E1`. Syntax and every later safeguard, test, property, coverage, dependency-audit, artifact, browser, commit, remote, reviewer, or publication stage did not run for 1.12.4.
+- Carry only the mechanical canonical layout of that test into 1.12.5, together with chronology later superseded under SW-102, required version metadata, the three mutable exact-candidate bindings, and reset candidate evidence. The assertions and executable behavior are unchanged; SW-100's Windows helper repair, exact profile authentication, process and helper identity, residue observation, and recovery-only termination boundaries are unchanged.
+- Fresh complete candidate validation, packaging, reproducibility, exact-artifact Chrome/Brave execution, and every later gate remain required. Exact 1.12.4 history is limited to its completed transaction, passed locked lifecycle-disabled install for 397 packages, failed initial format attempt, passed post-correction format check, and correct direct version-contract refusal; syntax and every later full-chain stage did not run, and none of those partial observations is inherited as a successor pass.
+
+## 1.12.4 — public-source prerelease work — 2026-08-26
+
+### Forward Windows process-observer Unicode interop correction
+
+- Preserve exact 1.12.3 as the clean local source-and-package checkpoint at commit `3eaad52caac66260ed9f59d60fe5729ed9822793`. Its complete source safeguards, required coverage, locked dependency and provenance checks, accessibility source contracts, strict package verification, and repeated reproducibility passed; its exact 61-file runtime ZIP is 355,072 bytes with SHA-256 `0C2EE9E2B4F2F33F3FA1B76D891C850EFDD6490EBDEDDD997A445950F8CEFE26`.
+- Record SW-100 from the first approved 1.12.3 installed-browser run. The exact plan and runtime/toolchain staging succeeded and the pinned Brave process launched over its owned CDP pipe, but the Windows process observer failed closed before the browser version query, SiteWipe installation, native permission interaction, or any cleanup scenario.
+- Bind the failure to the helper's native command-line parser declaration: the managed `string` passed to the explicitly wide `CommandLineToArgvW` entry point did not declare Unicode marshaling. Add only `CharSet.Unicode`; retain the exact parsed `--user-data-dir` comparison, canonical process path, executable/helper hashes, start-time identity, bounded output, profile-residue observation, and recovery-only authenticated tree-termination controls.
+- Focused runtime-executor validation passed 31/31, including a real Windows quoted-profile positive probe and mismatched-profile refusal. No installed Chrome or Brave result, permission action, fixture mutation, cleanup, downloaded-file operation, reviewer approval, publication result, or supported-binary claim is inherited.
+
 ## 1.12.3 — public-source prerelease work — 2026-08-26
 
 ### Forward 1.12.3 Windows post-close allocation-accounting compatibility

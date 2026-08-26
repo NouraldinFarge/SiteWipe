@@ -3,7 +3,7 @@
   "status": "technical_inventory_complete_owner_acknowledged",
   "inventoriedAt": "2026-08-26",
   "lastAuditAt": "2026-08-26",
-  "lockfileSha256": "10A4A7477A2DB90CDBA7C596E97979B9C65C016931305100022E18EF36ED4679",
+  "lockfileSha256": "073D74432061B6CCDB96B207F1297B66ADB99ED68EC1E449377A90DF646110DF",
   "runtimeDependencyCount": 0,
   "lockedDevelopmentGraphCount": 416,
   "licenseCounts": {
@@ -75,12 +75,12 @@
     "path": "validation-output/sitewipe-development-sbom.cdx.json",
     "bomFormat": "CycloneDX",
     "specVersion": "1.6",
-    "componentVersion": "1.12.3",
+    "componentVersion": "1.12.7",
     "components": 358,
     "dependencyNodes": 417,
     "bytes": 574410,
-    "sha256": "29FB37582C2E224E346774A442136FCD808DD072B8EBAB5E3BF637A442A58A2D",
-    "generatedAt": "2026-08-26T04:30:44.9514156-05:00"
+    "sha256": "A25B7B67AB7B8FF76EE732043D3B78858DF20A61471A2D3705F15D101B02CD20",
+    "generatedAt": "2026-08-26T11:06:47.8373598Z"
   },
   "directDevelopmentDependencies": [
     {
@@ -184,5 +184,5 @@
   ],
   "ownerApproval": true,
   "ownerApprovedAt": "2026-08-17",
-  "candidateVersion": "1.12.3"
+  "candidateVersion": "1.12.7"
 }

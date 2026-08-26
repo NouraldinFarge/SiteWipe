@@ -17,7 +17,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 public static class SiteWipeWindowsCommandLine {
-    [DllImport("shell32.dll", SetLastError = true)]
+    [DllImport("shell32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern IntPtr CommandLineToArgvW(string commandLine, out int argumentCount);
 
     [DllImport("kernel32.dll")]

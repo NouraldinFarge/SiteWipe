@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFile, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { createWriteStream } from 'node:fs';
@@ -6,6 +7,7 @@ import { access, chmod, link, mkdir, mkdtemp, readFile, readdir, rename, rm, wri
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
 import yazl from 'yazl';
@@ -66,6 +68,7 @@ import {
 
 const timestamp = '2026-08-25T15:00:00.000Z';
 const browserSha256 = 'B6D40F55E48E61760335D18F46ABCEC929E1A11B8330E7F2B501037584AF4AA4';
+const execFileAsync = promisify(execFile);
 
 test('exact approved runtime ZIP is extracted into the owned run with an independently hashed receipt', async (t) => {
   const fixture = await runtimeFixture(t);
@@ -389,6 +392,7 @@ test('fixed-purpose process helper observes identity/residue and only terminates
   const helper = await readFile(WINDOWS_PROCESS_IDENTITY_HELPER_PATH, 'utf8');
   assert.match(helper, /ValidateSet\('Identity', 'ProfileResidue', 'TerminateTree'\)/u);
   assert.match(helper, /CommandLineToArgvW/u);
+  assert.match(helper, /DllImport\("shell32\.dll", SetLastError = true, CharSet = CharSet\.Unicode\)/u);
   assert.match(helper, /Get-CimInstance -ClassName Win32_Process/u);
   assert.match(helper, /ExpectedHelperSha256/u);
   assert.match(helper, /profile-residue/u);
@@ -426,6 +430,83 @@ test('fixed-purpose process helper observes identity/residue and only terminates
   assert.match(runtimeSource, /automaticProfileDeletionPerformed: false/u);
   assert.match(runtimeSource, /automaticDownloadDeletionPerformed: false/u);
 });
+
+test(
+  'Windows process helper flattens native argv and authenticates one quoted disposable profile argument',
+  { skip: process.platform !== 'win32' },
+  async (t) => {
+    const container = await mkdtemp(resolve(tmpdir(), 'sitewipe-process-helper-'));
+    const profilePath = resolve(container, 'profile with spaces');
+    await mkdir(profilePath);
+    const child = spawn(
+      process.execPath,
+      ['-e', 'setInterval(() => {}, 1_000);', '--', `--user-data-dir=${profilePath}`],
+      { stdio: 'ignore', windowsHide: true }
+    );
+    await new Promise((resolvePromise, rejectPromise) => {
+      child.once('spawn', resolvePromise);
+      child.once('error', rejectPromise);
+    });
+    t.after(async () => {
+      if (child.exitCode === null && child.signalCode === null) child.kill();
+      if (child.exitCode === null && child.signalCode === null) {
+        await new Promise((resolvePromise) => child.once('exit', resolvePromise));
+      }
+      await rm(container, { recursive: true, force: true });
+    });
+
+    const systemRoot = process.env.SystemRoot;
+    assert.match(systemRoot, /^[A-Za-z]:[\\/]/u);
+    const powershellPath = resolve(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    const helperBytes = await readFile(WINDOWS_PROCESS_IDENTITY_HELPER_PATH);
+    const executableBytes = await readFile(process.execPath);
+    const exactArguments = [
+      '-NoLogo',
+      '-NoProfile',
+      '-NonInteractive',
+      '-File',
+      WINDOWS_PROCESS_IDENTITY_HELPER_PATH,
+      '-Mode',
+      'Identity',
+      '-TargetProcessId',
+      String(child.pid),
+      '-ExpectedProcessPath',
+      process.execPath,
+      '-ExpectedProcessSha256',
+      sha256(executableBytes),
+      '-ExpectedProcessStartTimeUtcTicks',
+      '',
+      '-ExpectedProfilePath',
+      profilePath,
+      '-ExpectedHelperSha256',
+      sha256(helperBytes)
+    ];
+    const { stdout } = await execFileAsync(powershellPath, exactArguments, {
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024,
+      timeout: 30_000,
+      windowsHide: true
+    });
+    const observation = JSON.parse(stdout.trim());
+    assert.equal(observation.mode, 'identity');
+    assert.equal(observation.targetProcess.processId, child.pid);
+    assert.equal(observation.targetProcess.profilePath, profilePath);
+    assert.match(observation.targetProcess.commandLineSha256, /^[A-F0-9]{64}$/u);
+
+    const mismatchedProfile = resolve(container, 'other profile');
+    const refusedArguments = [...exactArguments];
+    refusedArguments[refusedArguments.indexOf(profilePath)] = mismatchedProfile;
+    await assert.rejects(
+      execFileAsync(powershellPath, refusedArguments, {
+        encoding: 'utf8',
+        maxBuffer: 64 * 1024,
+        timeout: 30_000,
+        windowsHide: true
+      }),
+      /exact disposable profile/iu
+    );
+  }
+);
 
 test('spawn error and early-exit events are observed immediately without rejection leaks', async () => {
   const child = new EventEmitter();
