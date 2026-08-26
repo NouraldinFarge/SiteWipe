@@ -204,8 +204,8 @@
   "artifacts": {
     "status": "pending_rebuild",
     "runtimeZip": "sitewipe-unreleased-candidate-1.12.3.zip",
-    "runtimeZipSha256": null,
-    "runtimeZipBytes": null,
+    "runtimeZipSha256": "0C2EE9E2B4F2F33F3FA1B76D891C850EFDD6490EBDEDDD997A445950F8CEFE26",
+    "runtimeZipBytes": 355072,
     "runtimeFiles": 61,
     "sourceZip": "sitewipe-unreleased-candidate-1.12.3-source.zip",
     "sourceZipSha256": null,
