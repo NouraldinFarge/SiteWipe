@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "status": "technical_inventory_complete_owner_acknowledged",
-  "inventoriedAt": "2026-08-25",
-  "lastAuditAt": "2026-08-25",
-  "lockfileSha256": "A615F1C907CF8025F618F284523C34B624DE457C7CB17448972F99DEC9668765",
+  "inventoriedAt": "2026-08-26",
+  "lastAuditAt": "2026-08-26",
+  "lockfileSha256": "EE2832E32DCA7433757E964E975B813C234B3CE36BADDB1248851D123FC7FA23",
   "runtimeDependencyCount": 0,
   "lockedDevelopmentGraphCount": 416,
   "licenseCounts": {
@@ -75,12 +75,12 @@
     "path": "validation-output/sitewipe-development-sbom.cdx.json",
     "bomFormat": "CycloneDX",
     "specVersion": "1.6",
-    "componentVersion": "1.11.98",
+    "componentVersion": "1.12.0",
     "components": 358,
     "dependencyNodes": 417,
-    "bytes": 575813,
-    "sha256": "62572D53FD384D72061CB2F15494740A1948DA79D3F599B5E0A8EAA158CA51DB",
-    "generatedAt": "2026-08-25T23:05:33.4371019-05:00"
+    "bytes": 574410,
+    "sha256": "8641135C5F89B1595AEA04546DBCE6FBA6C123AEE68CD5FB167361E3CCC99FE8",
+    "generatedAt": "2026-08-26T00:20:29.2247225-05:00"
   },
   "directDevelopmentDependencies": [
     {
@@ -184,5 +184,5 @@
   ],
   "ownerApproval": true,
   "ownerApprovedAt": "2026-08-17",
-  "candidateVersion": "1.11.98"
+  "candidateVersion": "1.12.0"
 }

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "status": "approved",
-  "reviewedAt": "2026-08-25",
+  "reviewedAt": "2026-08-26",
   "reviewer": "owner confirmation and local automated/source audit",
   "technicalStatus": "passed",
-  "technicalValidatedAt": "2026-08-25",
+  "technicalValidatedAt": "2026-08-26",
   "ownerApproval": true,
   "ownerApprovedAt": "2026-08-17",
   "ownerConfirmation": {
@@ -21,7 +21,7 @@
   "technicalEvidence": {
     "sourceClosurePrivatePathScan": {
       "status": "passed",
-      "repositoryFiles": 420
+      "repositoryFiles": 422
     },
     "runtimePackage": {
       "status": "passed",
@@ -57,7 +57,7 @@
   },
   "notes": [
     "The owner confirmation and first-party rights decision remain recorded.",
-    "The 1.11.98 source closure, 61-file runtime allowlist, 420-file private-path scan, locked 416-package development graph, 358-component and 417-node development SBOM, notices, PSL snapshot, four icon outputs, exact source-closure controls, complete check at 1,406/1,409 plus 11/11 property tests, required coverage run at 1,406/1,409, and 48/48 accessibility source-contract tests passed.",
+    "The 1.12.0 source closure, 61-file runtime allowlist, 422-file private-path scan, locked 416-package development graph, 358-component and 417-node development SBOM, notices, PSL snapshot, four icon outputs, exact source-closure controls, complete check at 1,406/1,409 plus 11/11 property tests, required coverage run at 1,406/1,409, and 48/48 accessibility source-contract tests passed.",
     "This local technical provenance pass does not replace installed Chrome/Brave, installed accessibility, exact-artifact performance, authentic media, independent review, hosted-policy parity, exact-head remote checks, or remote attestation evidence."
   ]
 }

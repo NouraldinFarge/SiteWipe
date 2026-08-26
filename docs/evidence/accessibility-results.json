@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "status": "pending_installed_validation",
-  "reviewedAt": "2026-08-25",
+  "reviewedAt": "2026-08-26",
   "sourceContracts": {
     "status": "passed",
-    "reviewedAt": "2026-08-25",
+    "reviewedAt": "2026-08-26",
     "binding": {
-      "version": "1.11.98",
-      "releaseInputFingerprintSha256": "05BECD6C776F845173DEDB412F02E5B95FC27D5A5F4FF3597B4FC4F74E3C2D62"
+      "version": "1.12.0",
+      "releaseInputFingerprintSha256": "B59A8EF07674AB754C6ACA07370F6F46BC82B7F7823CDBD7BDA51F354A22B12D"
     },
     "namedTests": 48,
     "coverage": [
@@ -100,8 +100,8 @@
     ]
   },
   "artifact": {
-    "version": "1.11.98",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.98.zip",
+    "version": "1.12.0",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.12.0.zip",
     "sha256": null
   },
   "reviewerApproval": false

@@ -6,6 +6,26 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.12.0 — public-source prerelease work — 2026-08-25
+
+### Forward 1.12.0 stable threat-model truth correction
+
+- Preserve exact local 1.11.99 as an unvalidated transaction. Its guarded version transaction bound runtime fingerprint `AB9A1621A82009F75F198690F2E8EC5683FC9381C2C0F6538F1EEC836E339C57` and 312-input stable-release fingerprint `77345E51F8145CDF63D29697390FB8C71835D6E05C053C435E0F8A595219D966`; its finalized pre-successor automated record has SHA-256 `8688DBD414A33872FAE441CFB67BAE9407C6864186A4739EB4D45F28516B7625`.
+- Record that no 1.11.99 validation command ran. A read-only post-transaction audit immediately found SW-096: the new threat-model chronology said “limits … binds” and overbroadly said exact 1.11.98 completed “no verification” even though complete local source verification had passed.
+- Correct that sentence to say the 1.11.99 source binds its deterministic fixture and that exact 1.11.98 completed no artifact verification. Preserve the SW-095 fixture repair, its negative substitution regression, and the unchanged production validator.
+- The correction changes stable documentation, forward chronology, required version metadata, mutable exact-candidate bindings, and reset evidence only. It changes no cleanup, permission, data-scope, downloaded-file, storage, messaging, installed, reviewer, remote, publication, or supported-binary fact.
+
+## 1.11.99 — public-source prerelease work — 2026-08-25
+
+### Forward 1.11.99 deterministic artifact-binding fixture correction
+
+- Preserve exact local 1.11.98 source commit `1df030d20ca81ec67d15dc01075da99fdcbf8303` and tree `a45f101d79bc276a263245401bc8475e3b9d1698`. Its guarded transaction bound runtime fingerprint `C59B7ACFE51A86F20C7FCEEFDE6E331E6ABFC1B3E135158B50F79DA32B6864BC` and 312-input stable-release fingerprint `05BECD6C776F845173DEDB412F02E5B95FC27D5A5F4FF3597B4FC4F74E3C2D62` under Node.js `v24.18.1` and npm `11.16.0`; its finalized pre-successor automated record has SHA-256 `018FB09DFBE4CD154091103E55236F4C428CCD4718CECD9BA77CCA2664A04C58`.
+- Record that exact 1.11.98 passed its complete local safeguards at 1,406 of 1,409 unit tests with zero failures and three explicit platform skips, passed 11/11 property tests, exceeded every coverage floor, completed the exact locked install and zero-vulnerability audit, and passed 48/48 accessibility source-contract tests.
+- Record the clean calibration build from exact source commit `1df030d20ca81ec67d15dc01075da99fdcbf8303`: the 61-file runtime ZIP was 355,075 bytes with SHA-256 `BCF1AF441700F5E8BFEFF6428425615BED01212A3B8722F866BDF65E6707811B`, and the source package reported exact equivalence across 420 files.
+- Stage SW-095 after the post-binding focused release-contract suite completed 138 tests with 137 passed and one failed. The committed-mode positive fixture supplied unrelated synthetic runtime bytes while inheriting the real current-candidate artifact hash and byte count, so the unchanged production validator correctly rejected stale automated-evidence artifact hash and size values.
+- Bind the copied active evidence record to the deterministic fixture-local runtime bytes before capturing committed source entries, reuse those exact bytes in the positive case, and retain a mismatched-byte rejection for both hash and size. This is a test-fixture correction only; it does not weaken the artifact contract or change cleanup, permission, data-scope, downloaded-file, storage, or messaging behavior.
+- Exact 1.11.98 did not complete artifact verification, reproducibility, installed Chrome or Brave validation, installed accessibility, performance, media, independent review, push, remote validation, or publication. No 1.11.98 artifact is inherited by the forward successor.
+
 ## 1.11.98 — public-source prerelease work — 2026-08-25
 
 ### Forward 1.11.98 exact validation-protocol correction

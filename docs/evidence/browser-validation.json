@@ -3,8 +3,8 @@
   "status": "pending",
   "attemptedAt": null,
   "artifact": {
-    "version": "1.11.98",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.98.zip",
+    "version": "1.12.0",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.12.0.zip",
     "sha256": null
   },
   "priorExactArtifactEvidence": {

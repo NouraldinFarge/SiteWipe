@@ -7,7 +7,7 @@ import test from 'node:test';
 import { RUNTIME_FILES, SOURCE_ARCHIVE_DIRECTORIES, SOURCE_ARCHIVE_ROOT_FILES } from '../../scripts/release-files.mjs';
 import { collectSourceArchiveEntries } from '../../scripts/source-archive.mjs';
 import { validateVersionContract, VersionContractError } from '../../scripts/version-contract-check.mjs';
-import { computeReleaseInputFingerprint, computeRuntimeFingerprint } from '../../scripts/versioning.mjs';
+import { computeReleaseInputFingerprint, computeRuntimeFingerprint, sha256 } from '../../scripts/versioning.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 
@@ -39,14 +39,19 @@ test('the reusable version contract rejects source changes after a recorded fing
   state.releaseInputFileCount = releaseInput.fileCount;
   state.releaseInputFingerprintSha256 = releaseInput.sha256;
   await writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`);
-  const committedSourceEntries = await collectSourceArchiveEntries(fixtureRoot);
-
-  await assert.doesNotReject(validateVersionContract({ root: fixtureRoot }));
+  const capturedRuntimeArtifactBytes = Buffer.from('captured-runtime-artifact');
   const pointerPath = resolve(fixtureRoot, 'docs/evidence/automated-validation-current.json');
   const pointerBytes = await readFile(pointerPath);
   const pointer = JSON.parse(pointerBytes.toString('utf8'));
   const currentRecordPath = resolve(fixtureRoot, 'docs', 'evidence', pointer.record);
-  const currentRecordBytes = await readFile(currentRecordPath);
+  const currentRecord = JSON.parse(await readFile(currentRecordPath, 'utf8'));
+  currentRecord.artifacts.runtimeZipSha256 = sha256(capturedRuntimeArtifactBytes);
+  currentRecord.artifacts.runtimeZipBytes = capturedRuntimeArtifactBytes.length;
+  const currentRecordBytes = Buffer.from(`${JSON.stringify(currentRecord, null, 2)}\n`);
+  await writeFile(currentRecordPath, currentRecordBytes);
+  const committedSourceEntries = await collectSourceArchiveEntries(fixtureRoot);
+
+  await assert.doesNotReject(validateVersionContract({ root: fixtureRoot }));
   const staleRecord = 'automated-validation-2026-08-25-v0.0.1.json';
   await writeFile(resolve(fixtureRoot, 'docs', 'evidence', staleRecord), currentRecordBytes);
   await writeFile(
@@ -112,8 +117,20 @@ test('the reusable version contract rejects source changes after a recorded fing
       root: fixtureRoot,
       committedSourceEntries,
       requireArtifact: true,
-      runtimeArtifactBytes: Buffer.from('captured-runtime-artifact')
+      runtimeArtifactBytes: capturedRuntimeArtifactBytes
     })
+  );
+  await assert.rejects(
+    validateVersionContract({
+      root: fixtureRoot,
+      committedSourceEntries,
+      requireArtifact: true,
+      runtimeArtifactBytes: Buffer.from('different-captured-runtime-artifact')
+    }),
+    (error) =>
+      error instanceof VersionContractError &&
+      error.errors.some((message) => message.includes('automated evidence artifact hash is stale')) &&
+      error.errors.some((message) => message.includes('automated evidence artifact size is stale'))
   );
   const substitutedEntries = committedSourceEntries.map((entry) =>
     entry.path === 'src/shared/settings-backup.js'
