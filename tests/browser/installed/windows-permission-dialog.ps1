@@ -19,6 +19,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$failurePhase = 'before_ready'
+$failureStage = 'helper_identity'
 
 function Get-ExactSha256 {
   param([Parameter(Mandatory = $true)][string]$Path)
@@ -154,9 +156,14 @@ try {
   if (-not [string]::Equals((Get-ExactSha256 -Path $canonicalHelper), $ExpectedHelperSha256, [StringComparison]::Ordinal)) {
     throw 'Native permission helper bytes differ from the approved helper SHA-256.'
   }
-  $expectedFragments = @($ExpectedFragmentsJson | ConvertFrom-Json)
-  $expectedUiaNames = @($ExpectedUiaNamesJson | ConvertFrom-Json)
-  $permissionPatterns = @($ExpectedPermissionPatternsJson | ConvertFrom-Json)
+  $failureStage = 'request_json_decode'
+  # Windows PowerShell 5.1 returns a top-level JSON array as one Object[] pipeline
+  # value. Wrapping that pipeline in @() nests the array and changes its Count/join
+  # semantics. The explicit cast preserves the decoded array elements themselves.
+  $expectedFragments = [object[]]($ExpectedFragmentsJson | ConvertFrom-Json)
+  $expectedUiaNames = [object[]]($ExpectedUiaNamesJson | ConvertFrom-Json)
+  $permissionPatterns = [object[]]($ExpectedPermissionPatternsJson | ConvertFrom-Json)
+  $failureStage = 'request_policy'
   $reviewedPermissionPatterns = @(
     'http://*.example.com/*',
     'http://example.com/*',
@@ -191,10 +198,13 @@ try {
     throw 'Expected permission fragments are empty, duplicated, or outside the bounded count.'
   }
 
+  $failureStage = 'uia_assembly_load'
   Add-Type -AssemblyName UIAutomationClient
   Add-Type -AssemblyName UIAutomationTypes
+  $failureStage = 'target_process_identity'
   $initialProcess = Get-ExactTargetProcess
   $readyAt = [DateTimeOffset]::UtcNow.ToString('o')
+  $failureStage = 'readiness_emit'
   Write-Evidence ([pscustomobject]@{
     schema = 'sitewipe.native-permission-helper-ready.v1'
     status = 'ready'
@@ -207,6 +217,8 @@ try {
     targetProcess = $initialProcess
     readyAt = $readyAt
   })
+  $failurePhase = 'after_ready'
+  $failureStage = 'runtime_observation'
   $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
   $matchingDialog = $null
 
@@ -368,15 +380,15 @@ try {
   exit 0
 } catch {
   Write-Evidence ([pscustomobject]@{
-    schema = 'sitewipe.native-permission-dialog-evidence.v1'
-    status = 'helper_error'
+    schema = 'sitewipe.native-permission-helper-failure.v1'
+    status = 'failed'
+    phase = $failurePhase
+    stage = $failureStage
+    scheduleId = $ExpectedScheduleId
+    browserName = $ExpectedBrowserName
     action = $Action
+    helperProcessId = $PID
     targetProcessId = $TargetProcessId
-    dialogTitle = $ExpectedDialogTitle
-    expectedFragments = @()
-    observedNames = @()
-    error = $_.Exception.Message
-    observedAt = [DateTimeOffset]::UtcNow.ToString('o')
   })
   exit 9
 }

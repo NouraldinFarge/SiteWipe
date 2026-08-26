@@ -105,6 +105,16 @@ export const NATIVE_PROMPT_UIA_SNAPSHOTS = deepFreeze(structuredClone(policy.uia
 export const NATIVE_PROMPT_MAX_OUTPUT_BYTES = 64 * 1024;
 export const NATIVE_PROMPT_PROCESS_SETTLE_GRACE_MS = 5_000;
 export const NATIVE_PROMPT_READY_TIMEOUT_MS = 10_000;
+export const NATIVE_PROMPT_HELPER_FAILURE_STAGES = Object.freeze([
+  'helper_identity',
+  'request_json_decode',
+  'request_policy',
+  'uia_assembly_load',
+  'target_process_identity',
+  'readiness_emit',
+  'runtime_observation'
+]);
+const NATIVE_PROMPT_HELPER_FAILURE_SCHEMA = 'sitewipe.native-permission-helper-failure.v1';
 
 export function validateNativePromptRequest(request) {
   assertExactKeys(
@@ -314,7 +324,24 @@ export function createNativePromptHelperLifecycle(child, request, { powerShell =
         if (line.length > 0) {
           try {
             const record = JSON.parse(line);
-            if (readiness === null) {
+            if (record?.schema === NATIVE_PROMPT_HELPER_FAILURE_SCHEMA) {
+              const failure = validateNativePromptFailure(
+                record,
+                request,
+                child.pid,
+                readiness === null ? 'before_ready' : 'after_ready'
+              );
+              if (readiness === null) {
+                readinessFailure ??= nativePromptFailureError(failure);
+                rejectReadiness(readinessFailure);
+                requestExactTermination();
+              } else if (finalEvidence === null) {
+                finalEvidence = failure;
+              } else {
+                outputFailure ??= new Error('Native prompt helper returned more than one final evidence record.');
+                requestExactTermination();
+              }
+            } else if (readiness === null) {
               readiness = validateNativePromptReadiness(record, request, child.pid);
               resolveReadiness(readiness);
             } else if (finalEvidence === null) {
@@ -371,6 +398,9 @@ export function createNativePromptHelperLifecycle(child, request, { powerShell =
     if (completeLineBuffer.trim().length > 0)
       throw new Error('Native prompt helper ended with an incomplete protocol record.');
     const evidence = finalEvidence;
+    if (evidence?.schema === NATIVE_PROMPT_HELPER_FAILURE_SCHEMA) {
+      throw nativePromptFailureError(validateNativePromptFailure(evidence, request, child.pid, 'after_ready'));
+    }
     try {
       validateNativePromptEvidence(evidence, request, { code, signal });
       return evidence;
@@ -561,6 +591,43 @@ export function validateNativePromptReadiness(value, request, helperProcessId) {
     throw new Error('Native prompt helper readiness differs from the exact request and child identity.');
   }
   return deepFreeze(structuredClone(value));
+}
+
+export function validateNativePromptFailure(value, request, helperProcessId, expectedPhase) {
+  const exact = validateNativePromptRequest(request);
+  const stageMatchesPhase =
+    expectedPhase === 'before_ready'
+      ? value?.stage !== 'runtime_observation'
+      : expectedPhase === 'after_ready' && value?.stage === 'runtime_observation';
+  assertExactKeys(
+    value,
+    ['action', 'browserName', 'helperProcessId', 'phase', 'scheduleId', 'schema', 'stage', 'status', 'targetProcessId'],
+    'Native prompt helper failure'
+  );
+  if (
+    value.schema !== NATIVE_PROMPT_HELPER_FAILURE_SCHEMA ||
+    value.status !== 'failed' ||
+    !['before_ready', 'after_ready'].includes(expectedPhase) ||
+    value.phase !== expectedPhase ||
+    !NATIVE_PROMPT_HELPER_FAILURE_STAGES.includes(value.stage) ||
+    !stageMatchesPhase ||
+    value.scheduleId !== exact.scheduleId ||
+    value.browserName !== exact.browserName ||
+    value.action !== exact.action ||
+    value.helperProcessId !== helperProcessId ||
+    value.targetProcessId !== exact.targetProcessId
+  ) {
+    throw new Error('Native prompt helper failure differs from the exact request, child, phase, or stage contract.');
+  }
+  return deepFreeze(structuredClone(value));
+}
+
+function nativePromptFailureError(failure) {
+  const error = new Error(`Native prompt helper failed at the fixed ${failure.phase}/${failure.stage} stage.`);
+  error.code = 'SITEWIPE_NATIVE_PROMPT_HELPER_FAILURE';
+  error.phase = failure.phase;
+  error.stage = failure.stage;
+  return error;
 }
 
 async function readExactFile(path, label) {

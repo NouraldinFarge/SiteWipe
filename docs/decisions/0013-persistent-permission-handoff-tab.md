@@ -8,7 +8,7 @@ Exact 1.11.93 then completed its guarded transaction with runtime fingerprint `7
 
 Exact 1.11.94 then completed its guarded transaction with runtime fingerprint `0EE478F2485E8615B7C07B1E6310D0383A59E945E021071F15A404D9341C2A7A` and 310-input stable-release fingerprint `B27F39A1752CC032F5B34B0CAACAF1E6570322E655623E9D6170D313E6417BAE`. Its first complete check passed the complete source-safeguard sequence through the legacy self-test; the 1,405-test unit suite finished with 1,401 passed, one failed, and three platform skips in `540992.2203ms`. Only the exact-current owner-amended Direct Cleanup contract failed because mutable `reviewedVersion` remained 1.11.93. SW-091 synchronizes that binding and the two other mutable public-candidate version bindings and branch to 1.11.95; it changes no handoff, cleanup, permission, or consent decision. Later 1.11.94 stages did not run, at the time the 1.11.95 stable inputs were sealed, complete 1.11.95 validation had not yet run, and no installed, artifact, reviewer, publication, or supported-binary result is claimed.
 
-- Status: Accepted in the 1.11.67 corrective successor and retained unchanged in the current corrective source; active evidence governs current local and exact-artifact installed status
+- Status: Accepted in the 1.11.67 corrective successor; the design remains recorded, and active evidence governs exact current local and exact-artifact installed status
 - Date: 2026-08-22
 - Supersedes: only ADR 0012's same-action-popup activation-two mechanism
 - Preserves: ADR 0012's durable arm, independent grant proofs, exactly-once admission, permission-ownership provenance, and fail-closed settlement boundaries

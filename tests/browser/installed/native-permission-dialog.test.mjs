@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { PassThrough } from 'node:stream';
@@ -9,8 +10,11 @@ import {
   NATIVE_PROMPT_EXPECTED_FRAGMENTS,
   NATIVE_PROMPT_HELPER_PATH,
   NATIVE_PROMPT_HELPER_SHA256,
+  NATIVE_PROMPT_HELPER_FAILURE_STAGES,
   NATIVE_PROMPT_MAX_OUTPUT_BYTES,
   NATIVE_PROMPT_PERMISSION_PATTERNS,
+  NATIVE_PROMPT_POLICY_PATH,
+  NATIVE_PROMPT_PROCESS_SETTLE_GRACE_MS,
   NATIVE_PROMPT_SCENARIO_SCHEDULE,
   NATIVE_PROMPT_UIA_SNAPSHOTS,
   createNativePromptHelperLifecycle,
@@ -20,6 +24,7 @@ import {
   nativePromptArguments,
   sameNativeFileIdentity,
   validateNativePromptEvidence,
+  validateNativePromptFailure,
   validateNativePromptReadiness,
   validateNativePromptRequest
 } from './native-permission-dialog.mjs';
@@ -167,8 +172,45 @@ test('PowerShell helper uses exact UIA identity and InvokePattern without coordi
   assert.match(source, /sitewipe\.native-permission-helper-ready\.v1/);
   assert.match(source, /ReadLineAsync/);
   assert.match(source, /observation_watchdog_expired/);
+  for (const jsonArgument of ['ExpectedFragmentsJson', 'ExpectedUiaNamesJson', 'ExpectedPermissionPatternsJson']) {
+    assert.match(source, new RegExp(`\\[object\\[\\]\\]\\(\\$${jsonArgument} \\| ConvertFrom-Json\\)`));
+  }
+  assert.match(source, /sitewipe\.native-permission-helper-failure\.v1/);
+  for (const stage of NATIVE_PROMPT_HELPER_FAILURE_STAGES) assert.match(source, new RegExp(stage));
+  assert.doesNotMatch(source, /Exception\.Message|\berror\s*=/i);
   assert.doesNotMatch(source, /SendKeys|SetCursorPos|mouse_event|keybd_event|Clipboard|WScript\.Shell/i);
 });
+
+test(
+  'pinned Windows PowerShell decodes exact JSON arrays before target-process validation',
+  { skip: process.platform !== 'win32' ? 'Pinned Windows PowerShell integration is Windows-only.' : false },
+  async () => {
+    const policy = JSON.parse(await readFile(NATIVE_PROMPT_POLICY_PATH, 'utf8'));
+    const impossibleRequest = {
+      ...observeRequest,
+      targetProcessId: 2_147_483_647
+    };
+    const child = spawn(policy.powershell.path, nativePromptArguments(impossibleRequest), {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: Object.fromEntries(
+        ['SystemRoot', 'WINDIR', 'TEMP', 'TMP'].flatMap((name) =>
+          typeof process.env[name] === 'string' ? [[name, process.env[name]]] : []
+        )
+      )
+    });
+    const outcome = await captureExactChildOutput(child);
+    assert.equal(outcome.code, 9);
+    assert.equal(outcome.signal, null);
+    assert.equal(outcome.stderr, '');
+    const lines = outcome.stdout.trim().split(/\r?\n/u);
+    assert.equal(lines.length, 1);
+    const failure = JSON.parse(lines[0]);
+    assert.deepEqual(validateNativePromptFailure(failure, impossibleRequest, child.pid, 'before_ready'), failure);
+    assert.equal(failure.stage, 'target_process_identity');
+    assert.equal(Object.hasOwn(failure, 'error'), false);
+  }
+);
 
 test('native helper file identity remains exact above Number.MAX_SAFE_INTEGER and every stat route requests bigint', async () => {
   const unsafeBoundary = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
@@ -286,6 +328,93 @@ test('native helper lifecycle settles exact evidence without terminating an exit
   assert.deepEqual(child.killSignals, []);
 });
 
+test('native helper lifecycle rejects a bounded pre-readiness failure without exposing raw text', async () => {
+  const child = fakeChild({ closeOnKill: false });
+  const exact = validateNativePromptRequest(observeRequest);
+  const lifecycle = createNativePromptHelperLifecycle(child, observeRequest);
+  const failure = validFailure(exact, child.pid, 'request_policy', 'before_ready');
+  const readiness = lifecycle.waitUntilReady();
+  child.stdout.write(`${JSON.stringify(failure)}\n`);
+  await new Promise((resolveTurn) => setImmediate(resolveTurn));
+  assert.deepEqual(child.killSignals, ['SIGTERM']);
+  child.emit('close', null, 'SIGTERM');
+  await assert.rejects(readiness, (error) => {
+    assert.equal(error.code, 'SITEWIPE_NATIVE_PROMPT_HELPER_FAILURE');
+    assert.equal(error.phase, 'before_ready');
+    assert.equal(error.stage, 'request_policy');
+    assert.match(error.message, /fixed before_ready\/request_policy stage/);
+    assert.doesNotMatch(error.message, /private sentinel|C:\\/i);
+    return true;
+  });
+});
+
+test('native helper failure contract rejects unknown stages, wrong bindings, and raw-message fields', () => {
+  const exact = validateNativePromptRequest(observeRequest);
+  const valid = validFailure(exact, 9123, 'request_policy', 'before_ready');
+  assert.deepEqual(validateNativePromptFailure(valid, observeRequest, 9123, 'before_ready'), valid);
+  for (const candidate of [
+    { ...valid, stage: 'arbitrary_private_stage' },
+    { ...valid, helperProcessId: 9124 },
+    { ...valid, scheduleId: 'SMOKE-01.observe-none' },
+    { ...valid, phase: 'after_ready' },
+    { ...valid, error: 'private sentinel C:\\not-for-output' }
+  ]) {
+    assert.throws(
+      () => validateNativePromptFailure(candidate, observeRequest, 9123, 'before_ready'),
+      /keys differ|differs from the exact request/
+    );
+  }
+  for (const [candidate, expectedPhase] of [
+    [validFailure(exact, 9123, 'runtime_observation', 'before_ready'), 'before_ready'],
+    [validFailure(exact, 9123, 'request_policy', 'after_ready'), 'after_ready']
+  ]) {
+    assert.throws(
+      () => validateNativePromptFailure(candidate, observeRequest, 9123, expectedPhase),
+      /differs from the exact request/
+    );
+  }
+});
+
+test('native helper lifecycle rejects malformed failure records without reflecting raw fields', async () => {
+  const child = fakeChild({ closeOnKill: false });
+  const exact = validateNativePromptRequest(observeRequest);
+  const lifecycle = createNativePromptHelperLifecycle(child, observeRequest);
+  const readiness = lifecycle.waitUntilReady();
+  child.stdout.write(
+    `${JSON.stringify({
+      ...validFailure(exact, child.pid, 'request_policy', 'before_ready'),
+      error: 'private sentinel C:\\must-not-be-reflected'
+    })}\n`
+  );
+  await new Promise((resolveTurn) => setImmediate(resolveTurn));
+  assert.deepEqual(child.killSignals, ['SIGTERM']);
+  child.emit('close', null, 'SIGTERM');
+  await assert.rejects(readiness, (error) => {
+    assert.match(error.message, /malformed protocol record/);
+    assert.doesNotMatch(`${error.message}\n${error.cause?.message || ''}`, /private sentinel|must-not-be-reflected/i);
+    return true;
+  });
+});
+
+test('native helper lifecycle reports a bounded post-readiness failure without reflecting raw text', async () => {
+  const child = fakeChild({ closeOnKill: false });
+  const exact = validateNativePromptRequest(request);
+  const lifecycle = createNativePromptHelperLifecycle(child, request);
+  child.stdout.write(`${JSON.stringify(validReadiness(exact, child.pid))}\n`);
+  await lifecycle.waitUntilReady();
+  const settlement = lifecycle.settle();
+  child.stdout.write(`${JSON.stringify(validFailure(exact, child.pid, 'runtime_observation', 'after_ready'))}\n`);
+  child.emit('close', 9, null);
+  await assert.rejects(settlement, (error) => {
+    assert.equal(error.code, 'SITEWIPE_NATIVE_PROMPT_HELPER_FAILURE');
+    assert.equal(error.phase, 'after_ready');
+    assert.equal(error.stage, 'runtime_observation');
+    assert.doesNotMatch(error.message, /private sentinel|C:\\/i);
+    return true;
+  });
+  assert.deepEqual(child.killSignals, []);
+});
+
 test('native helper lifecycle does not treat an error event as process termination', async () => {
   const child = fakeChild({ closeOnKill: false });
   const lifecycle = createNativePromptHelperLifecycle(child, request);
@@ -374,6 +503,58 @@ function fakeChild({ closeOnKill = true } = {}) {
   return child;
 }
 
+function captureExactChildOutput(child) {
+  return new Promise((resolveOutcome, rejectOutcome) => {
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    let timedOut = false;
+    let settlementTimeout = null;
+    const finish = (callback) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (settlementTimeout !== null) clearTimeout(settlementTimeout);
+      callback();
+    };
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      settlementTimeout = setTimeout(() => {
+        finish(() =>
+          rejectOutcome(
+            new Error('Pinned Windows PowerShell helper did not settle within the exact post-timeout grace period.')
+          )
+        );
+      }, NATIVE_PROMPT_PROCESS_SETTLE_GRACE_MS);
+      settlementTimeout.unref();
+      child.kill('SIGTERM');
+    }, 15_000);
+    timeout.unref();
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk);
+      if (Buffer.byteLength(stdout, 'utf8') > NATIVE_PROMPT_MAX_OUTPUT_BYTES) child.kill('SIGTERM');
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk);
+      if (Buffer.byteLength(stderr, 'utf8') > NATIVE_PROMPT_MAX_OUTPUT_BYTES) child.kill('SIGTERM');
+    });
+    child.once('error', (error) => {
+      if (!timedOut) finish(() => rejectOutcome(error));
+    });
+    child.once('close', (code, signal) => {
+      if (timedOut) {
+        finish(() =>
+          rejectOutcome(new Error('Pinned Windows PowerShell helper exceeded 15 seconds and then settled.'))
+        );
+        return;
+      }
+      finish(() => resolveOutcome({ code, signal, stdout, stderr }));
+    });
+  });
+}
+
 function validEvidence(exact) {
   return {
     schema: 'sitewipe.native-permission-dialog-evidence.v1',
@@ -415,6 +596,20 @@ function validReadiness(exact, helperProcessId) {
       startTimeUtcTicks: exact.expectedProcessStartTimeUtcTicks
     },
     readyAt: '2026-08-24T21:59:59.000Z'
+  };
+}
+
+function validFailure(exact, helperProcessId, stage, phase) {
+  return {
+    schema: 'sitewipe.native-permission-helper-failure.v1',
+    status: 'failed',
+    phase,
+    stage,
+    scheduleId: exact.scheduleId,
+    browserName: exact.browserName,
+    action: exact.action,
+    helperProcessId,
+    targetProcessId: exact.targetProcessId
   };
 }
 

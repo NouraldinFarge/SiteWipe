@@ -2,7 +2,7 @@
 
 > **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-- Status: Accepted for the public-source prerelease; permission-gesture details updated by ADRs 0011 and 0012; installed-browser validation pending
+- Status: Accepted for the public-source prerelease; permission-gesture details updated by ADRs 0011 and 0013; exact installed-browser status belongs only to active browser evidence
 - Date: 2026-08-16
 
 ## Context

@@ -109,7 +109,7 @@
       "title": "Side Panel API",
       "url": "https://developer.chrome.com/docs/extensions/reference/api/sidePanel",
       "pageLastUpdated": "2026-01-19",
-      "siteWipeConclusion": "Opening a side panel must occur in response to a user action. SiteWipe contracts a synchronous popup-gesture open in the exact verified window and an exact report/window binding before display. One exact 1.11.35 installed opening is retained in browser-validation-2026-08-21-v1.11.35.json; it is historical evidence only, and current-candidate focus, keyboard, zoom, replacement, and multi-window coverage remains incomplete."
+      "siteWipeConclusion": "Opening a side panel must occur in response to a user action. SiteWipe contracts a synchronous popup-gesture open in the exact verified window and an exact report/window binding before display. One exact 1.11.35 installed opening is retained in browser-validation-2026-08-21-v1.11.35.json; it is historical evidence only. Exact current focus, keyboard, zoom, replacement, and multi-window status belongs only to active browser and accessibility evidence."
     },
     {
       "title": "Alarms API",

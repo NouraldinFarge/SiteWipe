@@ -2,7 +2,7 @@
 
 > **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-Historical plan: the zero-commit/private-staging facts below describe the repository before its first commit and upload. Current alignment and availability evidence is recorded in [`docs/evidence/github-settings-audit-2026-08-17.json`](./evidence/github-settings-audit-2026-08-17.json).
+Historical plan: the zero-commit/private-staging facts below describe the repository before its first commit and upload. [`docs/evidence/github-settings-audit-2026-08-17.json`](./evidence/github-settings-audit-2026-08-17.json) is dated historical evidence; exact current alignment and availability belong only to the active remote decision and a fresh authenticated external capture.
 
 Fact pattern when this plan was approved: local branch `main`, zero commits, zero remotes, zero tags, and all candidate paths untracked. The outer working container is not a repository and must never become part of this history. The owner separately authorized one truthful initial candidate commit and the first push to the named private staging repository; this document does not authorize later public or release actions.
 

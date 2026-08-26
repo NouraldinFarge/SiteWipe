@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "status": "local_automated_checks_passed",
+  "validatedAt": "2026-08-26T21:03:41.4722772Z",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
+  "environment": {
+    "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
+    "osArchitecture": "X64",
+    "processArchitecture": "X64",
+    "node": "v24.18.1",
+    "npm": "11.16.0",
+    "scope": "Local source, locked-dependency, safety, property, coverage, accessibility-source, and loopback fixture-contract validation. Exact installed-browser, clean-commit artifact, and remote publication evidence remain separate."
+  },
+  "baseline": {
+    "beforeState": "The 1.12.17 record remains unchanged in automated-validation-2026-08-26-v1.12.17.json.",
+    "baselineVersion": "1.12.17",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-26-v1.12.17.json"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "passed",
+    "aggregateCommandWallMs": null,
+    "aggregateCommandWallNote": "The exact command completed successfully, but the orchestration record retained the runner duration rather than a separate shell wall-time measurement.",
+    "format": "passed",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.12.18",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "618B759C53A34FC3EA8470E6C7E1330DB919151A4D76C2367B38C07096CE3B90",
+      "stableReleaseInputFingerprintSha256": "355B2AED8959FF4CD687BADD85CAA0BA0DF61659F1CE271D877E6FE633D3CCF2",
+      "stableReleaseInputFiles": 314
+    },
+    "manifest": {
+      "status": "passed",
+      "version": "1.12.18",
+      "descriptionCharacters": 123,
+      "descriptionMaximum": 132,
+      "requiredNamedPermissions": 10,
+      "optionalNamedPermissions": 1,
+      "requiredHostPatterns": 0,
+      "optionalHostPatterns": 2
+    },
+    "syntaxModules": 221,
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "htmlValidation": "passed",
+    "cssValidation": "passed",
+    "remoteCodeAndRuntimeSecretScan": {
+      "status": "passed",
+      "runtimeFiles": 61
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 442
+    },
+    "developmentSbom": {
+      "status": "passed",
+      "components": 358,
+      "dependencyNodes": 417,
+      "sha256": "5DC24B32B04B4B49B989B3D3C823514214833C3C3A20946AC99A8879BF507E19"
+    },
+    "dependencyLicenseInventory": {
+      "status": "passed",
+      "runtimeDependencies": 0,
+      "lockedDevelopmentGraph": 416,
+      "lockfileSha256": "ABB53B3FC12E19AA2581F5139EE5DE9F1BEB1DB948128FBEF96ECE584318095A",
+      "developmentSbomSha256": "5DC24B32B04B4B49B989B3D3C823514214833C3C3A20946AC99A8879BF507E19",
+      "metadataExceptionsResolved": 1
+    },
+    "projectLicense": {
+      "status": "passed",
+      "spdxIdentifier": "MIT",
+      "licenseFileSha256": "86ECA68E8C1B0498315252BD01B6190F01500EE720C333D00793DD947F5B6511"
+    },
+    "thirdPartyNoticeAndPslHash": "passed",
+    "iconSourceAndPngProvenance": "passed",
+    "documentation": {
+      "status": "passed",
+      "markdownFiles": 49
+    },
+    "githubActionPins": {
+      "status": "passed",
+      "references": 11
+    },
+    "runtimeAllowlist": {
+      "status": "passed",
+      "runtimeFiles": 61,
+      "sourceOnlyFiles": 3
+    },
+    "legacyReleaseSelfTest": "passed",
+    "nodeTests": {
+      "tests": 1444,
+      "suites": 0,
+      "passed": 1441,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 3,
+      "todo": 0,
+      "durationMs": 466489.5431,
+      "explicitPlatformSkips": [
+        "capture rejects symbolic package entries when the host supports creating them: This host does not permit creation of a disposable symbolic link.",
+        "capture rejects case collisions when the host filesystem can represent them: This host filesystem is case-insensitive.",
+        "private control records remain owner-readable under a restrictive process umask: skipped on win32."
+      ]
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 235.8651
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "passed",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    },
+    "tests": {
+      "tests": 1444,
+      "passed": 1441,
+      "failed": 0,
+      "skipped": 3,
+      "durationMs": 686384.4828
+    },
+    "all": {
+      "statements": 86.91,
+      "branches": 76.43,
+      "functions": 93.81,
+      "lines": 86.91
+    },
+    "interpretation": "The required coverage command passed 1,441 of 1,444 tests with zero failures and three explicit platform skips, and exceeded every enforced repository-wide floor. Coverage remains a source-test navigation aid and does not replace installed MV3 lifecycle, browser-privilege, or exact-artifact evidence."
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "passed",
+    "installedPackages": 397,
+    "auditedPackagesIncludingRoot": null,
+    "lifecycleScriptsDisabled": true,
+    "deprecationWarnings": [
+      "prebuild-install@7.1.3 is no longer maintained",
+      "glob@10.5.0 is a deprecated transitive development-tool version"
+    ],
+    "interpretation": "The warnings are confined to the development-tool graph. Installation used the exact lockfile with lifecycle scripts and automatic audit traffic disabled; the explicit low-threshold audit after installation found no advisory."
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=low --json",
+    "status": "passed",
+    "auditedAt": "2026-08-26T21:03:15.978Z",
+    "knownVulnerabilities": 0,
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "packageMetadata": {
+      "prod": 1,
+      "dev": 416,
+      "optional": 145,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 416
+    },
+    "runtimeDependencies": 0,
+    "lockedDevelopmentGraph": 416,
+    "lockfileSha256": "ABB53B3FC12E19AA2581F5139EE5DE9F1BEB1DB948128FBEF96ECE584318095A"
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "passed",
+    "redactionCanaries": "passed",
+    "privateContextPersistenceRefusal": "passed",
+    "deterministicThirtyMinuteExpiry": "passed"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "passed",
+    "installedChromeRun": "not_run",
+    "installedBraveRun": "not_run",
+    "browserEvidenceRecord": "docs/evidence/browser-validation.json",
+    "note": "The deterministic loopback fixture server contract passed. No installed Chrome or Brave execution is claimed."
+  },
+  "gitInitialization": {
+    "status": "pending_exact_candidate_validation",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "Exact candidate commit, clean checkout, remote checks, and repository state require fresh validation."
+  },
+  "artifacts": {
+    "status": "pending_rebuild",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.12.18.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.12.18-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "pending",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.12.18.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.12.18.unsigned-provenance-input.json",
+    "remoteAttestation": "pending",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "Clean-commit artifact construction and reproducibility, installed Chrome and Brave validation, installed accessibility, performance, media, independent review, hosted-policy parity, exact-head remote checks, and attestation remain pending."
+    ]
+  },
+  "limitations": [
+    "No automated, installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior."
+  ]
+}
