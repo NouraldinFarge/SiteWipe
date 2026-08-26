@@ -1233,6 +1233,58 @@ test('remote publication requires exact version authorization and current privac
   }
 });
 
+test('checked-in privacy policy retains exactly one standalone machine-readable review date', async () => {
+  const [privacyBytes, packageBytes] = await Promise.all([
+    readFile(new URL('../../PRIVACY.md', import.meta.url)),
+    readFile(new URL('../../package.json', import.meta.url), 'utf8')
+  ]);
+  const version = JSON.parse(packageBytes).version;
+  const privacyText = privacyBytes.toString('utf8');
+  const reviewLines = privacyText.split(/\r?\n/).filter((line) => line.startsWith('Last reviewed:'));
+  assert.equal(reviewLines.length, 1);
+  const reviewMatch = reviewLines[0].match(/^Last reviewed: (\d{4}-\d{2}-\d{2})\.$/);
+  assert.ok(reviewMatch);
+  const reviewedAt = reviewMatch[1];
+  const validRemote = (bytes) => ({
+    approvedPublicCandidateVersion: version,
+    publicCandidateSourcePushAuthorized: true,
+    approvedPublicCandidateBranch: `candidate/sitewipe-${version}`,
+    publicCandidatePullRequestAuthorized: true,
+    finalPublicationApproval: false,
+    mergeToDefaultBranchAuthorized: false,
+    tagCreationAuthorized: false,
+    githubReleaseAuthorized: false,
+    browserStoreSubmissionAuthorized: false,
+    promotionalPublicationAuthorized: false,
+    hostedPrivacyPolicyUrl: 'https://example.invalid/privacy',
+    hostedPrivacyPolicyRawUrl: 'https://example.invalid/privacy/raw/immutable',
+    hostedPrivacyPolicyVersion: version,
+    hostedPrivacyPolicySha256: sha256(bytes),
+    hostedPrivacyPolicyExactByteParity: true,
+    hostedPrivacyPolicyReviewedAt: reviewedAt
+  });
+
+  assert.deepEqual(findRemotePublicationFindings({ remote: validRemote(privacyBytes), version, privacyBytes }), []);
+
+  for (const [name, mutatedBytes] of [
+    [
+      'trailing prose',
+      Buffer.from(privacyText.replace(reviewLines[0], `${reviewLines[0]} This explanation is incorrectly inline.`))
+    ],
+    ['duplicate field', Buffer.from(privacyText.replace(reviewLines[0], `${reviewLines[0]}\n${reviewLines[0]}`))]
+  ]) {
+    assert.match(
+      findRemotePublicationFindings({
+        remote: validRemote(mutatedBytes),
+        version,
+        privacyBytes: mutatedBytes
+      }).join('\n'),
+      /review date/,
+      name
+    );
+  }
+});
+
 test('accessibility source evidence requires a current review and exact stable-input binding', () => {
   const valid = {
     reviewedAt: '2026-08-21',

@@ -31,6 +31,23 @@ export function findDeferredCurrentCandidateFindings(text) {
   return findings;
 }
 
+export function findReleaseReadinessForwardCandidateFindings(text, currentVersion) {
+  const sourceStateLines = text.split(/\r?\n/u).filter((line) => line.startsWith('Source state:'));
+  if (sourceStateLines.length !== 1) {
+    return ['expected exactly one Source state line'];
+  }
+  const matches = [
+    ...sourceStateLines[0].matchAll(/\bSiteWipe (\d+\.\d+\.\d+) is the forward [^*\r\n]*? candidate\b/gu)
+  ];
+  if (matches.length !== 1) {
+    return ['Source state must identify exactly one active forward SiteWipe candidate'];
+  }
+  if (matches[0][1] !== currentVersion) {
+    return [`Source state forward candidate version ${matches[0][1]} does not match package version ${currentVersion}`];
+  }
+  return [];
+}
+
 const capabilityHeaders = [
   'Surface',
   'Intended scope and method',

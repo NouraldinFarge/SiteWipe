@@ -8,6 +8,7 @@ import {
   findCurrentChangelogStageClaims,
   findCurrentStatusSurfaceFindings,
   findDeferredCurrentCandidateFindings,
+  findReleaseReadinessForwardCandidateFindings,
   findReleaseGuideChronologyClaims
 } from '../../scripts/documentation-truth-contract.mjs';
 
@@ -207,6 +208,20 @@ test('release-readiness Status cells and Version transaction row remain outcome-
       'See active 9.8.7 version-state and automated evidence'
     )
   );
+});
+
+test('release-readiness Source state binds the active forward candidate to package.json', async () => {
+  const path = 'docs/release-readiness.md';
+  const text = await surfaceText(path);
+  const packageVersion = JSON.parse(await surfaceText('package.json')).version;
+  assert.deepEqual(findReleaseReadinessForwardCandidateFindings(text, packageVersion), []);
+
+  const staleVersion = packageVersion === '9.8.7' ? '9.8.6' : '9.8.7';
+  const mutation = text.replace(`SiteWipe ${packageVersion} is the forward`, `SiteWipe ${staleVersion} is the forward`);
+  assert.notEqual(mutation, text);
+  assert.deepEqual(findReleaseReadinessForwardCandidateFindings(mutation, packageVersion), [
+    `Source state forward candidate version ${staleVersion} does not match package version ${packageVersion}`
+  ]);
 });
 
 test('testing Brave and performance status cells require their exact active evidence domains', async () => {

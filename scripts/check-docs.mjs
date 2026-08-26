@@ -6,6 +6,7 @@ import {
   findCurrentChangelogStageClaims,
   findCurrentStatusSurfaceFindings,
   findDeferredCurrentCandidateFindings,
+  findReleaseReadinessForwardCandidateFindings,
   findReleaseGuideChronologyClaims
 } from './documentation-truth-contract.mjs';
 
@@ -53,6 +54,11 @@ for (const path of markdown) {
   if (repoPath === 'docs/releasing.md') {
     for (const finding of findReleaseGuideChronologyClaims(text)) {
       failures.push(`${repoPath}: transient release chronology is not historical or transaction-bound: ${finding}`);
+    }
+  }
+  if (repoPath === 'docs/release-readiness.md') {
+    for (const finding of findReleaseReadinessForwardCandidateFindings(text, currentVersion)) {
+      failures.push(`${repoPath}: ${finding}`);
     }
   }
   if (repoPath === 'docs/evidence/deferred-source-candidate-issues.md') {

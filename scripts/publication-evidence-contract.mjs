@@ -1300,10 +1300,12 @@ function summarizeDurations(values) {
 }
 
 function extractPrivacyReviewDate(bytes) {
-  const match = Buffer.from(bytes || [])
-    .toString('utf8')
-    .match(/^Last reviewed: (\d{4}-\d{2}-\d{2})\.$/m);
-  return match && isCalendarDate(match[1]) ? match[1] : null;
+  const matches = [
+    ...Buffer.from(bytes || [])
+      .toString('utf8')
+      .matchAll(/^Last reviewed: (\d{4}-\d{2}-\d{2})\.$/gm)
+  ];
+  return matches.length === 1 && isCalendarDate(matches[0][1]) ? matches[0][1] : null;
 }
 
 function isPlainObject(value) {

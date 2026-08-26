@@ -89,7 +89,7 @@ for (const [path, before, after] of [
 
 await assertRequiredMarker('docs/architecture.md', `forward ${nextVersion} transaction`);
 await assertRequiredMarker('docs/threat-model.md', `the ${nextVersion} corrective working source`);
-await assertRequiredMarker('docs/release-readiness.md', `SiteWipe ${nextVersion}`);
+await assertRequiredSourceStateMarker('docs/release-readiness.md', nextVersion);
 
 // Release-readiness prose is deliberately staged for the exact successor
 // before the transaction. Requiring the next-version marker keeps the update
@@ -260,6 +260,16 @@ async function assertRequiredMarker(relative, marker) {
   const value = await source(relative);
   const occurrences = value.split(marker).length - 1;
   if (occurrences !== 1) throw new Error(`${relative} must contain exactly one staged next-version marker: ${marker}`);
+}
+
+async function assertRequiredSourceStateMarker(relative, version) {
+  const value = await source(relative);
+  const sourceStateLines = value.split(/\r?\n/u).filter((line) => line.startsWith('Source state:'));
+  const marker = `SiteWipe ${version} is the forward`;
+  const occurrences = sourceStateLines.length === 1 ? sourceStateLines[0].split(marker).length - 1 : 0;
+  if (sourceStateLines.length !== 1 || occurrences !== 1) {
+    throw new Error(`${relative} Source state must contain exactly one staged next-version marker: ${marker}`);
+  }
 }
 
 function replaceRequired(value, before, after, label) {
