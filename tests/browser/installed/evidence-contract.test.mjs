@@ -19,7 +19,6 @@ import {
   SCENARIO_RESULT_SCHEMA,
   aggregateBrowserEvidence,
   computePlanSha256,
-  createRawEvidence,
   createScenarioResultRecord,
   validateAndReplayBrowserAggregate,
   validateBrowserPlan,
@@ -33,6 +32,10 @@ import {
   NATIVE_PROMPT_SCENARIO_SCHEDULE,
   NATIVE_PROMPT_UIA_SNAPSHOTS
 } from './native-permission-dialog.mjs';
+import { SEMANTIC_VALIDATOR_MANIFEST_SHA256 } from './semantic-validator.mjs';
+import { computeBrowserRuntimeSetSha256 } from './browser-runtime-closure.mjs';
+import { INSTALLED_RUNTIME_LAUNCH_POLICY_SHA256 } from './launch-policy.mjs';
+import { PINNED_PUPPETEER_CORE_VERSION } from './toolchain-closure.mjs';
 
 const timestamp = '2026-08-24T22:00:00.000Z';
 
@@ -77,7 +80,7 @@ test('canonical matrix is deeply frozen, has exactly 24 stable IDs, and classifi
   }, TypeError);
 });
 
-test('mechanical aggregate replays all 48 cells but remains not_run until semantic validators exist', () => {
+test('mechanical aggregate replays all 48 cells but remains not_run while required observations or validators are absent', () => {
   const plan = samplePlan();
   const records = [];
   for (const scenario of CANONICAL_BROWSER_MATRIX) {
@@ -104,19 +107,9 @@ test('missing, duplicate, and dummy-evidence results cannot become passed', () =
   assert.equal(missing.counts.not_run, 48);
 
   const falselyPassed = sampleResult(plan, scenario, 'chrome');
-  falselyPassed.assertions = falselyPassed.assertions.map((assertion) => ({
-    ...assertion,
-    state: 'passed',
-    evidenceIds: [falselyPassed.evidence[0].id]
-  }));
-  falselyPassed.teardown = {
-    ...falselyPassed.teardown,
-    state: 'passed',
-    evidenceIds: [falselyPassed.evidence[0].id]
-  };
   falselyPassed.declaredState = 'passed';
   falselyPassed.reason = null;
-  assert.throws(() => validateScenarioResult(falselyPassed, { plan }), /semantic validators are not implemented/);
+  assert.throws(() => validateScenarioResult(falselyPassed, { plan }), /keys differ from the exact schema/);
 
   const record = createScenarioResultRecord(sampleResult(plan, scenario, 'chrome'), { plan });
   const duplicate = aggregateBrowserEvidence({ plan, resultRecords: [record, record] });
@@ -158,6 +151,12 @@ test('plan digest binds exact matrix, inputs, identities, and the one-approval b
     },
     (value) => {
       value.inputs.nativePrompt.scenarioSchedule[0].action = 'allow';
+    },
+    (value) => {
+      value.inputs.toolchain.toolchainManifestSha256 = '1'.repeat(64);
+    },
+    (value) => {
+      value.identity.nodeRuntimeVersion = 'v0.0.1';
     }
   ]) {
     const changed = structuredClone(plan);
@@ -225,6 +224,40 @@ test('plan path validation is host-independent and rejects ambiguous authority i
 });
 
 function samplePlan() {
+  const browserPins = [
+    {
+      name: 'brave',
+      executablePath: 'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+      version: '151.1.93.138',
+      executableSha256: '1'.repeat(64),
+      runtimeRootPath: 'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\151.1.93.138',
+      runtimeVersion: '151.1.93.138',
+      runtimeFileCount: 176,
+      runtimeBytes: 1076868141,
+      runtimeManifestSha256: '3'.repeat(64)
+    },
+    {
+      name: 'chrome',
+      executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      version: '151.0.7922.174',
+      executableSha256: '2'.repeat(64),
+      runtimeRootPath: 'C:\\Program Files\\Google\\Chrome\\Application\\151.0.7922.174',
+      runtimeVersion: '151.0.7922.174',
+      runtimeFileCount: 266,
+      runtimeBytes: 514076268,
+      runtimeManifestSha256: '4'.repeat(64)
+    }
+  ];
+  const browserRuntimeSetSha256 = computeBrowserRuntimeSetSha256(browserPins);
+  const toolchain = {
+    nodeRuntimeVersion: process.version,
+    toolchainPuppeteerVersion: PINNED_PUPPETEER_CORE_VERSION,
+    toolchainPackageCount: 31,
+    toolchainFileCount: 402,
+    toolchainBytes: 7463219,
+    toolchainManifestSha256: '7'.repeat(64),
+    toolchainSetSha256: '8'.repeat(64)
+  };
   const plan = {
     schema: BROWSER_PLAN_SCHEMA,
     matrixVersion: BROWSER_MATRIX_VERSION,
@@ -233,19 +266,30 @@ function samplePlan() {
     createdAt: timestamp,
     requiredBrowsers: [...REQUIRED_BROWSERS],
     requiredMatrixIds: [...CANONICAL_BROWSER_MATRIX_IDS],
+    semanticValidatorManifestSha256: SEMANTIC_VALIDATOR_MANIFEST_SHA256,
     identity: {
       sourceCommitSha: 'a'.repeat(40),
       sourceTreeSha: 'b'.repeat(40),
       artifactVersion: '1.11.77',
       artifactBytes: 100,
       artifactSha256: 'A'.repeat(64),
+      browserRuntimeSetSha256,
       gitExecutableSha256: '9'.repeat(64),
       harnessManifestSha256: 'B'.repeat(64),
+      launchPolicySha256: INSTALLED_RUNTIME_LAUNCH_POLICY_SHA256,
       nativeHelperSha256: 'C'.repeat(64),
       nodeExecutableSha256: 'D'.repeat(64),
+      nodeRuntimeVersion: toolchain.nodeRuntimeVersion,
       packageLockSha256: 'E'.repeat(64),
+      powerShellExecutableSha256: '5'.repeat(64),
+      processObserverHelperSha256: '6'.repeat(64),
       releaseInputFingerprintSha256: 'F'.repeat(64),
-      runtimeFingerprintSha256: '0'.repeat(64)
+      runtimeFingerprintSha256: '0'.repeat(64),
+      toolchainPuppeteerVersion: toolchain.toolchainPuppeteerVersion,
+      toolchainPackageCount: toolchain.toolchainPackageCount,
+      toolchainFileCount: toolchain.toolchainFileCount,
+      toolchainBytes: toolchain.toolchainBytes,
+      toolchainSetSha256: toolchain.toolchainSetSha256
     },
     inputs: {
       repositoryRoot: 'C:\\sitewipe\\repository',
@@ -256,20 +300,9 @@ function samplePlan() {
         sha256: '9'.repeat(64),
         version: 'git version 2.51.0.windows.1'
       },
-      browserPins: [
-        {
-          name: 'brave',
-          executablePath: 'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
-          version: '151.1.93.138',
-          executableSha256: '1'.repeat(64)
-        },
-        {
-          name: 'chrome',
-          executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-          version: '151.0.7922.174',
-          executableSha256: '2'.repeat(64)
-        }
-      ],
+      browserPins,
+      browserRuntimeSetSha256,
+      launchPolicySha256: INSTALLED_RUNTIME_LAUNCH_POLICY_SHA256,
       fixture: {
         bindAddresses: [...FIXED_FIXTURE_BIND_ADDRESSES],
         allowedHosts: [...SYNTHETIC_FIXTURE_HOSTS],
@@ -289,6 +322,16 @@ function samplePlan() {
         uiaSnapshots: structuredClone(NATIVE_PROMPT_UIA_SNAPSHOTS),
         requiresUnlockedInteractiveSession: true
       },
+      processObserver: {
+        helperPath: 'C:\\sitewipe\\windows-process-identity.ps1',
+        helperSha256: '6'.repeat(64),
+        powershellPath: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+        powershellSha256: '5'.repeat(64),
+        helperModes: ['Identity', 'ProfileResidue', 'TerminateTree'],
+        rawCommandLinesRetained: false,
+        processTerminationAllowed: true
+      },
+      toolchain,
       retention: { failureDays: 14, passEvidenceDays: 30, retainProfilesOnFailure: true }
     },
     approval: {
@@ -303,38 +346,20 @@ function samplePlan() {
 }
 
 function sampleResult(plan, scenario, browserName) {
-  const evidence = createRawEvidence({
-    id: `${scenario.id.toLowerCase()}.${browserName}.trace`,
-    content: { scenarioId: scenario.id, browser: browserName, synthetic: true }
-  });
   const browser = structuredClone(plan.inputs.browserPins.find(({ name }) => name === browserName));
   return {
     schema: SCENARIO_RESULT_SCHEMA,
     matrixVersion: BROWSER_MATRIX_VERSION,
     matrixSha256: CANONICAL_BROWSER_MATRIX_SHA256,
+    semanticValidatorManifestSha256: SEMANTIC_VALIDATOR_MANIFEST_SHA256,
     planSha256: plan.planSha256,
     runId: plan.runId,
     scenarioId: scenario.id,
-    semanticValidationStatus: 'not_implemented',
     browser,
     identity: structuredClone(plan.identity),
     startedAt: timestamp,
     completedAt: timestamp,
-    declaredState: 'not_run',
-    reason: 'Canonical per-assertion semantic validators are not implemented.',
-    evidence: [evidence],
-    assertions: scenario.requiredAssertions.map((id) => ({
-      id,
-      state: 'not_run',
-      observedAt: timestamp,
-      evidenceIds: [],
-      detail: null
-    })),
-    teardown: {
-      state: 'not_run',
-      observedAt: timestamp,
-      evidenceIds: [],
-      detail: null
-    }
+    reason: 'Required exact typed observations or canonical validators are absent.',
+    evidence: []
   };
 }

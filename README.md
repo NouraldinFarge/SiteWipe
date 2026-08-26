@@ -2,7 +2,7 @@
 
 > **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-`SiteWipe` is the owner-approved custom product identity for a local-first Chrome/Brave Manifest V3 extension that coordinates guarded, target-scoped cleanup across browser APIs. The exact name is already used by unrelated browser extensions, so this selection is not represented as unique or legally cleared. It is not a promise to erase every trace. The first-party source is MIT-licensed and intended for public review, while the current candidate version `1.11.89` remains an unreleased prerelease with no supported binary or browser-store listing.
+`SiteWipe` is the owner-approved custom product identity for a local-first Chrome/Brave Manifest V3 extension that coordinates guarded, target-scoped cleanup across browser APIs. The exact name is already used by unrelated browser extensions, so this selection is not represented as unique or legally cleared. It is not a promise to erase every trace. The first-party source is MIT-licensed and intended for public review, while the current candidate version `1.11.98` remains an unreleased prerelease with no supported binary or browser-store listing.
 
 The interesting engineering problem is destructive scope control: a cleanup request must remain inside an authorized registrable site or exact local origin while Chrome exposes cookies, tabs, origin storage, history, downloads, scripting, and network rules through different APIs and lifecycle semantics. Chrome/Brave browser-level storage deletion is keyed differently from cookies and live-page cleanup: a registrable-site origin list also selects third-party page storage partitioned beneath that top-level site, while a schemeful-site partition key does not preserve an exact-origin port boundary.
 
@@ -79,14 +79,17 @@ Browser-specific responsibilities live in separate modules under [`src/backgroun
 
 ## Local review
 
-Requirements: Node.js 24 or later and npm 11 or later.
+The development compatibility floor is Node.js 24 and npm 11. Exact release-candidate evidence must use Node.js 24.18.1 with its bundled npm 11.16.0 so local and hosted development-SBOM bytes remain comparable.
 
 ```powershell
-npm ci --ignore-scripts
+npm ci --ignore-scripts --no-audit --no-fund
 npm run check
 npm run test:coverage
+npm audit --audit-level=low --json
 npm run verify:reproducible-release-candidate
 ```
+
+The artifact commands are commit-bound release operations, not a dirty-worktree linear sequence. Follow the clean source/evidence commit boundaries in [`docs/releasing.md`](./docs/releasing.md).
 
 `npm run check:publication-gates` is expected to fail until every human, browser, remote-repository, media, and provenance decision has evidence. A passing unit suite is not publication approval.
 

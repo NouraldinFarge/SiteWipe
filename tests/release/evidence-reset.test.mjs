@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  EXACT_DEPENDENCY_AUDIT_COMMAND,
+  EXACT_INSTALL_SCRIPT_CONTROL,
+  EXACT_LOCKED_DEPENDENCY_INSTALL_COMMAND,
   resetAccessibilityEvidence,
   resetAutomatedValidationEvidence,
   resetDependencyLicenseInventoryEvidence,
@@ -18,8 +21,17 @@ test('version reset removes every candidate-sensitive automated pass and result'
       environment: { node: 'old' },
       fullCheck: { command: 'npm run check', status: 'passed', staleResult: true },
       coverage: { command: 'npm run test:coverage', status: 'passed', all: { lines: 99 } },
-      dependencyInstall: { status: 'passed', installedPackages: 400 },
-      dependencyAudit: { status: 'passed', knownVulnerabilities: 0, lockfileSha256: 'OLD' },
+      dependencyInstall: {
+        command: 'npm ci --ignore-scripts',
+        status: 'passed',
+        installedPackages: 400
+      },
+      dependencyAudit: {
+        command: 'npm audit --audit-level=moderate --json',
+        status: 'passed',
+        knownVulnerabilities: 0,
+        lockfileSha256: 'OLD'
+      },
       fixtureInfrastructure: { version: 'fixture-v1', serverContract: 'passed' },
       artifacts: { status: 'local_reproducible_build_passed', runtimeZipSha256: 'OLD' },
       publicationGate: { command: 'npm run check:publication-gates', publicationRecommendation: 'approved' }
@@ -41,8 +53,10 @@ test('version reset removes every candidate-sensitive automated pass and result'
   assert.equal(reset.coverage.status, 'pending');
   assert.equal(Object.hasOwn(reset.coverage, 'all'), false);
   assert.equal(reset.dependencyInstall.status, 'pending');
+  assert.equal(reset.dependencyInstall.command, EXACT_LOCKED_DEPENDENCY_INSTALL_COMMAND);
   assert.equal(reset.dependencyInstall.installedPackages, null);
   assert.equal(reset.dependencyAudit.status, 'pending');
+  assert.equal(reset.dependencyAudit.command, EXACT_DEPENDENCY_AUDIT_COMMAND);
   assert.equal(reset.dependencyAudit.lockfileSha256, null);
   assert.equal(reset.fixtureInfrastructure.serverContract, 'pending');
   assert.equal(
@@ -226,6 +240,14 @@ test('version reset preserves reviewed dependency tuples but invalidates audit a
       lockfileSha256: 'OLD',
       lockedDevelopmentGraphCount: 406,
       licenseCounts: { MIT: 406 },
+      installScriptPackages: [
+        {
+          path: 'node_modules/example',
+          name: 'example',
+          version: '1.0.0',
+          control: 'All documented installs use the stale short command.'
+        }
+      ],
       directDevelopmentDependencies: [{ name: 'example', version: '1.0.0', license: 'MIT' }],
       npmAuditVulnerabilities: { info: 0, low: 0, moderate: 0, high: 0, critical: 0, total: 0 },
       developmentSbom: {
@@ -271,6 +293,7 @@ test('version reset preserves reviewed dependency tuples but invalidates audit a
     generatedAt: null
   });
   assert.equal(reset.lockedDevelopmentGraphCount, 406);
+  assert.equal(reset.installScriptPackages[0].control, EXACT_INSTALL_SCRIPT_CONTROL);
   assert.equal(
     reset.controls.some((entry) => /reported zero|passed/i.test(entry)),
     false

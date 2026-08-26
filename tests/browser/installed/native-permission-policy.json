@@ -15,7 +15,14 @@
       "id": "SMOKE-01.observe-none",
       "scenarioId": "SMOKE-01",
       "action": "observe-none",
-      "timeoutSeconds": 20,
+      "timeoutSeconds": 420,
+      "actionDelaySeconds": 0
+    },
+    {
+      "id": "SETTINGS-01.observe-none",
+      "scenarioId": "SETTINGS-01",
+      "action": "observe-none",
+      "timeoutSeconds": 420,
       "actionDelaySeconds": 0
     },
     {
@@ -91,6 +98,8 @@
     "coordinatesAllowed": false,
     "globalInputAllowed": false,
     "requiresUnlockedInteractiveSession": true,
+    "readinessHandshakeRequired": true,
+    "controlledObserveNoneStopRequired": true,
     "maximumTimeoutSeconds": 420,
     "maximumActionDelaySeconds": 360
   }

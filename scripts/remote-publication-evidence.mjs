@@ -2,13 +2,14 @@ import { createHash } from 'node:crypto';
 
 export const REMOTE_PUBLICATION_CAPTURE_SCHEMA = 'sitewipe.remote-publication-exact-head-capture.v2';
 export const REMOTE_PUBLICATION_CAPTURE_EXTERNAL_DIRECTORY = 'validation-output/remote-publication-captures';
+export const GITHUB_REST_API_VERSION = '2026-03-10';
 export const REMOTE_PUBLICATION_CAPTURE_STORAGE_POLICY = Object.freeze({
   relativeDirectory: REMOTE_PUBLICATION_CAPTURE_EXTERNAL_DIRECTORY,
   rawResponsesRetainedExternally: true,
   trackedInGit: false
 });
 export const REMOTE_PUBLICATION_CAPTURE_SOURCE = Object.freeze({
-  apiVersion: '2026-03-10',
+  apiVersion: GITHUB_REST_API_VERSION,
   authentication: 'authenticated-read-only',
   captureDigestMeaning: 'integrity-only-not-source-authentication',
   provider: 'github',
@@ -104,7 +105,11 @@ export function findRemotePublicationCaptureFindings({ capture, expected, now } 
   if (!capture) return ['External exact-head remote-publication capture is missing.'];
   try {
     validateRemotePublicationCapture(capture, expected, { now });
-    return [...REMOTE_PUBLICATION_NON_AUTOMATABLE_REQUIREMENTS];
+    const findings = [...REMOTE_PUBLICATION_NON_AUTOMATABLE_REQUIREMENTS.slice(0, 2)];
+    if (capture.observations.codeqlDismissedAlerts.projection.dismissedAlertCount > 0) {
+      findings.push(REMOTE_PUBLICATION_NON_AUTOMATABLE_REQUIREMENTS[2]);
+    }
+    return findings;
   } catch (error) {
     return [`External exact-head remote-publication capture is invalid: ${error?.message || String(error)}`];
   }

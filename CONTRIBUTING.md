@@ -6,12 +6,13 @@ The first-party source is MIT-licensed and publicly reviewable, but external con
 
 ## Setup
 
-Use Node.js 24 or later and npm 11 or later.
+The development compatibility floor is Node.js 24 and npm 11. Exact release-candidate evidence must use Node.js 24.18.1 with its bundled npm 11.16.0 so local and hosted development-SBOM bytes remain comparable.
 
 ```powershell
-npm ci --ignore-scripts
+npm ci --ignore-scripts --no-audit --no-fund
 npm run check
 npm run test:coverage
+npm audit --audit-level=low --json
 ```
 
 Development dependencies are locked. The extension itself has zero npm runtime dependencies and no compilation step; `src` is the reviewed runtime source.

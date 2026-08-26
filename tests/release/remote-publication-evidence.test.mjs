@@ -65,6 +65,22 @@ test('strict external capture validates while non-automatable human requirements
   assert.equal(REMOTE_PUBLICATION_CAPTURE_SOURCE.captureDigestMeaning, 'integrity-only-not-source-authentication');
 });
 
+test('a zero-dismissal exact candidate does not invent a CodeQL dismissal-review blocker', () => {
+  const capture = validCapture();
+  capture.observations.codeqlDismissedAlerts.projection = {
+    candidateHeadSha: expected.candidateHeadSha,
+    ref: `refs/heads/${expected.candidateBranch}`,
+    dismissedAlertCount: 0,
+    pagination: { complete: true, pageCount: 1, totalItems: 0 },
+    alerts: []
+  };
+  reseal(capture);
+  assert.deepEqual(
+    findRemotePublicationCaptureFindings({ capture, expected, now }),
+    REMOTE_PUBLICATION_NON_AUTOMATABLE_REQUIREMENTS.slice(0, 2)
+  );
+});
+
 test('expected binding requires the exact version-qualified branch and privacy-policy version', async (t) => {
   const mismatchedVersion = '9.8.6';
   const cases = [

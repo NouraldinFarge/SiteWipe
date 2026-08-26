@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "status": "local_automated_validation_failed",
+  "validatedAt": "2026-08-25T23:35:03.668Z",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
+  "environment": {
+    "node": "v24.18.0",
+    "npm": "11.16.0",
+    "scope": "Exact local 1.11.93 first complete-check attempt. The pinned npm 11.16.0 CLI launched child scripts through the then-current PATH-resolved Node v24.18.0. Format, version, syntax, types, lint, HTML, CSS, manifest, and remote-code stages passed; the secret/private-path scan stopped the command. Downstream safeguards, tests, property tests, coverage, artifacts, browsers, commit, push, and remote validation did not run."
+  },
+  "baseline": {
+    "beforeState": "The 1.11.92 record remains unchanged in automated-validation-2026-08-25-v1.11.92.json.",
+    "baselineVersion": "1.11.92",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-25-v1.11.92.json"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "failed",
+    "format": "passed",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.11.93",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "7884F251F8FD56D7EC4A8676DCF0FC4BC9790BD46FF56837A1013EF8A123334B",
+      "stableReleaseInputFingerprintSha256": "0FBF99145E648F862F72AA834DC075B2ED12B34776B4EBEC7BA5F2D7CBD97205",
+      "stableReleaseInputFiles": 310
+    },
+    "manifest": {
+      "status": "passed",
+      "version": "1.11.93"
+    },
+    "syntaxModules": 217,
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "html": "passed",
+    "css": "passed",
+    "remoteCode": "passed",
+    "secrets": "failed",
+    "failure": {
+      "stage": "check:secrets",
+      "findings": [
+        "tests/browser/installed/semantic-validator.test.mjs contained a synthetic negative-test literal that matched the repository's absolute private home-path detector."
+      ],
+      "interpretation": "The negative semantic-validation fixture was synthetic, but stable source must also satisfy the repository privacy scanner. Constructing the same rejected synthetic value from non-private source fragments requires a forward version and cannot be rebound to 1.11.93."
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "status": "not_run",
+      "reason": "The complete-check command stopped at the secret/private-path scan before the test and property-test stages."
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "not_run",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    }
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "not_run",
+    "installedPackages": null,
+    "auditedPackagesIncludingRoot": null,
+    "lifecycleScriptsDisabled": null,
+    "deprecationWarnings": []
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=low --json",
+    "status": "not_run",
+    "auditedAt": null,
+    "knownVulnerabilities": null,
+    "runtimeDependencies": null,
+    "lockedDevelopmentGraph": null,
+    "lockfileSha256": null
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "not_run",
+    "redactionCanaries": "not_run",
+    "privateContextPersistenceRefusal": "not_run",
+    "deterministicThirtyMinuteExpiry": "not_run"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "not_run",
+    "installedChromeRun": "not_run",
+    "installedBraveRun": "not_run"
+  },
+  "gitInitialization": {
+    "status": "not_run",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "No exact 1.11.93 candidate commit, clean-checkout validation, push, or remote check was performed."
+  },
+  "artifacts": {
+    "status": "not_run",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.93.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.93-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "not_run",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.93.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.93.unsigned-provenance-input.json",
+    "remoteAttestation": "not_run",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "Exact 1.11.93 failed its first complete check at the secret/private-path scan after format, version, syntax, types, lint, HTML, CSS, manifest, and remote-code stages passed.",
+      "Later safeguards, tests, property tests, coverage, artifacts, installed browsers, accessibility, performance, media, independent review, commit, push, and remote validation did not run."
+    ]
+  },
+  "limitations": [
+    "No automated, installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior.",
+    "Exact 1.11.93 has no complete local safeguard result and cannot be reused after its stable synthetic-fixture correction.",
+    "No coverage, artifact, browser, accessibility, performance, media, Git publication, or remote result is claimed for 1.11.93."
+  ]
+}

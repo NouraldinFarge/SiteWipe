@@ -17,6 +17,13 @@ import {
   computePlanSha256,
   validateBrowserPlan
 } from './evidence-contract.mjs';
+import { SEMANTIC_VALIDATOR_MANIFEST_SHA256 } from './semantic-validator.mjs';
+import { computeBrowserRuntimeSetSha256 } from './browser-runtime-closure.mjs';
+import { INSTALLED_RUNTIME_LAUNCH_POLICY_SHA256 } from './launch-policy.mjs';
+import {
+  INSTALLED_BROWSER_TOOLCHAIN_SUMMARY_KEYS,
+  validateInstalledBrowserToolchainSummary
+} from './toolchain-closure.mjs';
 import { FIXTURE_ALLOWED_METHODS, FIXTURE_ALLOWED_ROUTES, SYNTHETIC_FIXTURE_HOSTS } from '../fixture-server.mjs';
 import {
   NATIVE_PROMPT_ALLOWED_ACTIONS,
@@ -95,6 +102,9 @@ export function createUnattendedBrowserPlanRecord({
   gitIdentity,
   nodeIdentity,
   helperIdentity,
+  processObserver,
+  toolchainSummary,
+  nodeRuntimeVersion,
   createdAt,
   randomBytesFn,
   retention
@@ -102,6 +112,7 @@ export function createUnattendedBrowserPlanRecord({
   if (source.packageVersion !== artifactIdentity.version) {
     throw new Error('Browser-plan artifact version differs from the exact committed source package version.');
   }
+  validateInstalledBrowserToolchainSummary(toolchainSummary);
   const runBytes = Buffer.from(randomBytesFn(16));
   if (runBytes.length !== 16) throw new Error('Browser-plan run ID entropy source must return exactly 16 bytes.');
 
@@ -113,19 +124,30 @@ export function createUnattendedBrowserPlanRecord({
     createdAt,
     requiredBrowsers: [...REQUIRED_BROWSERS],
     requiredMatrixIds: [...CANONICAL_BROWSER_MATRIX_IDS],
+    semanticValidatorManifestSha256: SEMANTIC_VALIDATOR_MANIFEST_SHA256,
     identity: {
       sourceCommitSha: source.commitSha,
       sourceTreeSha: source.treeSha,
       artifactVersion: artifactIdentity.version,
       artifactBytes: artifactIdentity.bytes,
       artifactSha256: artifactIdentity.sha256,
+      browserRuntimeSetSha256: computeBrowserRuntimeSetSha256(browserPins),
       harnessManifestSha256: source.harnessManifestSha256,
+      launchPolicySha256: INSTALLED_RUNTIME_LAUNCH_POLICY_SHA256,
       gitExecutableSha256: gitIdentity.sha256,
       nativeHelperSha256: helperIdentity.sha256,
+      processObserverHelperSha256: processObserver.helperSha256,
+      powerShellExecutableSha256: processObserver.powershellSha256,
       nodeExecutableSha256: nodeIdentity.sha256,
+      nodeRuntimeVersion,
       packageLockSha256: source.packageLockSha256,
       releaseInputFingerprintSha256: source.releaseInputFingerprintSha256,
-      runtimeFingerprintSha256: source.runtimeFingerprintSha256
+      runtimeFingerprintSha256: source.runtimeFingerprintSha256,
+      toolchainPuppeteerVersion: toolchainSummary.toolchainPuppeteerVersion,
+      toolchainPackageCount: toolchainSummary.toolchainPackageCount,
+      toolchainFileCount: toolchainSummary.toolchainFileCount,
+      toolchainBytes: toolchainSummary.toolchainBytes,
+      toolchainSetSha256: toolchainSummary.toolchainSetSha256
     },
     inputs: {
       repositoryRoot: repositoryPath,
@@ -133,6 +155,8 @@ export function createUnattendedBrowserPlanRecord({
       artifactPath: artifactIdentity.path,
       git: structuredClone(gitIdentity),
       browserPins,
+      browserRuntimeSetSha256: computeBrowserRuntimeSetSha256(browserPins),
+      launchPolicySha256: INSTALLED_RUNTIME_LAUNCH_POLICY_SHA256,
       fixture: {
         bindAddresses: [...FIXED_FIXTURE_BIND_ADDRESSES],
         allowedHosts: [...SYNTHETIC_FIXTURE_HOSTS],
@@ -152,6 +176,11 @@ export function createUnattendedBrowserPlanRecord({
         uiaSnapshots: structuredClone(NATIVE_PROMPT_UIA_SNAPSHOTS),
         requiresUnlockedInteractiveSession: true
       },
+      processObserver: structuredClone(processObserver),
+      toolchain: {
+        nodeRuntimeVersion,
+        ...Object.fromEntries(INSTALLED_BROWSER_TOOLCHAIN_SUMMARY_KEYS.map((key) => [key, toolchainSummary[key]]))
+      },
       retention: structuredClone(retention)
     },
     approval: {
@@ -166,9 +195,15 @@ export function createUnattendedBrowserPlanRecord({
   return deepFreeze(plan);
 }
 
-export function assertApprovedBrowserPlanObservation(plan, { gitIdentity, identity, browserPins }) {
+export function assertApprovedBrowserPlanObservation(
+  plan,
+  { gitIdentity, identity, browserPins, processObserver, toolchain }
+) {
   if (stableJson(gitIdentity) !== stableJson(plan.inputs.git)) {
     throw new Error('Approved trusted Git executable identity changed.');
+  }
+  if (stableJson(toolchain) !== stableJson(plan.inputs.toolchain)) {
+    throw new Error('Approved installed-executor toolchain closure or Node version changed.');
   }
   if (stableJson(identity) !== stableJson(plan.identity)) {
     throw new Error(
@@ -177,6 +212,9 @@ export function assertApprovedBrowserPlanObservation(plan, { gitIdentity, identi
   }
   if (stableJson(browserPins) !== stableJson(plan.inputs.browserPins)) {
     throw new Error('Approved browser executable identity changed or differs from canonical installed-browser policy.');
+  }
+  if (stableJson(processObserver) !== stableJson(plan.inputs.processObserver)) {
+    throw new Error('Approved process-observer or PowerShell identity changed.');
   }
   return plan;
 }

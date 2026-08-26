@@ -7,11 +7,23 @@ import {
   CANONICAL_BROWSER_MATRIX_IDS,
   CANONICAL_BROWSER_MATRIX_SHA256
 } from './browser-validation-policy.mjs';
+import {
+  BROWSER_PUBLIC_SEMANTIC_REPLAY,
+  BROWSER_SEMANTIC_RECEIPT_IDENTITY_KEYS,
+  validateBrowserSemanticReceipts
+} from './browser-semantic-receipts.mjs';
+import {
+  inspectIsoBmffMp4Container,
+  inspectPngContainer,
+  MP4_DURATION_TOLERANCE_SECONDS
+} from './media-container-validation.mjs';
+import { EXACT_DEPENDENCY_AUDIT_COMMAND, EXACT_LOCKED_DEPENDENCY_INSTALL_COMMAND } from './evidence-reset.mjs';
+
+export { BROWSER_PUBLIC_SEMANTIC_REPLAY } from './browser-semantic-receipts.mjs';
 
 export const BROWSER_PUBLICATION_BINDING_SCHEMA = 'sitewipe.private-installed-browser-run-commitment.v1';
 export const BROWSER_PUBLICATION_NOT_RUN_STATUS = 'not_run';
-export const BROWSER_PRIVATE_EVIDENCE_RETAINED_STATUS = 'private_evidence_retained_public_replay_unavailable';
-export const BROWSER_PUBLIC_SEMANTIC_REPLAY = 'not_implemented';
+export const BROWSER_PRIVATE_EVIDENCE_RETAINED_STATUS = 'private_evidence_retained_public_semantic_replay_available';
 
 const EMPTY_BROWSER_COMMITMENT_KEYS = Object.freeze(['schema', 'status']);
 const TRACKED_BROWSER_EVIDENCE_KEYS = Object.freeze([
@@ -125,26 +137,19 @@ const RETAINED_BROWSER_COMMITMENT_KEYS = Object.freeze([
   'schema',
   'status'
 ]);
-const BROWSER_COMMITMENT_IDENTITY_KEYS = Object.freeze([
-  'artifactSha256',
-  'artifactVersion',
-  'gitExecutableSha256',
-  'harnessManifestSha256',
-  'nativeHelperSha256',
-  'nodeExecutableSha256',
-  'packageLockSha256',
-  'releaseInputFingerprintSha256',
-  'runtimeFingerprintSha256',
-  'sourceCommitSha',
-  'sourceTreeSha'
-]);
+const BROWSER_COMMITMENT_IDENTITY_KEYS = BROWSER_SEMANTIC_RECEIPT_IDENTITY_KEYS;
 const EXPECTED_PRIVATE_RESULT_RECORD_COUNT = CANONICAL_BROWSER_MATRIX_IDS.length * 2;
-const EXACT_POST_BROWSER_EVIDENCE_DELTA = Object.freeze(['docs/evidence/browser-validation.json']);
-const PRIVATE_REPLAY_UNAVAILABLE_BLOCKER =
-  'Private installed-browser evidence is retained, but public semantic replay is not implemented; digests and record counts cannot establish passing browser cells.';
+const REQUIRED_POST_BROWSER_EVIDENCE_DELTA = Object.freeze([
+  'docs/evidence/evidence-finalization-manifest.json',
+  'docs/evidence/browser-semantic-receipts.json',
+  'docs/evidence/browser-validation.json'
+]);
+const MISSING_PUBLIC_SEMANTIC_RECEIPT_BLOCKER =
+  'Private installed-browser evidence is retained, but docs/evidence/browser-semantic-receipts.json is missing or invalid.';
 
 export function findBrowserEvidenceFindings({
   browser,
+  semanticReceipts = null,
   runtimeArtifactSha256,
   runtimeFingerprintSha256,
   releaseInputFingerprintSha256,
@@ -166,6 +171,7 @@ export function findBrowserEvidenceFindings({
   findings.push(
     ...findInstalledCommitmentFindings({
       binding: browser?.installedEvidence,
+      semanticReceipts,
       runtimeArtifactSha256,
       runtimeFingerprintSha256,
       releaseInputFingerprintSha256,
@@ -307,6 +313,7 @@ export function findTrackedBrowserEvidencePrivacyFindings(browser) {
 
 function findInstalledCommitmentFindings({
   binding,
+  semanticReceipts,
   runtimeArtifactSha256,
   runtimeFingerprintSha256,
   releaseInputFingerprintSha256,
@@ -333,11 +340,11 @@ function findInstalledCommitmentFindings({
     return findings;
   }
   if (binding.status !== BROWSER_PRIVATE_EVIDENCE_RETAINED_STATUS) {
-    return ['Installed browser commitment has an unknown explicitly non-passing status.'];
+    return ['Installed browser commitment has an unknown private-run retention status.'];
   }
   if (!hasExactKeys(binding, RETAINED_BROWSER_COMMITMENT_KEYS)) {
     findings.push('The retained private-run commitment differs from the exact digest-only public schema.');
-    findings.push(PRIVATE_REPLAY_UNAVAILABLE_BLOCKER);
+    findings.push(MISSING_PUBLIC_SEMANTIC_RECEIPT_BLOCKER);
     return findings;
   }
 
@@ -363,7 +370,7 @@ function findInstalledCommitmentFindings({
     binding.publicSemanticReplay !== BROWSER_PUBLIC_SEMANTIC_REPLAY
   ) {
     findings.push(
-      'Private-run commitment must retain exactly the canonical record count, completion time, private-retention proof, and non-implemented public replay state.'
+      'Private-run commitment must retain exactly the canonical record count, completion time, private-retention proof, and path-free semantic replay contract.'
     );
   }
 
@@ -374,11 +381,23 @@ function findInstalledCommitmentFindings({
     const identityHashes = BROWSER_COMMITMENT_IDENTITY_KEYS.filter((key) => key.endsWith('Sha256'));
     if (
       !isSemanticVersion(identity.artifactVersion) ||
+      !Number.isInteger(identity.artifactBytes) ||
+      identity.artifactBytes <= 0 ||
+      !/^v\d+\.\d+\.\d+$/.test(String(identity.nodeRuntimeVersion || '')) ||
+      identity.toolchainPuppeteerVersion !== '25.8.0' ||
+      !Number.isSafeInteger(identity.toolchainPackageCount) ||
+      identity.toolchainPackageCount <= 0 ||
+      !Number.isSafeInteger(identity.toolchainFileCount) ||
+      identity.toolchainFileCount <= 0 ||
+      !Number.isSafeInteger(identity.toolchainBytes) ||
+      identity.toolchainBytes <= 0 ||
       !isGitObjectId(identity.sourceCommitSha) ||
       !isGitObjectId(identity.sourceTreeSha) ||
       identityHashes.some((key) => !isSha256(identity[key]))
     ) {
-      findings.push('Private-run commitment identity contains a malformed hash, version, commit, or tree.');
+      findings.push(
+        'Private-run commitment identity contains a malformed byte/count/hash, runtime/toolchain version, commit, or tree.'
+      );
     }
     if (
       !isSha256(runtimeArtifactSha256) ||
@@ -401,16 +420,53 @@ function findInstalledCommitmentFindings({
       finalSource.testedPackageLockSha256 !== identity.packageLockSha256 ||
       finalSource.testedRuntimeFingerprintSha256 !== identity.runtimeFingerprintSha256 ||
       finalSource.testedReleaseInputFingerprintSha256 !== identity.releaseInputFingerprintSha256 ||
-      !exactArray(finalSource.changedPaths, EXACT_POST_BROWSER_EVIDENCE_DELTA)
+      finalSource.evidenceFinalizationValidated !== true ||
+      !exactArray(finalSource.changedPaths, finalSource.evidenceFinalizationChangedPaths) ||
+      REQUIRED_POST_BROWSER_EVIDENCE_DELTA.some((path) => !finalSource.changedPaths.includes(path))
     ) {
       findings.push(
-        'Private-run commitment identity does not match the authoritative tested commit ancestry, tree, harness, lockfile, stable fingerprints, and exact browser-evidence-only final delta.'
+        'Private-run commitment identity does not match the authoritative tested commit ancestry, tree, harness, lockfile, stable fingerprints, and validated evidence-finalization-only final delta.'
       );
     }
   }
 
-  findings.push(PRIVATE_REPLAY_UNAVAILABLE_BLOCKER);
+  findings.push(...findBrowserSemanticReceiptFindings({ binding, semanticReceipts }));
   return findings;
+}
+
+function findBrowserSemanticReceiptFindings({ binding, semanticReceipts }) {
+  if (!isPlainObject(semanticReceipts)) return [MISSING_PUBLIC_SEMANTIC_RECEIPT_BLOCKER];
+  try {
+    validateBrowserSemanticReceipts(semanticReceipts);
+  } catch {
+    return [MISSING_PUBLIC_SEMANTIC_RECEIPT_BLOCKER];
+  }
+  try {
+    validateBrowserSemanticReceipts(semanticReceipts, {
+      expected: {
+        aggregateSha256: binding.aggregateSha256,
+        completedAt: binding.completedAt,
+        executionPlanSha256: binding.executionPlanSha256,
+        identity: binding.identity,
+        matrixSha256: binding.matrixSha256,
+        matrixVersion: binding.matrixVersion,
+        privateEvidenceRetained: binding.privateEvidenceRetained,
+        publicSemanticReplay: binding.publicSemanticReplay,
+        resultRecordCount: binding.resultRecordCount,
+        resultSetSha256: binding.resultSetSha256,
+        runId: binding.runId
+      }
+    });
+  } catch {
+    return ['The path-free browser semantic receipt does not exactly bind every retained private-run commitment.'];
+  }
+
+  if (semanticReceipts.status !== 'passed') {
+    return [
+      `The path-free browser semantic receipt replay is ${semanticReceipts.status}; every canonical Chrome and Brave cell must pass.`
+    ];
+  }
+  return [];
 }
 
 function findForbiddenBrowserCommitmentField(value, prefix = 'installedEvidence') {
@@ -711,8 +767,18 @@ export function findPerformanceEvidenceFindings({ performance, runtimeArtifactSh
   return findings;
 }
 
-export async function findMediaEvidenceFindings({ media, root, runtimeArtifactSha256, readAssetBytes = readFile }) {
+export async function findMediaEvidenceFindings({
+  media,
+  root,
+  artifactVersion,
+  runtimeArtifactSha256,
+  finalizedMediaEntries,
+  readAssetBytes = readFile
+}) {
   const findings = [];
+  const currentPaths = currentMediaPaths(artifactVersion);
+  if (!currentPaths) findings.push('Media evidence is missing the exact current artifact version.');
+  const referencedAssetsByPath = new Map();
   const screenshots = media?.screenshots;
   if (
     !Number.isInteger(media?.authenticScreenshotCount) ||
@@ -734,9 +800,14 @@ export async function findMediaEvidenceFindings({ media, root, runtimeArtifactSh
         root,
         expectedWidth: 1280,
         expectedHeight: 800,
+        expectedFormat: 'png',
+        expectedPathPattern: currentPaths?.screenshotPattern,
+        prohibitedPaths: currentPaths?.roleSpecificPaths,
         runtimeArtifactSha256,
         requiresArtifactBinding: true,
         requiresCaptureDate: true,
+        requiresFinalizationBinding: true,
+        referencedAssetsByPath,
         readAssetBytes,
         findings
       });
@@ -761,9 +832,15 @@ export async function findMediaEvidenceFindings({ media, root, runtimeArtifactSh
       asset: media.demo,
       label: 'Authentic demo',
       root,
+      expectedFormat: 'mp4',
+      expectedPath: currentPaths?.demo,
+      declaredDurationSeconds: media.demo.durationSeconds,
       runtimeArtifactSha256,
       requiresArtifactBinding: true,
       requiresCaptureDate: true,
+      requiresFinalizationBinding: true,
+      requiresPositiveDimensions: true,
+      referencedAssetsByPath,
       readAssetBytes,
       findings
     });
@@ -780,6 +857,8 @@ export async function findMediaEvidenceFindings({ media, root, runtimeArtifactSh
     root,
     expectedWidth: 128,
     expectedHeight: 128,
+    expectedFormat: 'png',
+    expectedPath: 'src/assets/icons/icon128.png',
     readAssetBytes,
     findings
   });
@@ -789,6 +868,10 @@ export async function findMediaEvidenceFindings({ media, root, runtimeArtifactSh
     root,
     expectedWidth: 440,
     expectedHeight: 280,
+    expectedFormat: 'png',
+    expectedPath: currentPaths?.promotionalTile,
+    requiresFinalizationBinding: true,
+    referencedAssetsByPath,
     readAssetBytes,
     findings
   });
@@ -798,6 +881,10 @@ export async function findMediaEvidenceFindings({ media, root, runtimeArtifactSh
     root,
     expectedWidth: 1400,
     expectedHeight: 560,
+    expectedFormat: 'png',
+    expectedPath: currentPaths?.marquee,
+    requiresFinalizationBinding: true,
+    referencedAssetsByPath,
     readAssetBytes,
     findings
   });
@@ -807,6 +894,10 @@ export async function findMediaEvidenceFindings({ media, root, runtimeArtifactSh
     root,
     expectedWidth: 1280,
     expectedHeight: 640,
+    expectedFormat: 'png',
+    expectedPath: currentPaths?.githubSocialPreview,
+    requiresFinalizationBinding: true,
+    referencedAssetsByPath,
     readAssetBytes,
     findings
   });
@@ -823,9 +914,14 @@ export async function findMediaEvidenceFindings({ media, root, runtimeArtifactSh
         root,
         expectedWidth: 1280,
         expectedHeight: 800,
+        expectedFormat: 'png',
+        expectedPathPattern: currentPaths?.screenshotPattern,
+        prohibitedPaths: currentPaths?.roleSpecificPaths,
         runtimeArtifactSha256,
         requiresArtifactBinding: true,
         requiresCaptureDate: true,
+        requiresFinalizationBinding: true,
+        referencedAssetsByPath,
         readAssetBytes,
         findings
       });
@@ -839,6 +935,7 @@ export async function findMediaEvidenceFindings({ media, root, runtimeArtifactSh
       findings.push('Store screenshot assets do not match the approved authentic screenshot set.');
     }
   }
+  validateFinalizedMediaEntryBinding({ finalizedMediaEntries, referencedAssetsByPath, findings });
   return findings;
 }
 
@@ -949,15 +1046,60 @@ export function findDependencyCandidateAuditFindings({ inventory, version }) {
   return findings;
 }
 
+export function findAutomatedDependencyProtocolFindings({ automated, lockedDevelopmentGraph }) {
+  const findings = [];
+  const install = automated?.dependencyInstall;
+  if (
+    install?.command !== EXACT_LOCKED_DEPENDENCY_INSTALL_COMMAND ||
+    install?.status !== 'passed' ||
+    !Number.isInteger(install?.installedPackages) ||
+    install.installedPackages <= 0 ||
+    install?.auditedPackagesIncludingRoot !== null ||
+    install?.lifecycleScriptsDisabled !== true
+  ) {
+    findings.push(
+      'Automated dependency installation does not prove the exact locked no-script/no-audit/no-fund protocol.'
+    );
+  }
+
+  const audit = automated?.dependencyAudit;
+  const vulnerabilities = audit?.vulnerabilities;
+  if (
+    audit?.command !== EXACT_DEPENDENCY_AUDIT_COMMAND ||
+    audit?.status !== 'passed' ||
+    !isIsoDateOrTimestamp(audit?.auditedAt) ||
+    audit?.knownVulnerabilities !== 0 ||
+    audit?.runtimeDependencies !== 0 ||
+    audit?.lockedDevelopmentGraph !== lockedDevelopmentGraph ||
+    !isPlainObject(vulnerabilities) ||
+    ['info', 'low', 'moderate', 'high', 'critical', 'total'].some(
+      (severity) => !Number.isInteger(vulnerabilities[severity]) || vulnerabilities[severity] !== 0
+    )
+  ) {
+    findings.push(
+      'Automated dependency audit does not prove the exact low-threshold JSON protocol with zero findings at every severity.'
+    );
+  }
+  return findings;
+}
+
 async function validateMediaAsset({
   asset,
   label,
   root,
   expectedWidth,
   expectedHeight,
+  expectedFormat,
+  expectedPath,
+  expectedPathPattern,
+  prohibitedPaths,
+  declaredDurationSeconds,
   runtimeArtifactSha256,
   requiresArtifactBinding = false,
   requiresCaptureDate = false,
+  requiresFinalizationBinding = false,
+  requiresPositiveDimensions = false,
+  referencedAssetsByPath,
   readAssetBytes,
   findings
 }) {
@@ -965,19 +1107,50 @@ async function validateMediaAsset({
     findings.push(`${label} must be an integrity-bound asset object.`);
     return;
   }
+  if (!isNormalizedRepositoryPath(asset.path)) {
+    findings.push(`${label} has an unsafe or missing repository-relative path.`);
+    return;
+  }
+  const absolutePath = resolve(root, ...asset.path.split('/'));
+  const rootRelation = relative(root, absolutePath);
   if (
-    !isNonEmptyString(asset.path) ||
-    isAbsolute(asset.path) ||
-    relative(root, resolve(root, asset.path)).startsWith('..')
+    !rootRelation ||
+    rootRelation === '..' ||
+    rootRelation.startsWith(`..${pathSeparator()}`) ||
+    isAbsolute(rootRelation)
   ) {
     findings.push(`${label} has an unsafe or missing repository-relative path.`);
     return;
+  }
+  if (expectedPath !== undefined && asset.path !== expectedPath) {
+    findings.push(`${label} must use the exact current path ${expectedPath}.`);
+  }
+  if (expectedPathPattern && !expectedPathPattern.test(asset.path)) {
+    findings.push(`${label} must use the exact current versioned media path pattern.`);
+  }
+  if (prohibitedPaths?.has(asset.path)) {
+    findings.push(`${label} cannot reuse a role-specific promotional media path.`);
+  }
+  if (requiresFinalizationBinding) {
+    if (!asset.path.startsWith('docs/evidence/media/')) {
+      findings.push(`${label} must be a current post-browser docs/evidence/media asset.`);
+    } else {
+      const references = referencedAssetsByPath.get(asset.path) || [];
+      references.push(asset);
+      referencedAssetsByPath.set(asset.path, references);
+    }
   }
   if (expectedWidth !== undefined && asset.width !== expectedWidth) {
     findings.push(`${label} width must be ${expectedWidth}.`);
   }
   if (expectedHeight !== undefined && asset.height !== expectedHeight) {
     findings.push(`${label} height must be ${expectedHeight}.`);
+  }
+  if (
+    requiresPositiveDimensions &&
+    (!Number.isInteger(asset.width) || asset.width <= 0 || !Number.isInteger(asset.height) || asset.height <= 0)
+  ) {
+    findings.push(`${label} must declare positive integral video dimensions.`);
   }
   if (requiresArtifactBinding && asset.artifactSha256 !== runtimeArtifactSha256) {
     findings.push(`${label} is not bound to the current runtime artifact SHA-256.`);
@@ -990,13 +1163,129 @@ async function validateMediaAsset({
     return;
   }
   try {
-    const bytes = await readAssetBytes(resolve(root, asset.path));
+    const bytes = await readAssetBytes(absolutePath);
     if (bytes.byteLength !== asset.bytes || sha256(bytes) !== asset.sha256) {
       findings.push(`${label} does not match its retained bytes and SHA-256.`);
+    }
+    // This is deliberately a structural byte/container check. The caller's
+    // separate media.status=approved + reviewerApproval=true gate represents
+    // the actual playback and frame-by-frame visual review.
+    let inspected;
+    try {
+      inspected = expectedFormat === 'mp4' ? inspectIsoBmffMp4Container(bytes) : inspectPngContainer(bytes);
+    } catch {
+      findings.push(`${label} bytes are not one structurally valid bounded ${expectedFormat.toUpperCase()} container.`);
+      return;
+    }
+    if (inspected.width !== asset.width || inspected.height !== asset.height) {
+      findings.push(`${label} declared dimensions do not match dimensions parsed from its retained bytes.`);
+    }
+    if (
+      expectedFormat === 'mp4' &&
+      (!Number.isFinite(declaredDurationSeconds) ||
+        Math.abs(inspected.durationSeconds - declaredDurationSeconds) > MP4_DURATION_TOLERANCE_SECONDS)
+    ) {
+      findings.push(
+        `${label} declared duration differs from its mvhd duration by more than ${MP4_DURATION_TOLERANCE_SECONDS} second.`
+      );
     }
   } catch {
     findings.push(`${label} file is missing or unreadable.`);
   }
+}
+
+function currentMediaPaths(artifactVersion) {
+  if (!isSemanticVersion(artifactVersion)) return null;
+  const prefix = `docs/evidence/media/sitewipe-${artifactVersion}-`;
+  const promotionalTile = `${prefix}promotional-tile-440x280.png`;
+  const marquee = `${prefix}marquee-1400x560.png`;
+  const githubSocialPreview = `${prefix}github-social-preview-1280x640.png`;
+  return Object.freeze({
+    demo: `${prefix}demo.mp4`,
+    githubSocialPreview,
+    marquee,
+    promotionalTile,
+    roleSpecificPaths: new Set([githubSocialPreview, marquee, promotionalTile]),
+    screenshotPattern: new RegExp(`^${escapeRegExp(prefix)}[a-z0-9][a-z0-9-]{1,95}\\.png$`)
+  });
+}
+
+function validateFinalizedMediaEntryBinding({ finalizedMediaEntries, referencedAssetsByPath, findings }) {
+  if (!Array.isArray(finalizedMediaEntries)) {
+    findings.push('Finalized media entries are missing from the exact final-pass evidence snapshot.');
+    return;
+  }
+  const validEntries = [];
+  for (const [index, entry] of finalizedMediaEntries.entries()) {
+    if (
+      !hasExactKeys(entry, ['bytes', 'kind', 'path', 'sha256']) ||
+      entry.kind !== 'media' ||
+      !isNormalizedRepositoryPath(entry.path) ||
+      !Number.isSafeInteger(entry.bytes) ||
+      entry.bytes <= 0 ||
+      !isSha256(entry.sha256)
+    ) {
+      findings.push(`Finalized media entry ${index + 1} is malformed or not exactly kind=media.`);
+      continue;
+    }
+    validEntries.push(entry);
+  }
+  const inventoryEntries = validEntries.filter(({ path }) => path === 'docs/evidence/media-inventory.json');
+  if (inventoryEntries.length !== 1) {
+    findings.push('Finalized media entries must contain exactly one media-inventory metadata record.');
+  }
+  const assetEntries = validEntries.filter(({ path }) => path.startsWith('docs/evidence/media/'));
+  const unsupportedEntries = validEntries.filter(
+    ({ path }) => path !== 'docs/evidence/media-inventory.json' && !path.startsWith('docs/evidence/media/')
+  );
+  if (unsupportedEntries.length) {
+    findings.push('Finalized media entries contain a path outside the exact media metadata/asset boundary.');
+  }
+  const actualPaths = assetEntries.map(({ path }) => path).sort();
+  const expectedPaths = [...referencedAssetsByPath.keys()].sort();
+  if (new Set(actualPaths).size !== actualPaths.length) {
+    findings.push('Finalized media asset entries contain duplicate or ambiguous paths.');
+  }
+  if (!exactArray(actualPaths, expectedPaths)) {
+    findings.push(
+      'Finalized media asset entry paths must exactly equal the distinct current post-browser media references.'
+    );
+  }
+  for (const path of expectedPaths) {
+    const entries = assetEntries.filter((entry) => entry.path === path);
+    if (entries.length !== 1) {
+      findings.push(`Referenced current media asset ${path} lacks one exact kind=media finalization entry.`);
+      continue;
+    }
+    const entry = entries[0];
+    if (
+      referencedAssetsByPath.get(path).some((asset) => asset.bytes !== entry.bytes || asset.sha256 !== entry.sha256)
+    ) {
+      findings.push(`Referenced current media asset ${path} differs from its exact finalization entry.`);
+    }
+  }
+}
+
+function isNormalizedRepositoryPath(value) {
+  return (
+    isNonEmptyString(value) &&
+    value === value.trim() &&
+    !value.includes('\\') &&
+    !value.includes('\0') &&
+    !value.startsWith('/') &&
+    !isAbsolute(value) &&
+    !win32.isAbsolute(value) &&
+    value === posix.normalize(value) &&
+    !value.split('/').includes('..')
+  );
+}
+
+function pathSeparator() {
+  return process.platform === 'win32' ? '\\' : '/';
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function summarizeDurations(values) {

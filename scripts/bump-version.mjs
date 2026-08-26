@@ -5,8 +5,8 @@ import { resolve } from 'node:path';
 import { format, resolveConfig } from 'prettier';
 
 import {
-  computeReleaseInputFingerprint,
-  computeRuntimeFingerprint,
+  collectVersionFingerprintPaths,
+  computeVersionFingerprintSnapshot,
   projectRoot,
   resolveNextVersion,
   runtimeArtifactBase
@@ -21,7 +21,7 @@ import {
   resetPerformanceEvidence,
   resetProvenanceTechnicalEvidence
 } from './evidence-reset.mjs';
-import { transactionalWriteFiles } from './transactional-files.mjs';
+import { assertFileTransactionCanStart, transactionalWriteFiles } from './transactional-files.mjs';
 import {
   BROWSER_MATRIX_VERSION,
   CANONICAL_BROWSER_MATRIX_IDS,
@@ -32,7 +32,10 @@ import {
   stageValidationEvidenceVersionTransition
 } from './validation-evidence.mjs';
 
+await assertFileTransactionCanStart(projectRoot, 'sitewipe-version-bump');
+
 const updates = new Map();
+const expectedOriginals = new Map();
 const request = process.argv[2] || 'patch';
 const currentStatus =
   'Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.';
@@ -112,7 +115,7 @@ browser.automationAttempt = null;
 browser.installedEvidence = emptyInstalledBrowserEvidence();
 browser.limitations = [
   'Node tests and static checks do not establish installed Chrome behavior.',
-  'Canonical per-assertion installed-browser semantic validators are not implemented, so the mechanical 48-cell aggregate is required to remain not_run.',
+  'Only canonical assertions with both an implemented semantic validator and authentic exact-artifact executor observations may pass; every unimplemented, unobserved, unsupported, ambiguous, or incomplete assertion remains non-passing in the mechanical 48-cell aggregate.',
   'Chrome evidence cannot be reused as Brave evidence.',
   'No browser version or extension artifact hash is approved until the matrix is actually run.',
   'Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion.',
@@ -139,6 +142,7 @@ const media = resetMediaEvidence(await json('docs/evidence/media-inventory.json'
 });
 queueJson('docs/evidence/media-inventory.json', media);
 
+await source('docs/evidence/automated-validation-current.json');
 const validationEvidenceTransition = await planValidationEvidenceVersionTransition(projectRoot, {
   previousVersion,
   nextVersion,
@@ -167,8 +171,16 @@ for (const path of ['CHANGELOG.md', 'docs/architecture.md', 'docs/release-readin
   );
 }
 
-const fingerprint = await computeRuntimeFingerprint(projectRoot, updates);
-const releaseInputFingerprint = await computeReleaseInputFingerprint(projectRoot, updates);
+const fingerprintSnapshot = await computeVersionFingerprintSnapshot(projectRoot, updates);
+const fingerprint = fingerprintSnapshot.runtimeFingerprintSha256;
+const releaseInputFingerprint = fingerprintSnapshot.releaseInputFingerprint;
+const validationRecordInputPath = validationEvidenceTransition.current.relativePath;
+if (fingerprintSnapshot.inputs.has(validationRecordInputPath)) {
+  throw new Error('Current validation evidence record unexpectedly entered the stable version fingerprint inventory.');
+}
+const versionTransactionInputSnapshot = new Map(fingerprintSnapshot.inputs);
+versionTransactionInputSnapshot.set(validationRecordInputPath, validationEvidenceTransition.previousBytes);
+await source('docs/evidence/version-state.json');
 updates.set(
   'docs/evidence/version-state.json',
   `${JSON.stringify(
@@ -194,7 +206,20 @@ const validationCreateOnlyPaths = stageValidationEvidenceVersionTransition(
   automated
 );
 await transactionalWriteFiles(projectRoot, updates, 'sitewipe-version-bump', {
-  createOnlyPaths: validationCreateOnlyPaths
+  createOnlyPaths: validationCreateOnlyPaths,
+  expectedOriginals: new Map(
+    [...expectedOriginals].filter(([path]) => updates.has(path) && !validationCreateOnlyPaths.has(path))
+  ),
+  expectedInputSnapshot: versionTransactionInputSnapshot,
+  resolveInputPaths: async () => {
+    const { allPaths } = await collectVersionFingerprintPaths(projectRoot);
+    if (allPaths.includes(validationRecordInputPath)) {
+      throw new Error(
+        'Current validation evidence record unexpectedly entered the stable version fingerprint inventory.'
+      );
+    }
+    return [...allPaths, validationRecordInputPath].sort();
+  }
 });
 
 console.log(
@@ -213,7 +238,10 @@ console.log(
 );
 
 async function source(relative) {
-  return updates.get(relative) ?? readFile(resolve(projectRoot, relative), 'utf8');
+  if (updates.has(relative)) return updates.get(relative);
+  const value = await readFile(resolve(projectRoot, relative), 'utf8');
+  if (!expectedOriginals.has(relative)) expectedOriginals.set(relative, value);
+  return value;
 }
 
 async function json(relative) {

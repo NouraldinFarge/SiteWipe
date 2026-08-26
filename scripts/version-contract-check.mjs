@@ -5,6 +5,7 @@ import {
   assertSemanticVersion,
   computeReleaseInputFingerprint,
   computeRuntimeFingerprint,
+  computeVersionFingerprintFromSourceEntries,
   projectRoot,
   runtimeArtifactBase,
   sha256
@@ -23,10 +24,19 @@ export class VersionContractError extends Error {
 export async function validateVersionContract({
   root = projectRoot,
   requireArtifact = false,
-  artifactDirectory = resolve(root, 'dist', 'current')
+  artifactDirectory = resolve(root, 'dist', 'current'),
+  committedSourceEntries = undefined,
+  runtimeArtifactBytes = undefined
 } = {}) {
   const errors = [];
-  const text = (path) => readFile(resolve(root, path), 'utf8');
+  const committedMode = committedSourceEntries !== undefined;
+  if (!committedMode && runtimeArtifactBytes !== undefined) {
+    throw new Error('Captured runtime artifact bytes require committed source entries.');
+  }
+  const committedSourceByPath = committedMode ? captureCommittedSourceBytes(committedSourceEntries) : null;
+  const text = committedMode
+    ? async (path) => decodeExactUtf8(requireCommittedSourceBytes(committedSourceByPath, path), path)
+    : (path) => readFile(resolve(root, path), 'utf8');
   const json = async (path) => JSON.parse(await text(path));
   const requireValue = (value, message) => {
     if (!value) errors.push(message);
@@ -76,8 +86,23 @@ export async function validateVersionContract({
   const performance = await json('docs/evidence/performance-results.json');
   const accessibility = await json('docs/evidence/accessibility-results.json');
   const media = await json('docs/evidence/media-inventory.json');
-  const validationEvidence = await resolveCurrentValidationEvidence(root);
+  const validationEvidence = await resolveCurrentValidationEvidence(root, {
+    readText: committedMode ? text : undefined
+  });
   const automated = await json(validationEvidence.relativePath);
+  requireValue(
+    validationEvidence.pointerVersion === version,
+    `automated validation pointer version ${String(validationEvidence.pointerVersion)} does not match ${version}`
+  );
+  requireValue(
+    validationEvidence.recordVersion === null || validationEvidence.recordVersion === version,
+    `automated validation record filename version ${String(validationEvidence.recordVersion)} does not match ${version}`
+  );
+  for (const field of ['artifactVersion', 'candidateVersion', 'version']) {
+    if (Object.hasOwn(automated, field)) {
+      requireValue(automated[field] === version, `automated evidence ${field} does not match ${version}`);
+    }
+  }
   const expectedRuntimeZip = `${artifactBase}.zip`;
   for (const [label, artifact] of [
     ['browser evidence', browser.artifact],
@@ -88,6 +113,10 @@ export async function validateVersionContract({
     requireValue(artifact?.version === version, `${label} version does not match ${version}`);
     requireValue(artifact?.runtimeZip === expectedRuntimeZip, `${label} runtime ZIP name is stale`);
   }
+  requireValue(
+    automated.fullCheck?.versionContract?.version === version,
+    'automated evidence version-contract version is stale'
+  );
   requireValue(automated.fullCheck?.manifest?.version === version, 'automated evidence manifest version is stale');
   requireValue(automated.artifacts?.runtimeZip === expectedRuntimeZip, 'automated evidence runtime ZIP name is stale');
   requireValue(
@@ -103,8 +132,15 @@ export async function validateVersionContract({
     'automated evidence unsigned provenance-input name is stale'
   );
 
-  const fingerprint = await computeRuntimeFingerprint(root);
-  const releaseInputFingerprint = await computeReleaseInputFingerprint(root);
+  const committedFingerprints = committedMode
+    ? computeVersionFingerprintFromSourceEntries([...committedSourceByPath].map(([path, bytes]) => ({ path, bytes })))
+    : null;
+  const fingerprint = committedMode
+    ? committedFingerprints.runtimeFingerprintSha256
+    : await computeRuntimeFingerprint(root);
+  const releaseInputFingerprint = committedMode
+    ? committedFingerprints.releaseInputFingerprint
+    : await computeReleaseInputFingerprint(root);
   requireValue(state.runtimeFileCount === RUNTIME_FILES.length, 'version ledger runtime file count is stale');
   requireValue(
     state.runtimeFingerprintSha256 === fingerprint,
@@ -122,9 +158,18 @@ export async function validateVersionContract({
   if (requireArtifact) {
     const checkedArtifactDirectory = validateArtifactDirectory(root, artifactDirectory);
     let runtimeBytes;
-    try {
-      runtimeBytes = await readFile(resolve(checkedArtifactDirectory, expectedRuntimeZip));
-    } catch {
+    if (committedMode) {
+      if (Buffer.isBuffer(runtimeArtifactBytes) || runtimeArtifactBytes instanceof Uint8Array) {
+        runtimeBytes = Buffer.from(runtimeArtifactBytes);
+      }
+    } else {
+      try {
+        runtimeBytes = await readFile(resolve(checkedArtifactDirectory, expectedRuntimeZip));
+      } catch {
+        // The common missing-artifact finding is added below.
+      }
+    }
+    if (!runtimeBytes) {
       errors.push(
         `required current artifact is missing: ${relative(root, checkedArtifactDirectory)}/${expectedRuntimeZip}`
       );
@@ -216,4 +261,40 @@ function validateOptionalEvidenceSize(errors, label, recorded, actual, required)
   if (recorded == null && !required) return;
   if (!Number.isInteger(recorded) || recorded <= 0) errors.push(`${label} artifact size is missing or malformed`);
   if (recorded !== actual) errors.push(`${label} artifact size is stale`);
+}
+
+function captureCommittedSourceBytes(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    throw new Error('Committed version contract requires one non-empty source-entry array.');
+  }
+  const result = new Map();
+  for (const entry of entries) {
+    const path = String(entry?.path || '');
+    if (
+      !path ||
+      path.includes('\\') ||
+      path.startsWith('/') ||
+      path.split('/').includes('..') ||
+      result.has(path) ||
+      (!Buffer.isBuffer(entry?.bytes) && !(entry?.bytes instanceof Uint8Array))
+    ) {
+      throw new Error(`Committed version-contract source entry is invalid or duplicated: ${path || '<missing>'}.`);
+    }
+    result.set(path, Buffer.from(entry.bytes));
+  }
+  return result;
+}
+
+function requireCommittedSourceBytes(entries, path) {
+  const bytes = entries.get(path);
+  if (!bytes) throw new Error(`Committed version-contract source input is missing: ${path}.`);
+  return bytes;
+}
+
+function decodeExactUtf8(bytes, path) {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch (error) {
+    throw new Error(`Committed version-contract source input is not exact UTF-8: ${path}.`, { cause: error });
+  }
 }

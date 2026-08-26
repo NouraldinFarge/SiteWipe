@@ -3,8 +3,8 @@
   "status": "pending",
   "attemptedAt": null,
   "artifact": {
-    "version": "1.11.89",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.89.zip",
+    "version": "1.11.98",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.98.zip",
     "sha256": null
   },
   "priorExactArtifactEvidence": {
@@ -118,7 +118,7 @@
   ],
   "limitations": [
     "Node tests and static checks do not establish installed Chrome behavior.",
-    "Canonical per-assertion installed-browser semantic validators are not implemented, so the mechanical 48-cell aggregate is required to remain not_run.",
+    "Only canonical assertions with both an implemented semantic validator and authentic exact-artifact executor observations may pass; every unimplemented, unobserved, unsupported, ambiguous, or incomplete assertion remains non-passing in the mechanical 48-cell aggregate.",
     "Chrome evidence cannot be reused as Brave evidence.",
     "No browser version or extension artifact hash is approved until the matrix is actually run.",
     "Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion.",

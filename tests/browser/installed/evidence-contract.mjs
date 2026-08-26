@@ -20,19 +20,48 @@ import {
   NATIVE_PROMPT_UIA_SNAPSHOTS
 } from './native-permission-dialog.mjs';
 import { isPortableLocalAbsolutePath } from './path-contract.mjs';
+import {
+  BROWSER_RUNTIME_SUMMARY_KEYS,
+  computeBrowserRuntimeSetSha256,
+  validateBrowserRuntimeSummary
+} from './browser-runtime-closure.mjs';
+import {
+  SEMANTIC_OBSERVATION_MEDIA_TYPE,
+  SEMANTIC_VALIDATOR_MANIFEST,
+  SEMANTIC_VALIDATOR_MANIFEST_SHA256,
+  deriveSemanticScenarioAssertions,
+  semanticValidatorEntry
+} from './semantic-validator.mjs';
+import { INSTALLED_RUNTIME_LAUNCH_POLICY_SHA256 } from './launch-policy.mjs';
+import {
+  INSTALLED_BROWSER_TOOLCHAIN_SUMMARY_KEYS,
+  PINNED_PUPPETEER_CORE_VERSION,
+  validateInstalledBrowserToolchainSummary
+} from './toolchain-closure.mjs';
 
-export const BROWSER_PLAN_SCHEMA = 'sitewipe.unattended-browser-plan.v1';
-export const SCENARIO_RESULT_SCHEMA = 'sitewipe.installed-browser-scenario-result.v1';
-export const RESULT_RECORD_SCHEMA = 'sitewipe.installed-browser-result-record.v1';
+export const BROWSER_PLAN_SCHEMA = 'sitewipe.unattended-browser-plan.v2';
+export const SCENARIO_RESULT_SCHEMA = 'sitewipe.installed-browser-scenario-result.v2';
+export const RESULT_RECORD_SCHEMA = 'sitewipe.installed-browser-result-record.v2';
 export const RAW_EVIDENCE_SCHEMA = 'sitewipe.installed-browser-raw-evidence.v1';
-export const AGGREGATE_SCHEMA = 'sitewipe.installed-browser-aggregate.v1';
+export const AGGREGATE_SCHEMA = 'sitewipe.installed-browser-aggregate.v2';
 export const RESULT_STATES = Object.freeze(['passed', 'failed', 'limited', 'not_run']);
-export const SEMANTIC_VALIDATION_STATUS = 'not_implemented';
+export const SEMANTIC_IMPLEMENTED_ASSERTION_COUNT = SEMANTIC_VALIDATOR_MANIFEST.entries.filter(
+  ({ status }) => status === 'implemented'
+).length;
+export const SEMANTIC_NOT_IMPLEMENTED_ASSERTION_COUNT =
+  SEMANTIC_VALIDATOR_MANIFEST.entries.length - SEMANTIC_IMPLEMENTED_ASSERTION_COUNT;
+export const SEMANTIC_VALIDATION_STATUS =
+  SEMANTIC_NOT_IMPLEMENTED_ASSERTION_COUNT === 0
+    ? 'implemented'
+    : SEMANTIC_IMPLEMENTED_ASSERTION_COUNT === 0
+      ? 'not_implemented'
+      : 'partial';
 export const FIXED_FIXTURE_BIND_ADDRESSES = Object.freeze(['127.0.0.1', '::1']);
 export const APPROVED_UNATTENDED_ACTIONS = Object.freeze([
   'filesystem.create_exact_owned_run',
   'fixture.bind_approved_loopback_only',
   'browser.launch_exact_pins_with_disposable_profiles',
+  'browser.terminate_exact_owned_process_tree_on_failure',
   'native_prompt.invoke_predeclared_exact_controls',
   'browser.mutate_owned_synthetic_state_only',
   'filesystem.cleanup_or_quarantine_exact_owned_state'
@@ -49,13 +78,12 @@ const PLAN_KEYS = Object.freeze([
   'requiredBrowsers',
   'requiredMatrixIds',
   'runId',
-  'schema'
+  'schema',
+  'semanticValidatorManifestSha256'
 ]);
 const RESULT_KEYS = Object.freeze([
-  'assertions',
   'browser',
   'completedAt',
-  'declaredState',
   'evidence',
   'identity',
   'matrixSha256',
@@ -65,9 +93,8 @@ const RESULT_KEYS = Object.freeze([
   'runId',
   'scenarioId',
   'schema',
-  'semanticValidationStatus',
-  'startedAt',
-  'teardown'
+  'semanticValidatorManifestSha256',
+  'startedAt'
 ]);
 
 export function computePlanSha256(plan) {
@@ -88,12 +115,16 @@ export function validateBrowserPlan(plan) {
   if (plan.matrixSha256 !== CANONICAL_BROWSER_MATRIX_SHA256) {
     throw new Error('Browser plan is not bound to the exact canonical matrix bytes.');
   }
+  if (plan.semanticValidatorManifestSha256 !== SEMANTIC_VALIDATOR_MANIFEST_SHA256) {
+    throw new Error('Browser plan is not bound to the exact semantic-validator manifest bytes.');
+  }
   if (!/^sitewipe-browser-[a-f0-9]{32}$/.test(String(plan.runId || ''))) {
     throw new Error('Browser plan runId is malformed.');
   }
   assertIsoTimestamp(plan.createdAt, 'Browser plan createdAt');
   validateIdentity(plan.identity);
   validatePlanInputs(plan.inputs);
+  validateIdentityInputBindings(plan.identity, plan.inputs);
   assertExactKeys(
     plan.approval,
     ['additionalInteractiveApprovalsAllowed', 'approvedActions', 'mode'],
@@ -150,6 +181,7 @@ export function validateScenarioResult(result, { plan }) {
     result.schema !== SCENARIO_RESULT_SCHEMA ||
     result.matrixVersion !== BROWSER_MATRIX_VERSION ||
     result.matrixSha256 !== CANONICAL_BROWSER_MATRIX_SHA256 ||
+    result.semanticValidatorManifestSha256 !== SEMANTIC_VALIDATOR_MANIFEST_SHA256 ||
     result.planSha256 !== plan.planSha256 ||
     result.runId !== plan.runId
   ) {
@@ -166,49 +198,27 @@ export function validateScenarioResult(result, { plan }) {
   const evidenceIds = new Set();
   for (const entry of result.evidence) {
     validateRawEvidence(entry);
+    if (entry.mediaType !== SEMANTIC_OBSERVATION_MEDIA_TYPE) {
+      throw new Error(`Browser scenario result evidence ${entry.id} is not a canonical semantic observation.`);
+    }
     if (evidenceIds.has(entry.id)) throw new Error(`Browser scenario result repeats evidence ID ${entry.id}.`);
     evidenceIds.add(entry.id);
   }
 
-  if (!Array.isArray(result.assertions)) throw new Error('Browser scenario assertions must be an array.');
-  const assertions = new Map();
-  for (const assertion of result.assertions) {
-    validateAssertion(assertion, evidenceIds);
-    if (!scenario.requiredAssertions.includes(assertion.id)) {
-      throw new Error(`${result.scenarioId} claims unknown assertion ${assertion.id}.`);
-    }
-    if (assertions.has(assertion.id)) throw new Error(`${result.scenarioId} repeats assertion ${assertion.id}.`);
-    assertions.set(assertion.id, assertion);
-  }
-  validateTeardown(result.teardown, evidenceIds);
-
-  if (result.semanticValidationStatus !== SEMANTIC_VALIDATION_STATUS) {
-    throw new Error('Browser scenario result has no recognized canonical semantic-validator inventory status.');
-  }
-  if (result.assertions.some((assertion) => assertion.state !== 'not_run') || result.teardown.state !== 'not_run') {
-    throw new Error(
-      'Browser semantic validators are not implemented; assertions and teardown cannot claim observed states.'
-    );
-  }
-
-  const derivedState = deriveScenarioState({
-    scenario,
-    assertions,
-    teardown: result.teardown,
-    semanticValidationStatus: result.semanticValidationStatus
-  });
-  if (result.declaredState !== derivedState) {
-    throw new Error(
-      `${result.scenarioId}/${result.browser.name} declares ${String(result.declaredState)} but mechanically derives ${derivedState}.`
-    );
-  }
+  const derived = deriveSemanticScenarioAssertions({ result, evidence: result.evidence });
+  const derivedState = derived.state;
   if (derivedState === 'not_run' && !isNonEmptyString(result.reason)) {
     throw new Error('A not_run scenario result must retain a reason.');
   }
   if (derivedState !== 'not_run' && result.reason !== null && !isNonEmptyString(result.reason)) {
     throw new Error('A scenario result reason must be null or a non-empty string.');
   }
-  return Object.freeze({ scenario, state: derivedState });
+  return Object.freeze({
+    scenario,
+    state: derivedState,
+    implementationStatus: derived.implementationStatus,
+    assertions: derived.assertions
+  });
 }
 
 export function aggregateBrowserEvidence({ plan, resultRecords = [] } = {}) {
@@ -221,7 +231,13 @@ export function aggregateBrowserEvidence({ plan, resultRecords = [] } = {}) {
     try {
       const value = decodeResultRecord(record);
       const validated = validateScenarioResult(value, { plan });
-      decoded.push({ record, result: value, state: validated.state });
+      decoded.push({
+        record,
+        result: value,
+        state: validated.state,
+        assertions: validated.assertions,
+        implementationStatus: validated.implementationStatus
+      });
     } catch (error) {
       integrityFindings.push(`Result record ${index + 1}: ${error?.message || String(error)}`);
     }
@@ -244,6 +260,7 @@ export function aggregateBrowserEvidence({ plan, resultRecords = [] } = {}) {
           scenarioId: scenario.id,
           browser: browserName,
           state: 'failed',
+          implementationStatus: semanticScenarioStatus(scenario),
           resultRecordSha256: null,
           assertions: [],
           finding: `Expected one result record; observed ${matches.length}.`
@@ -251,19 +268,21 @@ export function aggregateBrowserEvidence({ plan, resultRecords = [] } = {}) {
         integrityFindings.push(`${scenario.id}/${browserName} has ${matches.length} result records.`);
         continue;
       }
-      const [{ record, result, state }] = matches;
+      const [{ record, result, state: cellState, assertions, implementationStatus }] = matches;
       cells.push({
         scenarioId: scenario.id,
         browser: browserName,
-        state,
+        state: cellState,
+        implementationStatus,
         resultRecordSha256: record.sha256,
-        assertions: scenario.requiredAssertions.map((id) => ({
+        assertions: assertions.map(({ id, state: assertionState, validatorId }) => ({
           id,
-          state: result.assertions.find((entry) => entry.id === id)?.state || 'not_run'
+          state: assertionState,
+          validatorId
         })),
         finding: result.reason
       });
-      if (state !== 'passed') executionFindings.push(`${scenario.id}/${browserName} is ${state}.`);
+      if (cellState !== 'passed') executionFindings.push(`${scenario.id}/${browserName} is ${cellState}.`);
     }
   }
 
@@ -282,6 +301,12 @@ export function aggregateBrowserEvidence({ plan, resultRecords = [] } = {}) {
     runId: plan.runId,
     state,
     semanticValidationStatus: SEMANTIC_VALIDATION_STATUS,
+    semanticValidatorManifestSha256: SEMANTIC_VALIDATOR_MANIFEST_SHA256,
+    semanticValidatorCounts: {
+      implemented: SEMANTIC_IMPLEMENTED_ASSERTION_COUNT,
+      notImplemented: SEMANTIC_NOT_IMPLEMENTED_ASSERTION_COUNT,
+      total: SEMANTIC_VALIDATOR_MANIFEST.entries.length
+    },
     identity: structuredClone(plan.identity),
     requiredBrowsers: [...REQUIRED_BROWSERS],
     requiredMatrixIds: [...CANONICAL_BROWSER_MATRIX_IDS],
@@ -300,6 +325,7 @@ export function validateAndReplayBrowserAggregate(aggregate, { plan }) {
     aggregate?.schema !== AGGREGATE_SCHEMA ||
     aggregate?.matrixVersion !== BROWSER_MATRIX_VERSION ||
     aggregate?.matrixSha256 !== CANONICAL_BROWSER_MATRIX_SHA256 ||
+    aggregate?.semanticValidatorManifestSha256 !== SEMANTIC_VALIDATOR_MANIFEST_SHA256 ||
     aggregate?.planSha256 !== plan?.planSha256 ||
     !Array.isArray(aggregate?.resultRecords) ||
     aggregate.resultRecordCount !== aggregate.resultRecords.length ||
@@ -325,7 +351,20 @@ export function canonicalJsonBytes(value) {
 function validatePlanInputs(inputs) {
   assertExactKeys(
     inputs,
-    ['artifactPath', 'browserPins', 'fixture', 'git', 'nativePrompt', 'repositoryRoot', 'retention', 'workspaceRoot'],
+    [
+      'artifactPath',
+      'browserPins',
+      'browserRuntimeSetSha256',
+      'fixture',
+      'git',
+      'launchPolicySha256',
+      'nativePrompt',
+      'processObserver',
+      'repositoryRoot',
+      'retention',
+      'toolchain',
+      'workspaceRoot'
+    ],
     'Browser plan inputs'
   );
   if (
@@ -351,7 +390,11 @@ function validatePlanInputs(inputs) {
     throw new Error('Browser plan browser pins must be exactly Brave and Chrome.');
   }
   for (const pin of inputs.browserPins) {
-    assertExactKeys(pin, ['executablePath', 'executableSha256', 'name', 'version'], 'Browser executable pin');
+    assertExactKeys(
+      pin,
+      ['executablePath', 'executableSha256', 'name', 'version', ...BROWSER_RUNTIME_SUMMARY_KEYS],
+      'Browser executable pin'
+    );
     if (
       !isPortableLocalAbsolutePath(pin.executablePath) ||
       !isSha256(pin.executableSha256) ||
@@ -359,7 +402,25 @@ function validatePlanInputs(inputs) {
     ) {
       throw new Error('Browser plan contains an incomplete executable pin.');
     }
+    validateBrowserRuntimeSummary(Object.fromEntries(BROWSER_RUNTIME_SUMMARY_KEYS.map((key) => [key, pin[key]])));
   }
+  if (computeBrowserRuntimeSetSha256(inputs.browserPins) !== inputs.browserRuntimeSetSha256) {
+    throw new Error('Browser plan runtime-set SHA-256 differs from its exact browser runtime summaries.');
+  }
+  if (inputs.launchPolicySha256 !== INSTALLED_RUNTIME_LAUNCH_POLICY_SHA256) {
+    throw new Error('Browser plan launch-policy SHA-256 differs from the exact committed runtime policy.');
+  }
+  assertExactKeys(
+    inputs.toolchain,
+    ['nodeRuntimeVersion', ...INSTALLED_BROWSER_TOOLCHAIN_SUMMARY_KEYS],
+    'Browser installed-executor toolchain'
+  );
+  if (!isNodeVersion(inputs.toolchain.nodeRuntimeVersion)) {
+    throw new Error('Browser installed-executor toolchain lacks an exact Node version.');
+  }
+  validateInstalledBrowserToolchainSummary(
+    Object.fromEntries(INSTALLED_BROWSER_TOOLCHAIN_SUMMARY_KEYS.map((key) => [key, inputs.toolchain[key]]))
+  );
   assertExactKeys(
     inputs.fixture,
     ['allowedHosts', 'allowedMethods', 'allowedRoutes', 'bindAddresses', 'tokenBytes', 'tokenGeneratedAfterApproval'],
@@ -406,6 +467,30 @@ function validatePlanInputs(inputs) {
   ) {
     throw new Error('Browser plan native-prompt policy is incomplete or widened.');
   }
+  assertExactKeys(
+    inputs.processObserver,
+    [
+      'helperModes',
+      'helperPath',
+      'helperSha256',
+      'powershellPath',
+      'powershellSha256',
+      'processTerminationAllowed',
+      'rawCommandLinesRetained'
+    ],
+    'Browser process-observer policy'
+  );
+  if (
+    !isPortableLocalAbsolutePath(inputs.processObserver.helperPath) ||
+    !isSha256(inputs.processObserver.helperSha256) ||
+    !isPortableLocalAbsolutePath(inputs.processObserver.powershellPath) ||
+    !isSha256(inputs.processObserver.powershellSha256) ||
+    !exactArray(inputs.processObserver.helperModes, ['Identity', 'ProfileResidue', 'TerminateTree']) ||
+    inputs.processObserver.rawCommandLinesRetained !== false ||
+    inputs.processObserver.processTerminationAllowed !== true
+  ) {
+    throw new Error('Browser process-observer policy is incomplete or widened.');
+  }
   assertExactKeys(inputs.retention, ['failureDays', 'passEvidenceDays', 'retainProfilesOnFailure'], 'Retention policy');
   if (
     !Number.isInteger(inputs.retention.failureDays) ||
@@ -427,15 +512,25 @@ function validateIdentity(identity) {
       'artifactBytes',
       'artifactSha256',
       'artifactVersion',
+      'browserRuntimeSetSha256',
       'gitExecutableSha256',
       'harnessManifestSha256',
+      'launchPolicySha256',
       'nativeHelperSha256',
       'nodeExecutableSha256',
+      'nodeRuntimeVersion',
       'packageLockSha256',
+      'powerShellExecutableSha256',
+      'processObserverHelperSha256',
       'releaseInputFingerprintSha256',
       'runtimeFingerprintSha256',
       'sourceCommitSha',
-      'sourceTreeSha'
+      'sourceTreeSha',
+      'toolchainBytes',
+      'toolchainFileCount',
+      'toolchainPackageCount',
+      'toolchainPuppeteerVersion',
+      'toolchainSetSha256'
     ],
     'Browser evidence identity'
   );
@@ -443,25 +538,60 @@ function validateIdentity(identity) {
     !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(String(identity.sourceCommitSha || '')) ||
     !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(String(identity.sourceTreeSha || '')) ||
     !/^\d+\.\d+\.\d+$/.test(String(identity.artifactVersion || '')) ||
+    !isNodeVersion(identity.nodeRuntimeVersion) ||
     !Number.isInteger(identity.artifactBytes) ||
     identity.artifactBytes <= 0 ||
+    !Number.isSafeInteger(identity.toolchainPackageCount) ||
+    identity.toolchainPackageCount <= 0 ||
+    !Number.isSafeInteger(identity.toolchainFileCount) ||
+    identity.toolchainFileCount <= 0 ||
+    !Number.isSafeInteger(identity.toolchainBytes) ||
+    identity.toolchainBytes <= 0 ||
+    identity.toolchainPuppeteerVersion !== PINNED_PUPPETEER_CORE_VERSION ||
     ![
       identity.artifactSha256,
+      identity.browserRuntimeSetSha256,
       identity.gitExecutableSha256,
       identity.harnessManifestSha256,
+      identity.launchPolicySha256,
       identity.nativeHelperSha256,
       identity.nodeExecutableSha256,
       identity.packageLockSha256,
+      identity.powerShellExecutableSha256,
+      identity.processObserverHelperSha256,
       identity.releaseInputFingerprintSha256,
-      identity.runtimeFingerprintSha256
+      identity.runtimeFingerprintSha256,
+      identity.toolchainSetSha256
     ].every(isSha256)
   ) {
     throw new Error('Browser evidence identity is incomplete or malformed.');
   }
 }
 
+function validateIdentityInputBindings(identity, inputs) {
+  const bindings = [
+    ['browserRuntimeSetSha256', inputs.browserRuntimeSetSha256],
+    ['launchPolicySha256', inputs.launchPolicySha256],
+    ['nodeRuntimeVersion', inputs.toolchain.nodeRuntimeVersion],
+    ['toolchainPuppeteerVersion', inputs.toolchain.toolchainPuppeteerVersion],
+    ['toolchainPackageCount', inputs.toolchain.toolchainPackageCount],
+    ['toolchainFileCount', inputs.toolchain.toolchainFileCount],
+    ['toolchainBytes', inputs.toolchain.toolchainBytes],
+    ['toolchainSetSha256', inputs.toolchain.toolchainSetSha256]
+  ];
+  for (const [key, expected] of bindings) {
+    if (identity[key] !== expected) {
+      throw new Error(`Browser evidence identity ${key} differs from the exact approved plan input.`);
+    }
+  }
+}
+
 function validateBrowser(browser, plan) {
-  assertExactKeys(browser, ['executablePath', 'executableSha256', 'name', 'version'], 'Browser result identity');
+  assertExactKeys(
+    browser,
+    ['executablePath', 'executableSha256', 'name', 'version', ...BROWSER_RUNTIME_SUMMARY_KEYS],
+    'Browser result identity'
+  );
   const pin = plan.inputs.browserPins.find((entry) => entry.name === browser.name);
   if (!pin || stableJson(pin) !== stableJson(browser)) {
     throw new Error('Browser result does not match one exact approved executable pin.');
@@ -489,51 +619,6 @@ function validateRawEvidence(entry) {
   ) {
     throw new Error(`Raw evidence ${entry.id} does not match its retained bytes and SHA-256.`);
   }
-}
-
-function validateAssertion(assertion, evidenceIds) {
-  assertExactKeys(assertion, ['detail', 'evidenceIds', 'id', 'observedAt', 'state'], 'Browser assertion');
-  if (!isNonEmptyString(assertion.id) || !RESULT_STATES.includes(assertion.state)) {
-    throw new Error('Browser assertion has an invalid ID or state.');
-  }
-  assertIsoTimestamp(assertion.observedAt, `Browser assertion ${assertion.id}`);
-  if (
-    !Array.isArray(assertion.evidenceIds) ||
-    new Set(assertion.evidenceIds).size !== assertion.evidenceIds.length ||
-    assertion.evidenceIds.some((id) => !evidenceIds.has(id))
-  ) {
-    throw new Error(`Browser assertion ${assertion.id} has missing, duplicate, or unknown evidence references.`);
-  }
-  if (assertion.state !== 'not_run' && assertion.evidenceIds.length === 0) {
-    throw new Error(`Browser assertion ${assertion.id} cannot claim ${assertion.state} without raw evidence.`);
-  }
-  if (assertion.detail !== null && !isNonEmptyString(assertion.detail)) {
-    throw new Error(`Browser assertion ${assertion.id} detail must be null or a non-empty string.`);
-  }
-}
-
-function validateTeardown(teardown, evidenceIds) {
-  assertExactKeys(teardown, ['detail', 'evidenceIds', 'observedAt', 'state'], 'Browser teardown');
-  if (!RESULT_STATES.includes(teardown.state)) throw new Error('Browser teardown has an invalid state.');
-  assertIsoTimestamp(teardown.observedAt, 'Browser teardown');
-  if (
-    !Array.isArray(teardown.evidenceIds) ||
-    new Set(teardown.evidenceIds).size !== teardown.evidenceIds.length ||
-    teardown.evidenceIds.some((id) => !evidenceIds.has(id)) ||
-    (teardown.state !== 'not_run' && teardown.evidenceIds.length === 0)
-  ) {
-    throw new Error('Browser teardown lacks exact raw evidence references.');
-  }
-  if (teardown.detail !== null && !isNonEmptyString(teardown.detail)) {
-    throw new Error('Browser teardown detail must be null or a non-empty string.');
-  }
-}
-
-function deriveScenarioState({ scenario, assertions, teardown, semanticValidationStatus }) {
-  if (semanticValidationStatus === SEMANTIC_VALIDATION_STATUS) return 'not_run';
-  const states = scenario.requiredAssertions.map((id) => assertions.get(id)?.state || 'not_run');
-  states.push(teardown.state);
-  return aggregateState(states);
 }
 
 function aggregateState(states) {
@@ -579,10 +664,22 @@ function missingCell(scenario, browser) {
     scenarioId: scenario.id,
     browser,
     state: 'not_run',
+    implementationStatus: semanticScenarioStatus(scenario),
     resultRecordSha256: null,
-    assertions: scenario.requiredAssertions.map((id) => ({ id, state: 'not_run' })),
+    assertions: scenario.requiredAssertions.map((id) => ({
+      id,
+      state: 'not_run',
+      validatorId: semanticValidatorEntry(scenario.id, id).validatorId
+    })),
     finding: 'No exact result record was retained.'
   };
+}
+
+function semanticScenarioStatus(scenario) {
+  const statuses = scenario.requiredAssertions.map((id) => semanticValidatorEntry(scenario.id, id).status);
+  if (statuses.every((status) => status === 'implemented')) return 'implemented';
+  if (statuses.every((status) => status === 'not_implemented')) return 'not_implemented';
+  return 'partial';
 }
 
 function assertExactKeys(value, expected, label) {
@@ -619,6 +716,10 @@ function stableJson(value) {
 
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isNodeVersion(value) {
+  return /^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/u.test(String(value || ''));
 }
 
 function exactArray(actual, expected) {

@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "status": "local_automated_checks_passed",
+  "validatedAt": "2026-08-25T23:07:25.9126997-05:00",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
+  "environment": {
+    "osDescription": "Microsoft Windows 10.0.26100",
+    "osArchitecture": "X64",
+    "processArchitecture": "X64",
+    "node": "v24.18.1",
+    "npm": "11.16.0",
+    "scope": "Local source, locked-dependency, safety, property, coverage, accessibility-source, and loopback fixture-contract validation. Exact installed-browser, clean-commit artifact, and remote publication evidence remain separate."
+  },
+  "baseline": {
+    "beforeState": "The 1.11.97 record remains unchanged in automated-validation-2026-08-25-v1.11.97.json.",
+    "baselineVersion": "1.11.97",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-25-v1.11.97.json"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "passed",
+    "format": "passed",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.11.98",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "C59B7ACFE51A86F20C7FCEEFDE6E331E6ABFC1B3E135158B50F79DA32B6864BC",
+      "stableReleaseInputFingerprintSha256": "05BECD6C776F845173DEDB412F02E5B95FC27D5A5F4FF3597B4FC4F74E3C2D62",
+      "stableReleaseInputFiles": 312
+    },
+    "manifest": {
+      "status": "passed",
+      "version": "1.11.98",
+      "descriptionCharacters": 123,
+      "descriptionMaximum": 132,
+      "requiredNamedPermissions": 10,
+      "optionalNamedPermissions": 1,
+      "requiredHostPatterns": 0,
+      "optionalHostPatterns": 2
+    },
+    "syntaxModules": 219,
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "htmlValidation": "passed",
+    "cssValidation": "passed",
+    "remoteCodeAndRuntimeSecretScan": {
+      "status": "passed",
+      "runtimeFiles": 61
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 420
+    },
+    "developmentSbom": {
+      "status": "passed",
+      "components": 358,
+      "dependencyNodes": 417,
+      "sha256": "62572D53FD384D72061CB2F15494740A1948DA79D3F599B5E0A8EAA158CA51DB"
+    },
+    "dependencyLicenseInventory": {
+      "status": "passed",
+      "runtimeDependencies": 0,
+      "lockedDevelopmentGraph": 416,
+      "lockfileSha256": "A615F1C907CF8025F618F284523C34B624DE457C7CB17448972F99DEC9668765",
+      "developmentSbomSha256": "62572D53FD384D72061CB2F15494740A1948DA79D3F599B5E0A8EAA158CA51DB",
+      "metadataExceptionsResolved": 1
+    },
+    "projectLicense": {
+      "status": "passed",
+      "spdxIdentifier": "MIT",
+      "licenseFileSha256": "86ECA68E8C1B0498315252BD01B6190F01500EE720C333D00793DD947F5B6511"
+    },
+    "thirdPartyNoticeAndPslHash": "passed",
+    "iconSourceAndPngProvenance": "passed",
+    "documentation": {
+      "status": "passed",
+      "markdownFiles": 49
+    },
+    "githubActionPins": {
+      "status": "passed",
+      "references": 11
+    },
+    "runtimeAllowlist": {
+      "status": "passed",
+      "runtimeFiles": 61,
+      "sourceOnlyFiles": 3
+    },
+    "legacyReleaseSelfTest": "passed",
+    "nodeTests": {
+      "tests": 1409,
+      "suites": 0,
+      "passed": 1406,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 3,
+      "todo": 0,
+      "durationMs": 473367.0363,
+      "explicitPlatformSkips": [
+        "capture rejects symbolic package entries when the host supports creating them: This host does not permit creation of a disposable symbolic link.",
+        "capture rejects case collisions when the host filesystem can represent them: This host filesystem is case-insensitive.",
+        "private control records remain owner-readable under a restrictive process umask: skipped on win32."
+      ]
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 257.0896
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "passed",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    },
+    "tests": {
+      "tests": 1409,
+      "passed": 1406,
+      "failed": 0,
+      "skipped": 3,
+      "durationMs": 716529.4958
+    },
+    "all": {
+      "statements": 86.82,
+      "branches": 76.3,
+      "functions": 93.7,
+      "lines": 86.82
+    },
+    "interpretation": "The required coverage command passed 1,406 of 1,409 tests with zero failures and three explicit platform skips, and exceeded every enforced repository-wide floor. Coverage remains a source-test navigation aid and does not replace installed MV3 lifecycle, browser-privilege, or exact-artifact evidence."
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "passed",
+    "installedPackages": 397,
+    "auditedPackagesIncludingRoot": null,
+    "lifecycleScriptsDisabled": true,
+    "deprecationWarnings": [
+      "prebuild-install@7.1.3 is no longer maintained",
+      "glob@10.5.0 is a deprecated transitive development-tool version"
+    ],
+    "interpretation": "The warnings are confined to the development-tool graph. Installation used the exact lockfile with lifecycle scripts and automatic audit traffic disabled; the explicit low-threshold audit after installation found no advisory."
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=low --json",
+    "status": "passed",
+    "auditedAt": "2026-08-25T23:07:25.9126997-05:00",
+    "knownVulnerabilities": 0,
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "packageMetadata": {
+      "prod": 1,
+      "dev": 416,
+      "optional": 145,
+      "total": 416
+    },
+    "runtimeDependencies": 0,
+    "lockedDevelopmentGraph": 416,
+    "lockfileSha256": "A615F1C907CF8025F618F284523C34B624DE457C7CB17448972F99DEC9668765"
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "passed",
+    "redactionCanaries": "passed",
+    "privateContextPersistenceRefusal": "passed",
+    "deterministicThirtyMinuteExpiry": "passed"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "passed",
+    "installedChromeRun": "not_run",
+    "installedBraveRun": "not_run",
+    "browserEvidenceRecord": "docs/evidence/browser-validation.json",
+    "note": "The deterministic loopback fixture server contract passed. No installed Chrome or Brave execution is claimed."
+  },
+  "gitInitialization": {
+    "status": "pending_exact_candidate_validation",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "Exact candidate commit, clean checkout, remote checks, and repository state require fresh validation."
+  },
+  "artifacts": {
+    "status": "pending_rebuild",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.98.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.98-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "pending",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.98.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.98.unsigned-provenance-input.json",
+    "remoteAttestation": "pending",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "Clean-commit exact-artifact construction, verification, and reproducibility remain pending.",
+      "Installed Chrome, Brave, and accessibility validation remain pending.",
+      "Exact-artifact performance and authentic media evidence remain pending.",
+      "Distinct independent review, hosted privacy-policy parity, exact-head remote checks, and attestation remain pending."
+    ]
+  },
+  "limitations": [
+    "The exact 1.11.98 local automated, coverage, dependency, provenance, and accessibility source-contract results are recorded above; they do not establish a built or supported public binary.",
+    "Exact-artifact reproducibility, installed Chrome and Brave, installed accessibility, performance, media, distinct independent review, hosted privacy-policy parity, exact-head remote checks, and attestation remain pending.",
+    "Automated tests do not prove complete erasure or installed-browser behavior."
+  ]
+}

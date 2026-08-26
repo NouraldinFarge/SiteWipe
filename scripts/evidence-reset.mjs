@@ -1,3 +1,8 @@
+export const EXACT_LOCKED_DEPENDENCY_INSTALL_COMMAND = 'npm ci --ignore-scripts --no-audit --no-fund';
+export const EXACT_DEPENDENCY_AUDIT_COMMAND = 'npm audit --audit-level=low --json';
+export const EXACT_INSTALL_SCRIPT_CONTROL =
+  'All documented local and CI candidate installations use npm ci --ignore-scripts --no-audit --no-fund, followed by the separately recorded low-threshold JSON audit.';
+
 export function resetAutomatedValidationEvidence(automated, { version, artifactBase, runtimeFileCount, releaseState }) {
   return {
     schemaVersion: automated?.schemaVersion || 1,
@@ -31,7 +36,7 @@ export function resetAutomatedValidationEvidence(automated, { version, artifactB
       }
     },
     dependencyInstall: {
-      command: automated?.dependencyInstall?.command || 'npm ci --ignore-scripts',
+      command: EXACT_LOCKED_DEPENDENCY_INSTALL_COMMAND,
       status: 'pending',
       installedPackages: null,
       auditedPackagesIncludingRoot: null,
@@ -39,7 +44,7 @@ export function resetAutomatedValidationEvidence(automated, { version, artifactB
       deprecationWarnings: []
     },
     dependencyAudit: {
-      command: automated?.dependencyAudit?.command || 'npm audit --audit-level=moderate --json',
+      command: EXACT_DEPENDENCY_AUDIT_COMMAND,
       status: 'pending',
       auditedAt: null,
       knownVulnerabilities: null,
@@ -227,6 +232,9 @@ export function resetDependencyLicenseInventoryEvidence(inventory, { version, cu
     inventoriedAt: null,
     lastAuditAt: null,
     lockfileSha256: currentLockfileSha256,
+    installScriptPackages: Array.isArray(inventory?.installScriptPackages)
+      ? inventory.installScriptPackages.map((entry) => ({ ...entry, control: EXACT_INSTALL_SCRIPT_CONTROL }))
+      : [],
     npmAuditVulnerabilities: {
       info: null,
       low: null,

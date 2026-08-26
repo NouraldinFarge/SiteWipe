@@ -16,7 +16,7 @@ jobs:
   candidate:
     name: Build, verify, and attest reviewed candidate
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     environment: unreleased-candidate
     steps:
       - name: Check out exact reviewed source
@@ -37,15 +37,47 @@ jobs:
           node-version: 24.18.1
           cache: npm
       - name: Install locked tools without lifecycle scripts
-        run: npm ci --ignore-scripts
-      - name: Run checks and dependency audit
-        run: |
-          npm audit --audit-level=moderate
-          npm run check
-          npm run test:coverage
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run complete local checks
+        run: npm run check
+      - name: Produce coverage evidence
+        run: npm run test:coverage
+      - name: Audit the exact locked dependency graph
+        run: npm audit --audit-level=low --json
       - name: Build twice and verify deterministic exact-source artifacts
         run: npm run verify:reproducible-release-candidate
+      - name: Stage independently approved remote expectation
+        env:
+          SITEWIPE_GITHUB_READ_TOKEN: ${{ secrets.SITEWIPE_GITHUB_READ_TOKEN }}
+          SITEWIPE_GITHUB_REPOSITORY: ${{ github.repository }}
+          SITEWIPE_GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
+          SITEWIPE_RELEASE_ENVIRONMENT_NAME: unreleased-candidate
+          SITEWIPE_REMOTE_PUBLICATION_EXPECTED_BINDING: ${{ runner.temp }}/sitewipe-remote-expected-binding.json
+          SITEWIPE_REMOTE_PUBLICATION_EXPECTED_BINDING_JSON: ${{ vars.SITEWIPE_REMOTE_PUBLICATION_EXPECTED_BINDING_JSON }}
+        run: npm run remote:stage-publication-inputs
+      - name: Capture exact-head remote publication evidence
+        env:
+          SITEWIPE_GITHUB_READ_TOKEN: ${{ secrets.SITEWIPE_GITHUB_READ_TOKEN }}
+          SITEWIPE_REMOTE_PUBLICATION_EVIDENCE_DIRECTORY: ${{ github.workspace }}/validation-output/remote-publication-captures/sitewipe-remote-${{ github.run_id }}-${{ github.run_attempt }}
+          SITEWIPE_REMOTE_PUBLICATION_EXPECTED_BINDING: ${{ runner.temp }}/sitewipe-remote-expected-binding.json
+        run: >-
+          npm run remote:collect-publication-evidence --
+          --expected "$SITEWIPE_REMOTE_PUBLICATION_EXPECTED_BINDING"
+          --output-directory "$SITEWIPE_REMOTE_PUBLICATION_EVIDENCE_DIRECTORY"
+      - name: Retain remote capture and independent expectation before publication evaluation
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: remote-publication-evidence-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            validation-output/remote-publication-captures/sitewipe-remote-${{ github.run_id }}-${{ github.run_attempt }}/capture.json
+            validation-output/remote-publication-captures/sitewipe-remote-${{ github.run_id }}-${{ github.run_attempt }}/raw-responses.json
+            ${{ runner.temp }}/sitewipe-remote-expected-binding.json
       - name: Require every recorded publication gate for the rebuilt bytes
+        env:
+          SITEWIPE_REMOTE_PUBLICATION_EVIDENCE_DIRECTORY: ${{ github.workspace }}/validation-output/remote-publication-captures/sitewipe-remote-${{ github.run_id }}-${{ github.run_attempt }}
+          SITEWIPE_REMOTE_PUBLICATION_EXPECTED_BINDING: ${{ runner.temp }}/sitewipe-remote-expected-binding.json
         run: npm run check:publication-gates
       - name: Attest exact ZIP artifacts
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2

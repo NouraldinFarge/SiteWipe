@@ -3,7 +3,7 @@ param(
   [Parameter(Mandatory = $true)][string]$ExpectedProcessPath,
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-F0-9]{64}$')][string]$ExpectedProcessSha256,
   [Parameter(Mandatory = $true)][ValidatePattern('^\d+$')][string]$ExpectedProcessStartTimeUtcTicks,
-  [Parameter(Mandatory = $true)][ValidateSet('SMOKE-01.observe-none', 'PERM-01.allow', 'PERM-01.deny', 'PERM-01.dismiss', 'PERM-01.timeout-late-allow')][string]$ExpectedScheduleId,
+  [Parameter(Mandatory = $true)][ValidateSet('SMOKE-01.observe-none', 'SETTINGS-01.observe-none', 'PERM-01.allow', 'PERM-01.deny', 'PERM-01.dismiss', 'PERM-01.timeout-late-allow')][string]$ExpectedScheduleId,
   [Parameter(Mandatory = $true)][ValidateSet('brave', 'chrome')][string]$ExpectedBrowserName,
   [Parameter(Mandatory = $true)][string]$ExpectedBrowserVersion,
   [Parameter(Mandatory = $true)][ValidateSet('allow', 'deny', 'dismiss', 'observe-none')][string]$Action,
@@ -167,7 +167,8 @@ try {
     throw 'Permission patterns differ from the exact four-pattern example.com review boundary.'
   }
   $reviewedSchedule = switch ($ExpectedScheduleId) {
-    'SMOKE-01.observe-none' { @{ scenarioId = 'SMOKE-01'; action = 'observe-none'; timeout = 20; delay = 0 } }
+    'SMOKE-01.observe-none' { @{ scenarioId = 'SMOKE-01'; action = 'observe-none'; timeout = 420; delay = 0 } }
+    'SETTINGS-01.observe-none' { @{ scenarioId = 'SETTINGS-01'; action = 'observe-none'; timeout = 420; delay = 0 } }
     'PERM-01.allow' { @{ scenarioId = 'PERM-01'; action = 'allow'; timeout = 20; delay = 0 } }
     'PERM-01.deny' { @{ scenarioId = 'PERM-01'; action = 'deny'; timeout = 20; delay = 0 } }
     'PERM-01.dismiss' { @{ scenarioId = 'PERM-01'; action = 'dismiss'; timeout = 20; delay = 0 } }
@@ -193,8 +194,111 @@ try {
   Add-Type -AssemblyName UIAutomationClient
   Add-Type -AssemblyName UIAutomationTypes
   $initialProcess = Get-ExactTargetProcess
+  $readyAt = [DateTimeOffset]::UtcNow.ToString('o')
+  Write-Evidence ([pscustomobject]@{
+    schema = 'sitewipe.native-permission-helper-ready.v1'
+    status = 'ready'
+    scheduleId = $ExpectedScheduleId
+    scenarioId = $reviewedSchedule.scenarioId
+    browserName = $ExpectedBrowserName
+    browserVersion = $ExpectedBrowserVersion
+    action = $Action
+    helperProcessId = $PID
+    targetProcess = $initialProcess
+    readyAt = $readyAt
+  })
   $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
   $matchingDialog = $null
+
+  if ($Action -eq 'observe-none') {
+    $stopReader = [Console]::In.ReadLineAsync()
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+      $dialogs = @(Get-MatchingDialog)
+      if ($dialogs.Count -gt 1) {
+        throw "Expected at most one exact permission dialog; observed $($dialogs.Count)."
+      }
+      if ($dialogs.Count -eq 1) {
+        $names = Assert-ExpectedDialogContent -Dialog $dialogs[0]
+        Write-Evidence ([pscustomobject]@{
+          schema = 'sitewipe.native-permission-dialog-evidence.v1'
+          status = 'unexpected_prompt_observed'
+          scheduleId = $ExpectedScheduleId
+          scenarioId = $reviewedSchedule.scenarioId
+          browserName = $ExpectedBrowserName
+          browserVersion = $ExpectedBrowserVersion
+          action = $Action
+          targetProcess = $initialProcess
+          dialogTitle = $ExpectedDialogTitle
+          expectedFragments = $expectedFragments
+          permissionPatterns = $permissionPatterns
+          observedNames = $names
+          observationStartedAt = $readyAt
+          observedAt = [DateTimeOffset]::UtcNow.ToString('o')
+        })
+        exit 8
+      }
+      if ($stopReader.IsCompleted) {
+        $stopLine = $stopReader.GetAwaiter().GetResult()
+        if ([string]::IsNullOrWhiteSpace($stopLine)) {
+          throw 'Native no-prompt observer stop channel closed without its exact command.'
+        }
+        $stopControl = $stopLine | ConvertFrom-Json
+        $actualStopKeys = @($stopControl.PSObject.Properties.Name | Sort-Object -CaseSensitive)
+        $expectedStopKeys = @('command', 'scheduleId', 'schema')
+        if (
+          ($actualStopKeys -join "`n") -cne ($expectedStopKeys -join "`n") -or
+          $stopControl.schema -cne 'sitewipe.native-permission-helper-control.v1' -or
+          $stopControl.command -cne 'stop-observation' -or
+          $stopControl.scheduleId -cne $ExpectedScheduleId
+        ) {
+          throw 'Native no-prompt observer received an inexact controlled-stop command.'
+        }
+        $stopRequestedAt = [DateTimeOffset]::UtcNow.ToString('o')
+        $finalDialogs = @(Get-MatchingDialog)
+        if ($finalDialogs.Count -ne 0) {
+          throw 'An exact permission dialog appeared while the no-prompt observer was settling.'
+        }
+        $finalProcess = Get-ExactTargetProcess
+        Write-Evidence ([pscustomobject]@{
+          schema = 'sitewipe.native-permission-dialog-evidence.v1'
+          status = 'no_prompt_observed'
+          scheduleId = $ExpectedScheduleId
+          scenarioId = $reviewedSchedule.scenarioId
+          browserName = $ExpectedBrowserName
+          browserVersion = $ExpectedBrowserVersion
+          action = $Action
+          targetProcess = $finalProcess
+          dialogTitle = $ExpectedDialogTitle
+          expectedFragments = $expectedFragments
+          permissionPatterns = $permissionPatterns
+          observedNames = @()
+          observationStartedAt = $readyAt
+          stopRequestedAt = $stopRequestedAt
+          observedAt = [DateTimeOffset]::UtcNow.ToString('o')
+        })
+        exit 0
+      }
+      Start-Sleep -Milliseconds 50
+    }
+    Write-Evidence ([pscustomobject]@{
+      schema = 'sitewipe.native-permission-dialog-evidence.v1'
+      status = 'observation_watchdog_expired'
+      scheduleId = $ExpectedScheduleId
+      scenarioId = $reviewedSchedule.scenarioId
+      browserName = $ExpectedBrowserName
+      browserVersion = $ExpectedBrowserVersion
+      action = $Action
+      targetProcess = $initialProcess
+      dialogTitle = $ExpectedDialogTitle
+      expectedFragments = $expectedFragments
+      permissionPatterns = $permissionPatterns
+      observedNames = @()
+      observationStartedAt = $readyAt
+      observedAt = [DateTimeOffset]::UtcNow.ToString('o')
+    })
+    exit 10
+  }
+
   while ([DateTimeOffset]::UtcNow -lt $deadline) {
     $dialogs = @(Get-MatchingDialog)
     if ($dialogs.Count -gt 1) {
@@ -205,45 +309,6 @@ try {
       break
     }
     Start-Sleep -Milliseconds 50
-  }
-
-  if ($Action -eq 'observe-none') {
-    if ($null -ne $matchingDialog) {
-      $names = Assert-ExpectedDialogContent -Dialog $matchingDialog
-      Write-Evidence ([pscustomobject]@{
-        schema = 'sitewipe.native-permission-dialog-evidence.v1'
-        status = 'unexpected_prompt_observed'
-        scheduleId = $ExpectedScheduleId
-        scenarioId = $reviewedSchedule.scenarioId
-        browserName = $ExpectedBrowserName
-        browserVersion = $ExpectedBrowserVersion
-        action = $Action
-        targetProcess = $initialProcess
-        dialogTitle = $ExpectedDialogTitle
-        expectedFragments = $expectedFragments
-        permissionPatterns = $permissionPatterns
-        observedNames = $names
-        observedAt = [DateTimeOffset]::UtcNow.ToString('o')
-      })
-      exit 8
-    }
-    $finalProcess = Get-ExactTargetProcess
-    Write-Evidence ([pscustomobject]@{
-      schema = 'sitewipe.native-permission-dialog-evidence.v1'
-      status = 'no_prompt_observed'
-      scheduleId = $ExpectedScheduleId
-      scenarioId = $reviewedSchedule.scenarioId
-      browserName = $ExpectedBrowserName
-      browserVersion = $ExpectedBrowserVersion
-      action = $Action
-      targetProcess = $finalProcess
-      dialogTitle = $ExpectedDialogTitle
-      expectedFragments = $expectedFragments
-      permissionPatterns = $permissionPatterns
-      observedNames = @()
-      observedAt = [DateTimeOffset]::UtcNow.ToString('o')
-    })
-    exit 0
   }
 
   if ($null -eq $matchingDialog) {

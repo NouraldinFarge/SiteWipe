@@ -7,11 +7,12 @@ const VALIDATION_RECORD_PATTERN =
   /^automated-validation-(\d{4}-\d{2}-\d{2})(?:-v((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)))?\.json$/;
 const SEMANTIC_VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 
-export async function resolveCurrentValidationEvidence(root) {
-  const pointer = parseJson(
-    await readFile(resolve(root, VALIDATION_EVIDENCE_POINTER_PATH), 'utf8'),
-    VALIDATION_EVIDENCE_POINTER_PATH
-  );
+export async function resolveCurrentValidationEvidence(root, { readText = undefined } = {}) {
+  if (readText !== undefined && typeof readText !== 'function') {
+    throw new Error('Validation evidence text reader must be a function.');
+  }
+  const read = readText || ((path) => readFile(resolve(root, path), 'utf8'));
+  const pointer = parseJson(await read(VALIDATION_EVIDENCE_POINTER_PATH), VALIDATION_EVIDENCE_POINTER_PATH);
   const record = String(pointer?.record || '');
   const match = VALIDATION_RECORD_PATTERN.exec(record);
   if (!match) {

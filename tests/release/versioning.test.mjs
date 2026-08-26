@@ -5,10 +5,14 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { RUNTIME_FILES, SOURCE_ARCHIVE_ROOT_FILES } from '../../scripts/release-files.mjs';
+import { collectSourceArchiveEntries } from '../../scripts/source-archive.mjs';
 import {
   assertSemanticVersion,
+  collectVersionFingerprintPaths,
   computeReleaseInputFingerprint,
   computeRuntimeFingerprint,
+  computeVersionFingerprintFromSourceEntries,
+  computeVersionFingerprintSnapshot,
   isMutableReleaseRecord,
   resolveNextVersion,
   runtimeArtifactBase,
@@ -27,6 +31,53 @@ test('version helpers produce deliberate forward-only semantic versions and arti
   assert.throws(() => assertSemanticVersion('1.09.9'), /leading zeroes/);
   assert.throws(() => resolveNextVersion('1.9.8', '1.9.8'), /must be greater/);
   assert.throws(() => resolveNextVersion('1.9.8', '1.9.7'), /must be greater/);
+});
+
+test('one version fingerprint snapshot captures the exact full input inventory and bytes', async () => {
+  const paths = await collectVersionFingerprintPaths(root);
+  const snapshot = await computeVersionFingerprintSnapshot(root);
+
+  assert.deepEqual(snapshot.paths, paths);
+  assert.deepEqual([...snapshot.inputs.keys()], paths.allPaths);
+  assert.equal(snapshot.inputs.size, paths.allPaths.length);
+  assert.equal(paths.runtimePaths.length, RUNTIME_FILES.length);
+  assert.deepEqual(
+    paths.runtimePaths,
+    RUNTIME_FILES.map((path) => `src/${path}`)
+  );
+  assert.equal(snapshot.runtimeFingerprintSha256, await computeRuntimeFingerprint(root));
+  assert.deepEqual(snapshot.releaseInputFingerprint, await computeReleaseInputFingerprint(root));
+  for (const bytes of snapshot.inputs.values()) assert.equal(Buffer.isBuffer(bytes), true);
+
+  const overridePath = paths.runtimePaths[0];
+  const overrideBytes = Buffer.from('staged-runtime-override', 'utf8');
+  const overrides = new Map([[overridePath, overrideBytes]]);
+  const overridden = await computeVersionFingerprintSnapshot(root, overrides);
+  assert.deepEqual(overridden.inputs.get(overridePath), overrideBytes);
+  assert.equal(overridden.runtimeFingerprintSha256, await computeRuntimeFingerprint(root, overrides));
+  assert.deepEqual(overridden.releaseInputFingerprint, await computeReleaseInputFingerprint(root, overrides));
+
+  const captured = computeVersionFingerprintFromSourceEntries(await collectSourceArchiveEntries(root));
+  assert.equal(captured.runtimeFingerprintSha256, snapshot.runtimeFingerprintSha256);
+  assert.deepEqual(captured.releaseInputFingerprint, snapshot.releaseInputFingerprint);
+});
+
+test('captured-source version fingerprints reject missing, duplicate, and mutable shared inputs', async () => {
+  const entries = await collectSourceArchiveEntries(root);
+  const duplicate = [...entries, entries[0]];
+  assert.throws(() => computeVersionFingerprintFromSourceEntries(duplicate), /invalid or duplicated/i);
+  assert.throws(
+    () => computeVersionFingerprintFromSourceEntries(entries.filter(({ path }) => path !== 'src/manifest.json')),
+    /runtime input is missing/i
+  );
+  const captured = computeVersionFingerprintFromSourceEntries(entries);
+  const changed = entries.map((entry) =>
+    entry.path === 'src/manifest.json' ? { ...entry, bytes: Buffer.from('{}\n') } : entry
+  );
+  assert.notEqual(
+    computeVersionFingerprintFromSourceEntries(changed).runtimeFingerprintSha256,
+    captured.runtimeFingerprintSha256
+  );
 });
 
 test('the version ledger fingerprints every allowlisted runtime file and all release paths enforce it', async () => {
@@ -131,13 +182,116 @@ test('release evidence remains bound to tested bytes and approval runs after reb
   assert.match(publicationGate, /direct-cleanup-owner-decision\.json/);
   assert.match(publicationGate, /publicationGateDirectCleanupContract/);
   assert.match(publicationGate, /default-off, explicitly confirmed, preflight-bound, single-use/);
-  assert.match(publicationGate, /verifyReleaseCandidate\(\{ root \}\)/);
+  assert.match(publicationGate, /const releaseVerifier = resolveReleaseVerifier\(testOnlyVerifyReleaseCandidate\)/);
+  assert.match(publicationGate, /const runtimeArtifactSha256 = verifiedRelease\?\.sha256 \?\? null/);
+  assert.match(publicationGate, /sha256\(runtimeArtifact\) !== runtimeArtifactSha256/);
+  assert.match(publicationGate, /const terminalVerifiedRelease = await releaseVerifier\(\{ root \}\)/);
+  assert.match(publicationGate, /assertPublicationSourceReplay\(initialPublicationSource, terminalPublicationSource\)/);
+  assert.match(
+    publicationGate,
+    /assertFinalizationEntriesMatchCommittedSource\(finalization\.entries, automatedPath\)/
+  );
+  assert.match(publicationGate, /artifactVersion: pkg\?\.version/);
+  assert.match(publicationGate, /finalizedMediaEntries/);
   assert.match(publicationGate, /sourceClosurePrivatePathScan\?\.repositoryFiles !== verifiedRelease\?\.sourceFiles/);
   assert.doesNotMatch(publicationGate, /findRetiredBypassSignals/);
   assert.ok(
     workflow.indexOf('npm run verify:release-candidate') < workflow.indexOf('npm run check:publication-gates'),
     'publication gates must evaluate the rebuilt and verified bytes'
   );
+});
+
+test('current local and hosted candidate instructions share one exact dependency and toolchain protocol', async () => {
+  const exactInstall = 'npm ci --ignore-scripts --no-audit --no-fund';
+  const exactAudit = 'npm audit --audit-level=low --json';
+  const currentFacingPaths = [
+    'README.md',
+    'CONTRIBUTING.md',
+    'docs/testing.md',
+    'docs/releasing.md',
+    'docs/threat-model.md',
+    '.github/workflows/ci.yml',
+    '.github/workflows/release-candidate.yml'
+  ];
+  for (const path of currentFacingPaths) {
+    const value = await text(path);
+    assert.match(value, new RegExp(exactInstall.replaceAll('-', '\\-')), `${path} exact install command`);
+    assert.match(value, new RegExp(exactAudit.replaceAll('-', '\\-')), `${path} exact audit command`);
+    assert.doesNotMatch(value, /npm audit --audit-level=moderate/, `${path} stale moderate audit command`);
+  }
+
+  for (const path of ['README.md', 'CONTRIBUTING.md', 'docs/testing.md', 'docs/releasing.md']) {
+    const value = await text(path);
+    assert.match(value, /Node(?:\.js)? 24\.18\.1/);
+    assert.match(value, /npm 11\.16\.0/);
+  }
+
+  const testing = await text('docs/testing.md');
+  assert.doesNotMatch(testing, /CI retains the separate named step/);
+  const ci = await text('.github/workflows/ci.yml');
+  const candidate = await text('.github/workflows/release-candidate.yml');
+  const pkg = await json('package.json');
+  assert.match(ci, /timeout-minutes: 45/);
+  assert.match(candidate, /timeout-minutes: 60/);
+  for (const workflow of [ci, candidate]) {
+    assert.ok(workflow.indexOf(exactInstall) < workflow.indexOf('npm run check'));
+    assert.ok(workflow.indexOf('npm run check') < workflow.indexOf('npm run test:coverage'));
+    assert.ok(workflow.indexOf('npm run test:coverage') < workflow.indexOf(exactAudit));
+    assert.ok(workflow.indexOf(exactAudit) < workflow.indexOf('npm run verify:reproducible-release-candidate'));
+  }
+  assert.equal(
+    pkg.scripts['remote:collect-publication-evidence'],
+    'node scripts/collect-remote-publication-evidence.mjs'
+  );
+  assert.equal(pkg.scripts['remote:stage-publication-inputs'], 'node scripts/stage-remote-publication-inputs.mjs');
+  assert.match(candidate, /vars\.SITEWIPE_REMOTE_PUBLICATION_EXPECTED_BINDING_JSON/);
+  assert.match(candidate, /secrets\.SITEWIPE_GITHUB_READ_TOKEN/);
+  assert.match(candidate, /SITEWIPE_GITHUB_REPOSITORY:\s*\$\{\{\s*github\.repository\s*\}\}/);
+  assert.match(candidate, /SITEWIPE_GITHUB_REPOSITORY_ID:\s*\$\{\{\s*github\.repository_id\s*\}\}/);
+  assert.match(candidate, /SITEWIPE_RELEASE_ENVIRONMENT_NAME:\s*unreleased-candidate/);
+  assert.match(candidate, /npm run remote:stage-publication-inputs/);
+  assert.match(candidate, /SITEWIPE_REMOTE_PUBLICATION_EVIDENCE_DIRECTORY/);
+  assert.match(candidate, /SITEWIPE_REMOTE_PUBLICATION_EXPECTED_BINDING/);
+  assert.ok(
+    candidate.indexOf('npm run verify:reproducible-release-candidate') <
+      candidate.indexOf('Stage independently approved remote expectation')
+  );
+  assert.ok(
+    candidate.indexOf('npm run remote:stage-publication-inputs') <
+      candidate.indexOf('npm run remote:collect-publication-evidence')
+  );
+  assert.ok(
+    candidate.indexOf('npm run remote:collect-publication-evidence') <
+      candidate.indexOf('npm run check:publication-gates')
+  );
+  assert.ok(
+    candidate.indexOf('npm run remote:collect-publication-evidence') <
+      candidate.indexOf('Retain remote capture and independent expectation before publication evaluation')
+  );
+  assert.ok(
+    candidate.indexOf('Retain remote capture and independent expectation before publication evaluation') <
+      candidate.indexOf('npm run check:publication-gates')
+  );
+  assert.match(candidate, /raw-responses\.json/);
+  assert.match(candidate, /sitewipe-remote-expected-binding\.json/);
+  assert.doesNotMatch(candidate, /SITEWIPE_GITHUB_READ_TOKEN:\s*\$\{\{\s*github\.token/);
+
+  const stageSource = await text('scripts/stage-remote-publication-inputs.mjs');
+  assert.match(stageSource, /GITHUB_REST_API_VERSION/);
+  assert.match(stageSource, /method:\s*'GET'/);
+  assert.match(stageSource, /redirect:\s*'error'/);
+  assert.match(stageSource, /open\(target, 'wx', 0o600\)/);
+  assert.match(stageSource, /\/repositories\/\$\{exactRepositoryId\}/);
+  assert.match(stageSource, /\/repos\/\$\{exactRepository\}\/environments\/\$\{encodedEnvironment\}\/variables\//);
+  assert.match(stageSource, /\/repos\/\$\{exactRepository\}\/environments\/\$\{encodedEnvironment\}\/secrets\//);
+  assert.match(stageSource, /variable\.value !== expectedJson/);
+  assert.match(stageSource, /REMOTE_PUBLICATION_TOKEN_SECRET_NAME/);
+  assert.doesNotMatch(stageSource, /github\.token/);
+  const releasing = await text('docs/releasing.md');
+  const threatModel = await text('docs/threat-model.md');
+  assert.match(releasing, /Environments read/);
+  assert.match(releasing, /same-named repository\/organization fallback/);
+  assert.match(threatModel, /same-named repository\/organization variables or secrets/);
 });
 
 test('the active automated evidence pointer uses a fresh record instead of rewriting historical validation', async () => {

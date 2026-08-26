@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "status": "local_automated_validation_failed",
+  "validatedAt": "2026-08-25T19:07:21.7649875-05:00",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
+  "environment": {
+    "osDescription": "Microsoft Windows NT 10.0.26100.0",
+    "processArchitecture": "x64",
+    "node": "v24.18.1",
+    "npm": "11.16.0",
+    "scope": "Exact local 1.11.94 first complete-check attempt on the pinned Node/npm toolchain. Every safeguard through the package allowlist and the legacy release self-test passed. The unit suite completed 1405 tests with 1401 passed, 1 failed, and 3 platform skips; the property suite and every later command did not run."
+  },
+  "baseline": {
+    "beforeState": "The 1.11.93 record remains unchanged in automated-validation-2026-08-25-v1.11.93.json.",
+    "baselineVersion": "1.11.93",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-25-v1.11.93.json"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "failed",
+    "format": "passed",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.11.94",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "0EE478F2485E8615B7C07B1E6310D0383A59E945E021071F15A404D9341C2A7A",
+      "stableReleaseInputFingerprintSha256": "B27F39A1752CC032F5B34B0CAACAF1E6570322E655623E9D6170D313E6417BAE",
+      "stableReleaseInputFiles": 310
+    },
+    "manifest": {
+      "status": "passed",
+      "version": "1.11.94",
+      "descriptionCharacters": 123,
+      "descriptionMaximum": 132,
+      "requiredNamedPermissions": 10,
+      "optionalNamedPermissions": 1,
+      "requiredHostPatterns": 0,
+      "optionalHostPatterns": 2
+    },
+    "syntaxModules": 217,
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "htmlValidation": "passed",
+    "cssValidation": "passed",
+    "remoteCodeAndRuntimeSecretScan": {
+      "status": "passed",
+      "runtimeFiles": 61
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 414
+    },
+    "developmentSbom": {
+      "status": "passed",
+      "components": 358,
+      "dependencyNodes": 417,
+      "sha256": "F66E265C3DED22EDCF76D957B0D7BBE66ACC092CAA2BADEF0D1D54DE2B9AA7CA"
+    },
+    "dependencyLicenseInventory": {
+      "status": "passed",
+      "runtimeDependencies": 0,
+      "lockedDevelopmentGraph": 416,
+      "lockfileSha256": "238CF4117B2BFC939597A4CAA91F088789054557677971BA3C90A8E25F467EEF",
+      "metadataExceptionsResolved": 1
+    },
+    "projectLicense": {
+      "status": "passed",
+      "spdxIdentifier": "MIT",
+      "licenseFileSha256": "86ECA68E8C1B0498315252BD01B6190F01500EE720C333D00793DD947F5B6511"
+    },
+    "thirdPartyNoticeAndPslHash": "passed",
+    "iconSourceAndPngProvenance": "passed",
+    "documentation": {
+      "status": "passed",
+      "markdownFiles": 49
+    },
+    "githubActionPins": {
+      "status": "passed",
+      "references": 10
+    },
+    "runtimeAllowlist": {
+      "status": "passed",
+      "runtimeFiles": 61,
+      "sourceOnlyFiles": 3
+    },
+    "legacyReleaseSelfTest": "passed",
+    "nodeTests": {
+      "tests": 1405,
+      "suites": 0,
+      "passed": 1401,
+      "failed": 1,
+      "cancelled": 0,
+      "skipped": 3,
+      "todo": 0,
+      "durationMs": 540992.2203
+    },
+    "failure": {
+      "stage": "test:unit",
+      "test": "publication contract accepts the exact current owner-amended source-candidate design",
+      "finding": "docs/decisions/direct-cleanup-owner-decision.json: the exact owner amendment for the one-activation pregranted and two-activation missing-access source-candidate contract is incomplete or stale",
+      "interpretation": "The version transaction advanced the package to 1.11.94 while the mutable decision record still named reviewedVersion 1.11.93. The invariant fields and all mutation regressions remained unchanged and passed, but exact candidate binding correctly failed closed. The decision binding and other mutable candidate-version fields must be deliberately advanced with the unchanged approved invariant set in a forward successor."
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "status": "not_run",
+      "reason": "The complete-check command stopped after the unit suite returned one failed test."
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "not_run",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    }
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "not_run",
+    "installedPackages": null,
+    "auditedPackagesIncludingRoot": null,
+    "lifecycleScriptsDisabled": null,
+    "deprecationWarnings": []
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=low --json",
+    "status": "not_run",
+    "auditedAt": null,
+    "knownVulnerabilities": null,
+    "runtimeDependencies": null,
+    "lockedDevelopmentGraph": null,
+    "lockfileSha256": null
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "failed_stale_candidate_binding",
+    "redactionCanaries": "passed",
+    "privateContextPersistenceRefusal": "passed",
+    "deterministicThirtyMinuteExpiry": "passed"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "passed",
+    "installedChromeRun": "not_run",
+    "installedBraveRun": "not_run",
+    "note": "The deterministic loopback fixture server contract passed. No installed Chrome or Brave execution is claimed."
+  },
+  "gitInitialization": {
+    "status": "not_run",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "No exact 1.11.94 candidate commit, clean-checkout validation, push, or remote check was performed."
+  },
+  "artifacts": {
+    "status": "not_run",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.94.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.94-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "not_run",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.94.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.94.unsigned-provenance-input.json",
+    "remoteAttestation": "not_run",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "Exact 1.11.94 failed its first complete check in the unit suite because the mutable Direct Cleanup decision remained bound to reviewedVersion 1.11.93.",
+      "Property tests, coverage, dependency reinstall/audit, artifacts, installed browsers, accessibility, performance, media, independent review, commit, push, remote validation, and publication evaluation did not run."
+    ]
+  },
+  "limitations": [
+    "No automated, installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior.",
+    "Exact 1.11.94 has no complete local safeguard result and cannot satisfy later gates.",
+    "No property, coverage, install, audit, artifact, browser, accessibility, performance, media, Git publication, or remote result is claimed for 1.11.94."
+  ]
+}

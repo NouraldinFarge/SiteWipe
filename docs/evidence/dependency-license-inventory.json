@@ -3,7 +3,7 @@
   "status": "technical_inventory_complete_owner_acknowledged",
   "inventoriedAt": "2026-08-25",
   "lastAuditAt": "2026-08-25",
-  "lockfileSha256": "44DA74ACA21B92D1B42147A8B3E3707A0F934E11BF7803002E8DBF7DEED408B7",
+  "lockfileSha256": "A615F1C907CF8025F618F284523C34B624DE457C7CB17448972F99DEC9668765",
   "runtimeDependencyCount": 0,
   "lockedDevelopmentGraphCount": 416,
   "licenseCounts": {
@@ -39,7 +39,7 @@
       "path": "node_modules/libxmljs2",
       "name": "libxmljs2",
       "version": "0.37.0",
-      "control": "All documented local and CI installations use npm ci --ignore-scripts."
+      "control": "All documented local and CI candidate installations use npm ci --ignore-scripts --no-audit --no-fund, followed by the separately recorded low-threshold JSON audit."
     }
   ],
   "highAttentionLicenses": [
@@ -75,12 +75,12 @@
     "path": "validation-output/sitewipe-development-sbom.cdx.json",
     "bomFormat": "CycloneDX",
     "specVersion": "1.6",
-    "componentVersion": "1.11.89",
+    "componentVersion": "1.11.98",
     "components": 358,
     "dependencyNodes": 417,
     "bytes": 575813,
-    "sha256": "D1395217AD96238DFB2CE4902AAB2F8A91E3E374AD4ABE9BDE1A1A9787C49196",
-    "generatedAt": "2026-08-25T10:13:29.0862101-05:00"
+    "sha256": "62572D53FD384D72061CB2F15494740A1948DA79D3F599B5E0A8EAA158CA51DB",
+    "generatedAt": "2026-08-25T23:05:33.4371019-05:00"
   },
   "directDevelopmentDependencies": [
     {
@@ -184,5 +184,5 @@
   ],
   "ownerApproval": true,
   "ownerApprovedAt": "2026-08-17",
-  "candidateVersion": "1.11.89"
+  "candidateVersion": "1.11.98"
 }
