@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { assertSupportedUrlRestrictions } from 'puppeteer-core/internal/common/BrowserConnector.js';
+import { URLPattern } from 'puppeteer-core/lib/third_party/urlpattern-polyfill/urlpattern-polyfill.js';
+
+import { SYNTHETIC_FIXTURE_HOSTS } from '../fixture-server.mjs';
+
 import {
   INSTALLED_RUNTIME_LAUNCH_POLICY,
   INSTALLED_RUNTIME_LAUNCH_POLICY_SHA256,
@@ -28,6 +33,51 @@ test('installed launch policy is headful, pipe-only, non-maximized, proxy-bound,
   assert.match(LOOPBACK_HOST_RESOLVER_RULES, /MAP \* ~NOTFOUND/);
   assert.equal(
     RUNTIME_NETWORK_ALLOWLIST.some((value) => value.startsWith('https:')),
+    false
+  );
+});
+
+test('runtime allowlist is accepted by pinned Puppeteer and matches only the IPv6 loopback fixture', () => {
+  assert.doesNotThrow(() =>
+    assertSupportedUrlRestrictions({
+      protocol: 'cdp',
+      allowlist: [...RUNTIME_NETWORK_ALLOWLIST]
+    })
+  );
+  assert.throws(
+    () =>
+      assertSupportedUrlRestrictions({
+        protocol: 'cdp',
+        allowlist: ['http://[::1]:*/*']
+      }),
+    /invalid hostname pattern/
+  );
+
+  const ipv6Rule = RUNTIME_NETWORK_ALLOWLIST.find((value) => value.includes('\\:\\:1'));
+  assert.equal(ipv6Rule, 'http://[\\:\\:1]:*/*');
+  assert.equal(RUNTIME_NETWORK_ALLOWLIST.includes('http://[::1]:*/*'), false);
+  const ipv6Pattern = new URLPattern(ipv6Rule);
+  assert.equal(ipv6Pattern.test('http://[::1]:43822/health'), true);
+  assert.equal(ipv6Pattern.test('http://[::1]:43822/health?probe=1'), true);
+  assert.equal(ipv6Pattern.test('http://127.0.0.1:43822/health'), false);
+  assert.equal(ipv6Pattern.test('http://[::2]:43822/health'), false);
+  assert.equal(ipv6Pattern.test('https://[::1]:43822/health'), false);
+  assert.equal(ipv6Pattern.test('http://example.com:43822/health'), false);
+
+  const httpPatterns = RUNTIME_NETWORK_ALLOWLIST.filter((value) => value.startsWith('http:')).map(
+    (value) => new URLPattern(value)
+  );
+  for (const host of SYNTHETIC_FIXTURE_HOSTS) {
+    const authority = host === '::1' ? '[::1]' : host;
+    const fixtureUrl = `http://${authority}:43822/health?probe=1`;
+    assert.equal(
+      httpPatterns.filter((pattern) => pattern.test(fixtureUrl)).length,
+      1,
+      `expected one exact allowlist match for ${host}`
+    );
+  }
+  assert.equal(
+    httpPatterns.some((pattern) => pattern.test('http://example.com:43822/health')),
     false
   );
 });

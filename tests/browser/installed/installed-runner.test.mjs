@@ -169,6 +169,31 @@ test('browser teardown failure terminally refuses the owned run before any later
   assert.equal(harness.log.filter(({ event }) => event === 'fixture-close').length, 2);
 });
 
+test('pre-controller launch failure remains terminal but preserves its primary cause', async () => {
+  const plan = samplePlan();
+  const cell = `ART-01/${REQUIRED_BROWSERS[0]}`;
+  const harness = createHarness({
+    plan,
+    includeFailedObservation: true,
+    preControllerLaunchFailureCell: cell
+  });
+  await assert.rejects(
+    createInstalledBrowserRunner(harness.dependencies)({ plan, approvalSha256: plan.planSha256 }),
+    (error) => {
+      assert.match(error.message, /launch failed before returning its exact controller/);
+      assert.match(error.message, /cleanup could not be authenticated without that launch receipt/);
+      assert.equal(error.cause, harness.preControllerLaunchFailure);
+      return true;
+    }
+  );
+  assert.equal(harness.log.filter((entry) => entry.event === 'browser-close' && entry.cell === cell).length, 1);
+  assert.equal(harness.log.filter(({ event }) => event === 'launch').at(-1)?.cell, cell);
+  assert.equal(harness.log.filter(({ event }) => event === 'launch').length, 1);
+  assert.equal(harness.log.filter(({ event }) => event === 'owned-retain-failure').length, 1);
+  assert.equal(harness.log.filter(({ event }) => event === 'proxy-close').length, 1);
+  assert.equal(harness.log.filter(({ event }) => event === 'fixture-close').length, 2);
+});
+
 test('central teardown validation terminally refuses an attention-required receipt before any later launch', async () => {
   const plan = samplePlan();
   const cell = 'ART-01/chrome';
@@ -334,6 +359,7 @@ test('fallback controller adoption guards hostile close access and preserves the
     const harness = createHarness({ plan });
     const conformingLaunch = harness.dependencies.launchPinnedSiteWipeBrowser;
     let hostileGetterReads = 0;
+    const hostileCloseError = new Error('Hostile synthetic close getter.');
     harness.dependencies.launchPinnedSiteWipeBrowser = async (options) => {
       if (`${options.scenarioId}/${options.browserName}` !== cell) {
         return conformingLaunch(options);
@@ -341,14 +367,18 @@ test('fallback controller adoption guards hostile close access and preserves the
       return Object.defineProperty({}, 'close', {
         get() {
           hostileGetterReads += 1;
-          throw new Error('Hostile synthetic close getter.');
+          throw hostileCloseError;
         }
       });
     };
 
     await assert.rejects(
       createInstalledBrowserRunner(harness.dependencies)({ plan, approvalSha256: plan.planSha256 }),
-      /cleanup did not establish one exact clean zero-residue receipt/
+      (error) => {
+        assert.match(error.message, /launch failed before returning its exact controller/);
+        assert.equal(error.cause, hostileCloseError);
+        return true;
+      }
     );
     await delay(0);
 
@@ -629,9 +659,11 @@ function createHarness({
   neverSettlingCloseCell = null,
   neverSettlingLaunchCell = null,
   networkCloseFailures = [],
+  preControllerLaunchFailureCell = null,
   settlementFailure = null
 }) {
   const log = [];
+  const preControllerLaunchFailure = new Error("Failed to construct 'URLPattern': invalid hostname pattern '[::1]'.");
   let pendingLifecycleOperations = 0;
   let clockTick = 0;
   const now = () => new Date(Date.UTC(2026, 7, 25, 12, 0, 0, clockTick++)).toISOString();
@@ -812,6 +844,7 @@ function createHarness({
       if (cell === lateCleanupRegistrationCell) await delay(30);
       registerCleanup(close);
       if (cell === lateCleanupRegistrationCell) await new Promise(() => {});
+      if (cell === preControllerLaunchFailureCell) throw preControllerLaunchFailure;
       if (cell === neverSettlingLaunchCell) await new Promise(() => {});
       return {
         browser: Object.freeze(rawBrowser),
@@ -972,7 +1005,12 @@ function createHarness({
     validateBrowserPlan,
     validateScenarioResult
   };
-  return { dependencies, log, pendingLifecycleOperations: () => pendingLifecycleOperations };
+  return {
+    dependencies,
+    log,
+    pendingLifecycleOperations: () => pendingLifecycleOperations,
+    preControllerLaunchFailure
+  };
 }
 
 function delay(milliseconds) {

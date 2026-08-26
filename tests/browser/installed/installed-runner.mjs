@@ -626,6 +626,12 @@ async function executeSupportedCell({
   }
 
   if (fatalCleanupUncertainty) {
+    if (launchFailure !== null) {
+      throw new FatalCellLifecycleError(
+        'Installed-browser launch failed before returning its exact controller; cleanup could not be authenticated without that launch receipt, so the owned run is terminally refused.',
+        { cause: launchFailure }
+      );
+    }
     throw new FatalCellLifecycleError(
       'Installed-browser cleanup did not establish one exact clean zero-residue receipt; the owned run is terminally refused.'
     );

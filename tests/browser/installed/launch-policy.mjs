@@ -15,7 +15,10 @@ export const LOOPBACK_HOST_RESOLVER_RULES = Object.freeze([
 export const RUNTIME_NETWORK_ALLOWLIST = Object.freeze([
   'chrome-extension://*/*',
   ...SYNTHETIC_FIXTURE_HOSTS.map((host) => {
-    const authority = host === '::1' ? '[::1]' : host;
+    // Puppeteer's pinned URLPattern parser requires IPv6 hostname colons to be
+    // escaped in a pattern string. The pattern still matches the literal [::1]
+    // URL authority used by the fixture and does not broaden the allowlist.
+    const authority = host === '::1' ? '[\\:\\:1]' : host;
     return `http://${authority}:*/*`;
   }).sort()
 ]);

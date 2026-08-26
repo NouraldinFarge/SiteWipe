@@ -1,6 +1,6 @@
 {
   "schema": "sitewipe.installed-browser-policy.v2",
-  "launchPolicySha256": "ECF2837134B34D7D37BE75CF1246EEABC56A4E88B6F44CDA6B247E55DD17289A",
+  "launchPolicySha256": "AD0C8E2A6BBC44ABD81C173A4FD511B6ADC2041D2D5F4E6B7E689ED114ACB668",
   "browsers": [
     {
       "name": "brave",
