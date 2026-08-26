@@ -853,13 +853,17 @@ function createScenarioLaunchedView(controller) {
             wrapTarget(await rawBrowser.waitForTarget((target) => predicate(wrapTarget(target)), options))
         : undefined
   });
-  const extension = Object.freeze(
-    Object.fromEntries(
-      ['enabled', 'id', 'name', 'path', 'version'].flatMap((key) =>
-        Object.hasOwn(controller.extension ?? {}, key) ? [[key, controller.extension[key]]] : []
-      )
-    )
-  );
+  // Puppeteer's Extension identity is exposed through prototype getters backed by
+  // private fields. Copy the already-verified values explicitly; Object.hasOwn()
+  // would silently erase every real installed-extension identity field.
+  const installedExtension = controller.extension;
+  const extension = Object.freeze({
+    enabled: installedExtension?.enabled,
+    id: installedExtension?.id,
+    name: installedExtension?.name,
+    path: installedExtension?.path,
+    version: installedExtension?.version
+  });
   return Object.freeze({
     browser: browserView,
     extension,

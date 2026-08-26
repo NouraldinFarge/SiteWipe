@@ -1,13 +1,17 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import { SETTINGS_DEFAULTS } from './canonical-matrix.mjs';
+import { canonicalJsonBytes } from './evidence-contract.mjs';
 import {
   createAuthenticScenarioExecutor,
   executeAuthenticInstalledBrowserCell,
-  executeAuthenticScenarioCell
+  executeAuthenticScenarioCell,
+  inspectOwnedFreshProfile
 } from './authentic-scenario-executor.mjs';
 import {
   SEMANTIC_VALIDATOR_MANIFEST_SHA256,
@@ -27,6 +31,59 @@ test('exports one installed-runner-compatible authentic dispatcher', () => {
   assert.throws(
     () => createAuthenticScenarioExecutor({ inventedAuthority: async () => true }),
     /unknown dependencies/i
+  );
+});
+
+test('SMOKE consumes the receipt-bound pristine prelaunch fact after post-launch profile population', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'sitewipe-smoke-prelaunch-'));
+  t.after(() => rm(root, { force: true, recursive: true }));
+  const profilePath = join(root, 'profile');
+  await mkdir(profilePath);
+  const harness = createHarness();
+  const cell = {
+    browserName: 'chrome',
+    canarySha256: '7'.repeat(64),
+    planSha256: harness.plan.planSha256,
+    profilePath,
+    runId: harness.plan.runId,
+    scenarioId: 'SMOKE-01'
+  };
+  await writeFile(
+    join(profilePath, '.sitewipe-owned-browser-directory.json'),
+    canonicalJsonBytes({
+      browserName: cell.browserName,
+      canarySha256: cell.canarySha256,
+      kind: 'profile',
+      planSha256: cell.planSha256,
+      runId: cell.runId,
+      scenarioId: cell.scenarioId,
+      schema: 'sitewipe.owned-browser-directory.v1'
+    })
+  );
+  await mkdir(join(profilePath, 'Default'));
+  const launched = {
+    receipt: {
+      profilePrelaunch: {
+        profileDataEntryCountBeforeLaunch: 0,
+        profileOwnershipMarkerMatched: true,
+        profilePath,
+        profileWasNew: true,
+        schema: 'sitewipe.profile-prelaunch-observation.v1'
+      }
+    }
+  };
+
+  assert.deepEqual(await inspectOwnedFreshProfile({ cell, launched, plan: harness.plan }), {
+    profileWasNew: true,
+    profileOwnershipMarkerMatched: true,
+    profileDataEntryCountBeforeLaunch: 0
+  });
+
+  const stale = structuredClone(launched);
+  stale.receipt.profilePrelaunch.profileDataEntryCountBeforeLaunch = 1;
+  await assert.rejects(
+    inspectOwnedFreshProfile({ cell, launched: stale, plan: harness.plan }),
+    /lacks the exact pristine prelaunch profile observation/i
   );
 });
 

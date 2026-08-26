@@ -20,10 +20,15 @@ import {
   runInstalledBrowserValidationMain
 } from '../../scripts/run-installed-browser-validation.mjs';
 import { canonicalJsonBytes } from '../browser/installed/evidence-contract.mjs';
+import { canonicalScenario } from '../browser/installed/canonical-matrix.mjs';
 import {
   INSTALLED_BROWSER_PUBLIC_PROJECTION_SCHEMA,
   INSTALLED_BROWSER_RUN_SCHEMA
 } from '../browser/installed/installed-runner.mjs';
+import {
+  semanticScenarioImplementationStatus,
+  semanticValidatorEntry
+} from '../browser/installed/semantic-validator.mjs';
 
 const HASH_A = 'A'.repeat(64);
 const HASH_B = 'B'.repeat(64);
@@ -94,6 +99,69 @@ test('run independently reads, validates, explicitly approves, revalidates, and 
   assert.equal(serialized.includes('contentBase64'), false);
   assert.equal(serialized.includes('PRIVATE_RAW_EVIDENCE'), false);
   assert.equal(serialized.includes('executablePath'), false);
+});
+
+test('run publishes canonical null validator IDs only for exact not-implemented assertions', async (t) => {
+  const fixture = await createFixture(t, {
+    assertionId: 'upgrade.trusted_baseline',
+    scenarioId: 'UPG-01'
+  });
+  const planInput = join(fixture.externalRoot, 'approved-plan.json');
+  const resultOutput = join(fixture.externalRoot, 'public-result.json');
+  const plan = fixture.makePlan();
+  await writeFile(planInput, canonicalJsonBytes(plan));
+
+  await fixture.cli({
+    argv: runArguments(fixture.externalRoot, planInput, plan.planSha256, resultOutput),
+    environment: {}
+  });
+
+  const summary = JSON.parse(await readFile(resultOutput, 'utf8'));
+  assert.deepEqual(
+    summary.publicProjection.cells.map(({ implementationStatus, state, assertions }) => ({
+      implementationStatus,
+      state,
+      assertion: assertions[0]
+    })),
+    plan.requiredBrowsers.map(() => ({
+      implementationStatus: 'not_implemented',
+      state: 'not_run',
+      assertion: { id: 'upgrade.trusted_baseline', state: 'not_run', validatorId: null }
+    }))
+  );
+});
+
+test('run rejects null or stale validator IDs that differ from the exact semantic manifest', async (t) => {
+  for (const options of [
+    {
+      mutateProjection(projection) {
+        projection.cells[0].assertions[0].validatorId = null;
+      }
+    },
+    {
+      scenarioId: 'UPG-01',
+      mutateProjection(projection) {
+        projection.cells[0].assertions[0].validatorId = 'sitewipe.semantic.invented.v1';
+      }
+    },
+    {
+      scenarioId: 'UPG-01',
+      mutateProjection(projection) {
+        projection.cells[0].assertions[0].state = 'passed';
+      }
+    }
+  ]) {
+    const fixture = await createFixture(t, options);
+    const plan = fixture.makePlan();
+    const input = join(fixture.externalRoot, `plan-${plan.requiredMatrixIds[0]}.json`);
+    const output = join(fixture.externalRoot, `result-${plan.requiredMatrixIds[0]}.json`);
+    await writeFile(input, canonicalJsonBytes(plan));
+    await assert.rejects(
+      fixture.cli({ argv: runArguments(fixture.externalRoot, input, plan.planSha256, output), environment: {} }),
+      /projection assertion is malformed/i
+    );
+    await assert.rejects(readFile(output), /ENOENT/);
+  }
 });
 
 test('argument parser accepts only the two exact phases and rejects aliases, overrides, duplicates, and omissions', () => {
@@ -388,7 +456,7 @@ test('run refuses a projection carrying a private path and does not publish a su
   await writeFile(input, canonicalJsonBytes(plan));
   await assert.rejects(
     fixture.cli({ argv: runArguments(fixture.externalRoot, input, plan.planSha256, output), environment: {} }),
-    /forbidden private field|private or unbounded string/i
+    /projection assertion is malformed|forbidden private field|private or unbounded string/i
   );
   assert.deepEqual(
     fixture.log.map(({ event }) => event),
@@ -407,6 +475,7 @@ async function createFixture(t, options = {}) {
     samplePlan({
       repositoryRoot: resolve(INSTALLED_BROWSER_VALIDATION_REPOSITORY_ROOT),
       workspaceRoot: resolve(externalRoot, INSTALLED_BROWSER_OWNED_RUNS_DIRECTORY),
+      requiredMatrixIds: [options.scenarioId ?? 'ART-01'],
       ...overrides
     });
   const dependencies = {
@@ -421,7 +490,7 @@ async function createFixture(t, options = {}) {
     },
     async runInstalledBrowserValidation({ plan, approvalSha256 }) {
       log.push({ event: 'run', planSha256: plan.planSha256, approvalSha256 });
-      const result = sampleResult(plan);
+      const result = sampleResult(plan, options);
       if (options.mutateProjection) options.mutateProjection(result.publicProjection, externalRoot);
       return result;
     },
@@ -438,7 +507,7 @@ async function createFixture(t, options = {}) {
   };
 }
 
-function samplePlan({ repositoryRoot, workspaceRoot }) {
+function samplePlan({ repositoryRoot, workspaceRoot, requiredMatrixIds = ['ART-01'] }) {
   const unsigned = {
     schema: 'sitewipe.test-browser-plan.v1',
     runId: 'sitewipe-browser-0123456789abcdef0123456789abcdef',
@@ -446,7 +515,7 @@ function samplePlan({ repositoryRoot, workspaceRoot }) {
     matrixSha256: HASH_A,
     semanticValidatorManifestSha256: HASH_B,
     requiredBrowsers: ['brave', 'chrome'],
-    requiredMatrixIds: ['ART-01'],
+    requiredMatrixIds,
     identity: {
       artifactVersion: '1.11.89',
       artifactSha256: HASH_C,
@@ -487,14 +556,26 @@ function validateFakePlan(plan) {
   return plan;
 }
 
-function sampleResult(plan) {
+function sampleResult(plan, options = {}) {
+  const scenarioId = options.scenarioId ?? plan.requiredMatrixIds[0];
+  const scenario = canonicalScenario(scenarioId);
+  const implementationStatus = semanticScenarioImplementationStatus(scenarioId);
+  const assertions = scenario.requiredAssertions.map((assertionId) => {
+    const manifestEntry = semanticValidatorEntry(scenarioId, assertionId);
+    return {
+      id: assertionId,
+      state: manifestEntry.status === 'implemented' ? 'passed' : 'not_run',
+      validatorId: manifestEntry.validatorId
+    };
+  });
+  const cellState = assertions.some(({ state }) => state === 'not_run') ? 'not_run' : 'passed';
   const cells = plan.requiredBrowsers.map((browser, index) => ({
-    scenarioId: 'ART-01',
+    scenarioId,
     browser,
-    state: 'passed',
-    implementationStatus: 'implemented',
+    state: cellState,
+    implementationStatus,
     resultRecordSha256: String(index + 6).repeat(64),
-    assertions: [{ id: 'artifact-authenticity', state: 'passed', validatorId: 'validator.artifact.v1' }]
+    assertions: structuredClone(assertions)
   }));
   const projection = {
     schema: INSTALLED_BROWSER_PUBLIC_PROJECTION_SCHEMA,
@@ -502,7 +583,7 @@ function sampleResult(plan) {
     planSha256: plan.planSha256,
     matrixVersion: plan.matrixVersion,
     matrixSha256: plan.matrixSha256,
-    semanticValidationStatus: 'implemented',
+    semanticValidationStatus: implementationStatus,
     semanticValidatorManifestSha256: plan.semanticValidatorManifestSha256,
     identity: structuredClone(plan.identity),
     browsers: plan.inputs.browserPins.map(({ name, version, executableSha256 }) => ({
@@ -510,17 +591,22 @@ function sampleResult(plan) {
       version,
       executableSha256
     })),
-    state: 'passed',
-    counts: { passed: 2, failed: 0, limited: 0, not_run: 0 },
+    state: cellState,
+    counts: {
+      passed: cellState === 'passed' ? 2 : 0,
+      failed: 0,
+      limited: 0,
+      not_run: cellState === 'not_run' ? 2 : 0
+    },
     cells,
     resultRecordCount: 2,
     resultSetSha256: '8'.repeat(64),
     completion: {
-      state: 'passed',
+      state: cellState,
       aggregateSha256: '9'.repeat(64),
       resultSetSha256: '8'.repeat(64),
       resultRecordCount: 2,
-      semanticValidationStatus: 'implemented',
+      semanticValidationStatus: implementationStatus,
       completedAt: COMPLETED_AT,
       retained: true,
       automaticRecursiveDeletionPerformed: false
@@ -533,7 +619,7 @@ function sampleResult(plan) {
     aggregate: {
       runId: plan.runId,
       planSha256: plan.planSha256,
-      state: 'passed',
+      state: cellState,
       resultRecordCount: 2,
       resultSetSha256: '8'.repeat(64),
       contentBase64: 'PRIVATE_RAW_EVIDENCE'
@@ -541,11 +627,11 @@ function sampleResult(plan) {
     completion: {
       runId: plan.runId,
       planSha256: plan.planSha256,
-      state: 'passed',
+      state: cellState,
       aggregateSha256: '9'.repeat(64),
       resultSetSha256: '8'.repeat(64),
       resultRecordCount: 2,
-      semanticValidationStatus: 'implemented',
+      semanticValidationStatus: implementationStatus,
       completedAt: COMPLETED_AT,
       retainedRunRoot: true,
       automaticRecursiveDeletionPerformed: false

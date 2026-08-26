@@ -88,6 +88,7 @@ const SPAWNED_SESSION_TIMEOUTS = Object.freeze({
 });
 
 export const WINDOWS_PROCESS_IDENTITY_HELPER_PATH = resolve(directory, 'windows-process-identity.ps1');
+export const PROFILE_PRELAUNCH_OBSERVATION_SCHEMA = 'sitewipe.profile-prelaunch-observation.v1';
 export const INSTALLED_RUNTIME_CLOSE_POLICY_BOUND_MS =
   SPAWNED_SESSION_TIMEOUTS.lateConnectionMs +
   SPAWNED_SESSION_TIMEOUTS.gracefulCloseMs +
@@ -462,7 +463,12 @@ export async function launchPinnedSiteWipeBrowser(options) {
   assertBrowserAndScenario(plan, browserName, scenarioId);
   const run = await assertOwnedRunRoot(options.runRoot, plan);
   const runtime = await loadAndVerifyRuntimeStage(run.path, plan);
-  const cell = await loadAndVerifyBrowserCell(run.path, plan, browserName, scenarioId, { requirePristine: true });
+  const cell = await loadAndVerifyPristineBrowserCell({
+    browserName,
+    plan,
+    runRoot: run.path,
+    scenarioId
+  });
   const browserPin = plan.inputs.browserPins.find((entry) => entry.name === browserName);
   const browserRuntime = browserRuntimeClosureSummary(
     await captureBrowserRuntimeClosure({
@@ -1242,7 +1248,13 @@ async function verifyRuntimeTree(extensionRoot, files) {
   }
 }
 
-async function loadAndVerifyBrowserCell(runRoot, plan, browserName, scenarioId, { requirePristine }) {
+export async function loadAndVerifyPristineBrowserCell(options) {
+  assertExactKeys(options, ['browserName', 'plan', 'runRoot', 'scenarioId'], 'Pristine browser-cell options');
+  const { browserName, plan, scenarioId } = options;
+  validateBrowserPlan(plan);
+  assertBrowserAndScenario(plan, browserName, scenarioId);
+  const run = await assertOwnedRunRoot(options.runRoot, plan);
+  const runRoot = run.path;
   const scenarioRoot = await exactPhysicalDirectory(
     resolve(runRoot, BROWSER_CELLS_DIRECTORY_NAME, browserName, scenarioId),
     'Owned browser scenario directory'
@@ -1253,6 +1265,7 @@ async function loadAndVerifyBrowserCell(runRoot, plan, browserName, scenarioId, 
   );
   assertExactBrowserCellMarker(marker, plan, browserName, scenarioId);
   const paths = {};
+  let profilePrelaunch = null;
   for (const kind of BROWSER_CELL_KINDS) {
     const child = await exactPhysicalDirectory(resolve(scenarioRoot.path, kind), `Browser ${kind} directory`);
     const childMarker = await readExactCanonicalJson(
@@ -1275,7 +1288,9 @@ async function loadAndVerifyBrowserCell(runRoot, plan, browserName, scenarioId, 
     ) {
       throw new Error(`Browser ${kind} directory marker differs from the exact staged cell.`);
     }
-    if (requirePristine) {
+    if (kind === 'profile') {
+      profilePrelaunch = await capturePristineProfilePrelaunchObservation(child.path);
+    } else {
       const exactNames =
         kind === 'downloads'
           ? [DOWNLOAD_CANARY_NAME, OWNED_DIRECTORY_MARKER_NAME].sort()
@@ -1301,7 +1316,22 @@ async function loadAndVerifyBrowserCell(runRoot, plan, browserName, scenarioId, 
     evidencePath: paths.evidence,
     screenshotPath: paths.screenshots,
     canaryPath: canary.path,
-    canarySha256: canary.sha256
+    canarySha256: canary.sha256,
+    profilePrelaunch
+  });
+}
+
+async function capturePristineProfilePrelaunchObservation(profilePath) {
+  const observedNames = (await readdir(profilePath)).sort();
+  if (JSON.stringify(observedNames) !== JSON.stringify([OWNED_DIRECTORY_MARKER_NAME])) {
+    throw new Error('Browser profile directory is not pristine before launch.');
+  }
+  return deepFreeze({
+    schema: PROFILE_PRELAUNCH_OBSERVATION_SCHEMA,
+    profilePath,
+    profileWasNew: true,
+    profileOwnershipMarkerMatched: true,
+    profileDataEntryCountBeforeLaunch: 0
   });
 }
 
@@ -1786,6 +1816,7 @@ function createLaunchedRuntimeController({
     browserRuntime: structuredClone(browserRuntimeClosureReceipt(browserPin)),
     profilePath: cell.profilePath,
     downloadPath: cell.downloadPath,
+    profilePrelaunch: structuredClone(cell.profilePrelaunch),
     extensionId: extension.id,
     extensionName: extension.name,
     extensionVersion: extension.version,

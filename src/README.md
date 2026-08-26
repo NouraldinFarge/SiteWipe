@@ -4,7 +4,7 @@
 
 This directory is the unpacked Manifest V3 runtime root. `manifest.json` is intentionally at this level, and the deterministic loadable ZIP maps the allowlisted contents of this directory to the archive root.
 
-`SiteWipe` is the owner-approved custom product identity, and MIT is the owner-approved first-party project license. Known exact-name browser-extension listings mean uniqueness and legal clearance are not claimed. Version `1.12.10` is a public-source prerelease; it must not be represented as a supported binary or submitted to a browser store before its remaining gates pass.
+`SiteWipe` is the owner-approved custom product identity, and MIT is the owner-approved first-party project license. Known exact-name browser-extension listings mean uniqueness and legal clearance are not claimed. Version `1.12.11` is a public-source prerelease; it must not be represented as a supported binary or submitted to a browser store before its remaining gates pass.
 
 Use the repository-level [`README.md`](../README.md) for architecture, safety boundaries, permissions, validation status, and local-review instructions. The evidence registry and release-readiness ledger under [`docs/`](../docs/) are authoritative for public claims.
 

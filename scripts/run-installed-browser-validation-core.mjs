@@ -9,6 +9,7 @@ import {
   INSTALLED_BROWSER_RUN_SCHEMA,
   runInstalledBrowserValidation
 } from '../tests/browser/installed/installed-runner.mjs';
+import { semanticValidatorEntry } from '../tests/browser/installed/semantic-validator.mjs';
 import {
   createUnattendedBrowserPlan,
   revalidateApprovedBrowserPlan
@@ -365,12 +366,18 @@ function validateProjectionCountsAndCells(projection, plan) {
     observedCells.add(key);
     for (const assertion of cell.assertions) {
       assertExactKeys(assertion, ['id', 'state', 'validatorId'], 'Installed-browser projection assertion');
+      let expectedValidatorId;
+      try {
+        expectedValidatorId = semanticValidatorEntry(cell.scenarioId, assertion.id).validatorId;
+      } catch {
+        throw new Error('Installed-browser projection assertion is outside the exact semantic-validator manifest.');
+      }
       if (
         typeof assertion.id !== 'string' ||
         !assertion.id ||
         !RESULT_STATES.includes(assertion.state) ||
-        typeof assertion.validatorId !== 'string' ||
-        !assertion.validatorId
+        assertion.validatorId !== expectedValidatorId ||
+        (expectedValidatorId === null && assertion.state !== 'not_run')
       ) {
         throw new Error('Installed-browser projection assertion is malformed.');
       }

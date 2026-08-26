@@ -244,6 +244,24 @@ test('runner-owned lifecycle removes hook launch/close authority and adopts then
   assert.equal(harness.pendingLifecycleOperations(), 0);
 });
 
+test('runner preserves installed-extension identities exposed through Puppeteer prototype getters', async () => {
+  const plan = samplePlan();
+  const harness = createHarness({ plan, prototypeGetterExtension: true });
+  await createInstalledBrowserRunner(harness.dependencies)({ plan, approvalSha256: plan.planSha256 });
+
+  const observations = harness.log.filter(({ event }) => event === 'extension-view');
+  assert.ok(observations.length > 0, JSON.stringify(harness.log));
+  for (const { identity } of observations) {
+    assert.deepEqual(identity, {
+      enabled: true,
+      id: 'abcdefghijklmnopabcdefghijklmnop',
+      name: 'SiteWipe',
+      path: 'C:\\sitewipe-disposable\\runtime-extension',
+      version: plan.identity.artifactVersion
+    });
+  }
+});
+
 test('runner bounds a never-settling partial launch, closes its registered owner once, and refuses the whole run', async () => {
   assert.ok(INSTALLED_BROWSER_LAUNCH_SETTLEMENT_TIMEOUT_MS > INSTALLED_RUNTIME_LAUNCH_POLICY.launchTimeoutMs + 30_000);
   assert.ok(INSTALLED_BROWSER_CLOSE_SETTLEMENT_TIMEOUT_MS > INSTALLED_RUNTIME_CLOSE_POLICY_BOUND_MS);
@@ -660,6 +678,7 @@ function createHarness({
   neverSettlingLaunchCell = null,
   networkCloseFailures = [],
   preControllerLaunchFailureCell = null,
+  prototypeGetterExtension = false,
   settlementFailure = null
 }) {
   const log = [];
@@ -846,16 +865,33 @@ function createHarness({
       if (cell === lateCleanupRegistrationCell) await new Promise(() => {});
       if (cell === preControllerLaunchFailureCell) throw preControllerLaunchFailure;
       if (cell === neverSettlingLaunchCell) await new Promise(() => {});
+      const extension = prototypeGetterExtension
+        ? Object.freeze(
+            Object.create(
+              Object.defineProperties(
+                {},
+                {
+                  enabled: { get: () => true },
+                  id: { get: () => 'abcdefghijklmnopabcdefghijklmnop' },
+                  name: { get: () => 'SiteWipe' },
+                  path: { get: () => 'C:\\sitewipe-disposable\\runtime-extension' },
+                  version: { get: () => plan.identity.artifactVersion }
+                }
+              )
+            )
+          )
+        : Object.freeze({ fixtureExtension: cell });
       return {
         browser: Object.freeze(rawBrowser),
         close,
-        extension: Object.freeze({ fixtureExtension: cell }),
+        extension,
         receipt: Object.freeze({ fixtureReceipt: cell, processIdentity }),
         async triggerAction() {}
       };
     },
     executeCell(context) {
       const { browser, captureTimestamp, fixtures, launched, plan: observedPlan, proxy, scenario, signal } = context;
+      const cell = `${scenario.id}/${browser.name}`;
       assert.equal(observedPlan, plan);
       assert.ok(signal instanceof AbortSignal);
       assert.equal(Object.hasOwn(context, 'launchBrowser'), false);
@@ -864,11 +900,23 @@ function createHarness({
       assert.equal(launched.browser.close, undefined);
       assert.equal(launched.browser.disconnect, undefined);
       assert.equal(launched.extension.triggerAction, undefined);
+      if (prototypeGetterExtension) {
+        log.push({
+          event: 'extension-view',
+          cell,
+          identity: {
+            enabled: launched.extension.enabled,
+            id: launched.extension.id,
+            name: launched.extension.name,
+            path: launched.extension.path,
+            version: launched.extension.version
+          }
+        });
+      }
       assert.equal(Object.hasOwn(fixtures.ipv4, 'close'), false);
       assert.equal(Object.hasOwn(fixtures.ipv6, 'close'), false);
       assert.equal(Object.hasOwn(proxy, 'close'), false);
       assert.equal(fixtures.ipv4.runToken, FIXTURE_TOKEN);
-      const cell = `${scenario.id}/${browser.name}`;
       const hookMode = hookModeByCell.get(cell) ?? 'awaited';
       log.push({ event: 'execute', cell });
       if (cell === throwCell) throw new Error('Synthetic hook failed at C:\\private\\profile.');

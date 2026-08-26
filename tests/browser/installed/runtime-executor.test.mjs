@@ -51,11 +51,13 @@ import {
   INSTALLED_RUNTIME_LAUNCH_POLICY,
   INSTALLED_RUNTIME_CLOSE_POLICY_BOUND_MS,
   LOOPBACK_HOST_RESOLVER_RULES,
+  PROFILE_PRELAUNCH_OBSERVATION_SCHEMA,
   RUNTIME_EXECUTOR_TEST_SUPPORT,
   RUNTIME_NETWORK_ALLOWLIST,
   WINDOWS_PROCESS_IDENTITY_HELPER_PATH,
   assertSyntheticFixturePageUrl,
   completeOwnedBrowserRunWithAggregate,
+  loadAndVerifyPristineBrowserCell,
   revalidateApprovedInstalledBrowserToolchain,
   stageOwnedBrowserCell,
   stageVerifiedRuntimeArtifact,
@@ -173,6 +175,41 @@ test('browser-cell staging is deterministic, marked, canary-protected, and singl
       scenarioId: 'INVENTED-01'
     }),
     /outside the exact canonical matrix/
+  );
+});
+
+test('prelaunch producer records one exact pristine profile observation and rejects stale entries', async (t) => {
+  const fixture = await runtimeFixture(t);
+  const cell = await stageOwnedBrowserCell({
+    plan: fixture.plan,
+    runRoot: fixture.runRoot,
+    browserName: 'chrome',
+    scenarioId: 'SMOKE-01'
+  });
+
+  const observed = await loadAndVerifyPristineBrowserCell({
+    browserName: 'chrome',
+    plan: fixture.plan,
+    runRoot: fixture.runRoot,
+    scenarioId: 'SMOKE-01'
+  });
+  assert.deepEqual(observed.profilePrelaunch, {
+    schema: PROFILE_PRELAUNCH_OBSERVATION_SCHEMA,
+    profilePath: cell.profilePath,
+    profileWasNew: true,
+    profileOwnershipMarkerMatched: true,
+    profileDataEntryCountBeforeLaunch: 0
+  });
+
+  await mkdir(resolve(cell.profilePath, 'Default'));
+  await assert.rejects(
+    loadAndVerifyPristineBrowserCell({
+      browserName: 'chrome',
+      plan: fixture.plan,
+      runRoot: fixture.runRoot,
+      scenarioId: 'SMOKE-01'
+    }),
+    /profile directory is not pristine before launch/i
   );
 });
 

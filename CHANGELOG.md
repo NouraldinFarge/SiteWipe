@@ -6,6 +6,15 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.12.11 — public-source prerelease work — 2026-08-26
+
+### Forward installed-validation harness repair
+
+- Preserve exact SiteWipe 1.12.10 at clean commit `1d92819d9bf6013def7e4a9babba70a84c314910`. Its active dated record contains a passing complete local check at 1,411 of 1,414 unit tests with zero failures and three explicit platform skips, 11/11 property tests, passing required coverage, a zero-vulnerability locked dependency audit, and a reproducible 61-file runtime artifact with SHA-256 `4853C0E8DEE6191AD7A8D25A8B9DAE75D4C0931525A41B00E2A4B2BDD9883327`. Those source and artifact results remain exact 1.12.10 history and are not inherited by a successor.
+- Record SW-107 from the first exact 1.12.10 installed-browser attempt. Retained run `sitewipe-browser-54b74441ecf0a3991c0226f8ae3eab00`, bound to plan SHA-256 `B47A0F4116AFA02DAD1974C6F905077E60F2D13803E5EE1B06128FEDB399F340`, completed fail-closed with 48 `not_run` cells and zero passed, failed, or limited cells. The public CLI then refused the otherwise path-free partial projection because it rejected canonical `validatorId: null` values for explicitly unimplemented assertions. The two implemented interactive paths also stopped before product action: SMOKE rechecked a genuinely fresh disposable profile only after browser launch had populated it, and SETTINGS lost the real Puppeteer extension identity because its five fields are prototype getters rather than own properties. All 48 must-preserve download canaries remained exact, no owned browser process or listener residue remained, and the retained run was sealed without automatic deletion.
+- The forward 1.12.11 transaction fixes only those three installed-validation harness defects and their regressions. Projection validation now requires the exact current semantic-manifest identity, accepting `null` only for a canonical unimplemented assertion that remains `not_run`; the runner copies the five already-verified Puppeteer extension identity primitives without exposing browser authority; and the runtime records a marker- and cell-bound pristine-profile observation before launch for SMOKE to consume after launch. Extension cleanup, permission authority, target scope, browser-data behavior, ordinary downloaded-file policy, storage, messaging, owner statements, reviewer requirements, and publication authority are unchanged.
+- Focused pre-version validation passes 123/123 tests, including the exact runtime producer, post-launch SMOKE consumer, prototype-getter, full canonical assertion fixture, canonical-null, stale-identity, and null-plus-passed refusal regressions. Fresh complete 1.12.11 source, coverage, dependency, accessibility-source, artifact, exact-artifact Chrome/Brave, remote, reviewer, and publication stages have not yet run.
+
 ## 1.12.10 — public-source prerelease work — 2026-08-26
 
 ### Forward active-evidence lineage wording correction

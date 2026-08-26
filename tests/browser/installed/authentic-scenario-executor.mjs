@@ -17,7 +17,7 @@ import { readZipEntries } from '../../../scripts/zip-utils.mjs';
 import { STORAGE_KEYS } from '../../../src/shared/constants.js';
 import { CLEANUP_REVIEW_STORAGE_KEY } from '../../../src/background/cleanup-preflight.js';
 
-import { assertSyntheticFixturePageUrl } from './runtime-executor.mjs';
+import { PROFILE_PRELAUNCH_OBSERVATION_SCHEMA, assertSyntheticFixturePageUrl } from './runtime-executor.mjs';
 import { startNativePermissionPromptHelper } from './native-permission-dialog.mjs';
 import { createSemanticObservationEvidence, semanticBindingFromScenarioResult } from './semantic-validator.mjs';
 import { captureCleanCommittedBrowserSourceSnapshot } from './unattended-coordinator-core.mjs';
@@ -177,7 +177,11 @@ async function executeArtCell(context, dependencies) {
 
 async function executeSmokeCell(context, dependencies) {
   const startedAt = exactTimestamp(context.captureTimestamp());
-  const freshProfile = await dependencies.inspectFreshProfile({ cell: context.cell, plan: context.plan });
+  const freshProfile = await dependencies.inspectFreshProfile({
+    cell: context.cell,
+    launched: context.launched,
+    plan: context.plan
+  });
   assertSafeFreshProfilePrecondition(freshProfile);
   const fixtureUrl = exactFixtureUrl(context);
   const startupSourceContract = await dependencies.inspectStartupSourceContract(context.runtime);
@@ -416,7 +420,7 @@ async function captureAuthenticArtFacts({ plan, runtime }) {
   });
 }
 
-async function inspectOwnedFreshProfile({ cell, plan }) {
+export async function inspectOwnedFreshProfile({ cell, launched, plan }) {
   if (
     cell?.runId !== plan.runId ||
     cell?.planSha256 !== plan.planSha256 ||
@@ -434,11 +438,20 @@ async function inspectOwnedFreshProfile({ cell, plan }) {
   if (!samePath(profilePath, await realpath(profilePath))) {
     throw new Error('SMOKE profile traverses a filesystem alias or reparse point.');
   }
-  const entries = await readdir(profilePath, { withFileTypes: true });
-  const markerEntries = entries.filter((entry) => entry.name === PROFILE_OWNERSHIP_MARKER);
-  const dataEntries = entries.filter((entry) => entry.name !== PROFILE_OWNERSHIP_MARKER);
-  if (markerEntries.length !== 1 || dataEntries.length !== 0) {
-    throw new Error('SMOKE disposable profile was not empty apart from its exact ownership marker.');
+  const prelaunch = launched?.receipt?.profilePrelaunch;
+  assertExactKeys(
+    prelaunch,
+    ['profileDataEntryCountBeforeLaunch', 'profileOwnershipMarkerMatched', 'profilePath', 'profileWasNew', 'schema'],
+    'SMOKE receipt-bound profile prelaunch observation'
+  );
+  if (
+    prelaunch.schema !== PROFILE_PRELAUNCH_OBSERVATION_SCHEMA ||
+    !samePath(prelaunch.profilePath, profilePath) ||
+    prelaunch.profileWasNew !== true ||
+    prelaunch.profileOwnershipMarkerMatched !== true ||
+    prelaunch.profileDataEntryCountBeforeLaunch !== 0
+  ) {
+    throw new Error('SMOKE launch receipt lacks the exact pristine prelaunch profile observation.');
   }
   const markerPath = resolve(profilePath, PROFILE_OWNERSHIP_MARKER);
   const markerIdentity = await readStableRegularFile(markerPath, 'SMOKE profile ownership marker');
@@ -470,7 +483,7 @@ async function inspectOwnedFreshProfile({ cell, plan }) {
   return deepFreeze({
     profileWasNew: true,
     profileOwnershipMarkerMatched: true,
-    profileDataEntryCountBeforeLaunch: dataEntries.length
+    profileDataEntryCountBeforeLaunch: prelaunch.profileDataEntryCountBeforeLaunch
   });
 }
 
