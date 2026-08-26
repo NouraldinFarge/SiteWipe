@@ -580,6 +580,33 @@ test('exported runtime close bound includes both possible residue observations',
   assert.equal(INSTALLED_RUNTIME_CLOSE_POLICY_BOUND_MS, 170_000);
 });
 
+test('retained-handle readback deterministically consumes short reads and rejects premature EOF', async () => {
+  const content = Buffer.from('exact retained bytes');
+  const shortReadHandle = {
+    async read(target, offset, length, position) {
+      const bytesRead = Math.min(3, length, content.length - position);
+      content.copy(target, offset, position, position + bytesRead);
+      return { bytesRead, buffer: target };
+    }
+  };
+  assert.deepEqual(
+    await RUNTIME_EXECUTOR_TEST_SUPPORT.readExactRetainedBytes(shortReadHandle, content.length, 'Short-read fixture'),
+    content
+  );
+  await assert.rejects(
+    RUNTIME_EXECUTOR_TEST_SUPPORT.readExactRetainedBytes(
+      {
+        async read() {
+          return { bytesRead: 0, buffer: Buffer.alloc(0) };
+        }
+      },
+      1,
+      'Premature-EOF fixture'
+    ),
+    /ended before its complete retained-handle readback/iu
+  );
+});
+
 test('create-only retained-handle writes detect parent swaps, in-handle hardlinks, and close-to-reopen replacement', async (t) => {
   const container = await mkdtemp(resolve(tmpdir(), 'sitewipe-runtime-writer-races-'));
   t.after(() => rm(container, { recursive: true, force: true }));
@@ -677,6 +704,23 @@ test('all coordinator, runtime, toolchain, and CLI exact-identity helpers retain
   );
   assert.equal(
     RUNTIME_EXECUTOR_TEST_SUPPORT.sameFileIdentity(exactStat(unsafeBoundary), exactStat(unsafeBoundary + 1n)),
+    false
+  );
+  const settledAllocation = { ...exactStat(unsafeBoundary), blocks: 2n };
+  assert.equal(
+    RUNTIME_EXECUTOR_TEST_SUPPORT.samePostCloseFileIdentity(exactStat(unsafeBoundary), settledAllocation, 'win32'),
+    true
+  );
+  assert.equal(
+    RUNTIME_EXECUTOR_TEST_SUPPORT.samePostCloseFileIdentity(exactStat(unsafeBoundary), settledAllocation, 'linux'),
+    false
+  );
+  assert.equal(
+    RUNTIME_EXECUTOR_TEST_SUPPORT.samePostCloseFileIdentity(
+      exactStat(unsafeBoundary),
+      { ...settledAllocation, ino: unsafeBoundary + 1n },
+      'win32'
+    ),
     false
   );
   const modules = [

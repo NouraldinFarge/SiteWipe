@@ -105,11 +105,17 @@ export const RUNTIME_EXECUTOR_TEST_SUPPORT = Object.freeze({
   observeSpawnedChildSettlement(child) {
     return observeSpawnedChildSettlement(child);
   },
+  readExactRetainedBytes(handle, length, label) {
+    return readExactRetainedBytes(handle, length, label);
+  },
   spawnWithActiveAuthority(signal, spawnAction) {
     return spawnWithActiveAuthority(signal, spawnAction);
   },
   sameFileIdentity(left, right) {
     return sameFileIdentity(left, right);
+  },
+  samePostCloseFileIdentity(left, right, platform) {
+    return samePostCloseFileIdentity(left, right, platform);
   },
   settlePostSpawnPhase(promise, timeoutMs, label, signal) {
     return settlePostSpawnPhase(promise, timeoutMs, label, signal);
@@ -2060,15 +2066,13 @@ async function writeExclusiveRegularFile(path, bytes, label, { readOnly = false,
     if (!written.isFile() || written.isSymbolicLink() || written.nlink !== 1n) {
       throw new Error(`${label} must remain one singly linked regular file.`);
     }
-    const verifiedBytes = Buffer.alloc(content.length);
-    const read = await handle.read(verifiedBytes, 0, verifiedBytes.length, 0);
+    const verifiedBytes = await readExactRetainedBytes(handle, content.length, label);
     await handle.sync();
     information = await handle.stat({ bigint: true });
     const childPath = await lstat(path, { bigint: true });
     const childRealPath = await realpath(path);
     const parentDuring = await exactPhysicalDirectory(parentPath, `${label} parent during create`);
     if (
-      read.bytesRead !== content.length ||
       !verifiedBytes.equals(content) ||
       !sameFileIdentity(information, childPath) ||
       childPath.nlink !== 1n ||
@@ -2084,7 +2088,7 @@ async function writeExclusiveRegularFile(path, bytes, label, { readOnly = false,
   const observed = await exactFileIdentity(path, label);
   const parentAfter = await exactPhysicalDirectory(parentPath, `${label} parent after reopen`);
   if (
-    !sameFileIdentity(information, observed.information) ||
+    !samePostCloseFileIdentity(information, observed.information) ||
     !observed.bytes.equals(content) ||
     !sameDirectoryIdentity(parentBefore.information, parentAfter.information)
   ) {
@@ -2111,6 +2115,20 @@ async function exactPhysicalDirectory(path, label) {
     throw new Error(`${label} identity changed while it was resolved.`);
   }
   return Object.freeze({ path: expected, information: after });
+}
+
+async function readExactRetainedBytes(handle, length, label) {
+  const bytes = Buffer.alloc(length);
+  let offset = 0;
+  while (offset < bytes.length) {
+    const remaining = bytes.length - offset;
+    const { bytesRead } = await handle.read(bytes, offset, remaining, offset);
+    if (!Number.isInteger(bytesRead) || bytesRead <= 0 || bytesRead > remaining) {
+      throw new Error(`${label} ended before its complete retained-handle readback.`);
+    }
+    offset += bytesRead;
+  }
+  return bytes;
 }
 
 async function exactFileIdentity(
@@ -2247,6 +2265,24 @@ function pathDepth(value) {
 function sameFileIdentity(left, right) {
   if (!left || !right || left.isFile() !== right.isFile() || left.isDirectory() !== right.isDirectory()) return false;
   return STABLE_PHYSICAL_IDENTITY_KEYS.every((key) => left[key] === right[key]);
+}
+
+function samePostCloseFileIdentity(left, right, platform = process.platform) {
+  if (sameFileIdentity(left, right)) return true;
+  if (
+    platform !== 'win32' ||
+    !left ||
+    !right ||
+    left.isFile() !== right.isFile() ||
+    left.isDirectory() !== right.isDirectory()
+  ) {
+    return false;
+  }
+  // NTFS allocation accounting can settle when the final writable handle is
+  // closed even after fsync. `blocks` is allocation metadata, not object
+  // identity. Every other identity field must remain exact, and the caller
+  // still reopens, hashes, and byte-compares the complete file.
+  return STABLE_PHYSICAL_IDENTITY_KEYS.every((key) => key === 'blocks' || left[key] === right[key]);
 }
 
 function sameDirectoryIdentity(left, right) {

@@ -22,6 +22,8 @@ Exact 1.12.0 later passed its complete local source, coverage, dependency/proven
 
 Exact local 1.12.1 subsequently passed its complete source check, required coverage, locked dependency audit, provenance checks, and 48/48 accessibility source contracts. Before commit or artifact construction, SW-098 found stable current-facing readiness and issue-status cells that still described those completed source stages as required or merely staged. The forward 1.12.2 correction makes those cells outcome-neutral and delegates current exact-source status to the active dated evidence record. It changes no harness or extension runtime behavior. At the 1.12.2 stable-input seal boundary no 1.12.2 result exists; active evidence governs every later current-candidate stage.
 
+Exact 1.12.2 subsequently passed its complete source, coverage, dependency/provenance, accessibility-source, package-verification, and repeated-reproducibility sequence at clean commit `703c73e2b35a18a60caa55116314c688a7ec32c6`. The first approved installed-browser run failed closed while staging the owned dependency closure, before extension extraction, fixture startup, browser launch, native prompt interaction, or cleanup. SW-099 makes the forward 1.12.3 repair admit only normal Windows post-close allocated-block settlement while preserving every file-object, canonical-path, type, single-link, size, timestamp, byte, digest, and parent-directory check. The complete candidate sequence must restart; the failed attempt establishes no installed, reviewer, remote, publication, or supported-binary result.
+
 ## Human prerequisites
 
 Before the first supported binary release, the owner must approve and record:

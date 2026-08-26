@@ -6,6 +6,15 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.12.3 — public-source prerelease work — 2026-08-26
+
+### Forward 1.12.3 Windows post-close allocation-accounting compatibility
+
+- Preserve exact 1.12.2 as the clean local source-and-package checkpoint at commit `703c73e2b35a18a60caa55116314c688a7ec32c6`. Its complete source safeguards, required coverage, locked dependency and provenance checks, accessibility source contracts, strict package verification, and repeated reproducibility passed; its exact 61-file runtime ZIP is 355,072 bytes with SHA-256 `03944D726187F891F59089FF279490BB9FA373A05E64EC209DD31D894E63382D`.
+- Record SW-099 from the first approved 1.12.2 installed-browser run. Planning and pre-run revalidation succeeded, but runtime toolchain staging failed closed before extension staging, fixture startup, browser launch, native permission interaction, or any cleanup scenario. A second run in a shorter owned workspace reproduced the same close-to-reopen identity refusal, ruling out path length.
+- Bind the failure to normal NTFS allocation accounting: after a complete write, synchronization, readback, and retained-handle identity check, closing the last writable handle can change only the reported allocated-block count while the file object, type, canonical path, single-link count, size, timestamps, bytes, and SHA-256 remain exact. Permit only that `blocks` difference, only across the Windows post-close boundary; keep every other BigInt identity field exact, then reopen, hash, byte-compare, and revalidate the parent directory as before. Make the retained readback consume bounded positional short reads until the exact expected length and continue to refuse premature end-of-file.
+- Focused runtime-executor validation passed 30/30, and a real multi-megabyte write/close/reopen probe passed with exact bytes, SHA-256, and single-link identity. No installed Chrome or Brave result, permission action, cleanup, downloaded-file operation, reviewer approval, publication result, or supported-binary claim is inherited.
+
 ## 1.12.2 — public-source prerelease work — 2026-08-26
 
 ### Forward 1.12.2 stable release-status truth correction
