@@ -198,18 +198,18 @@
     "note": "Exact candidate commit, clean checkout, remote checks, and repository state require fresh validation."
   },
   "artifacts": {
-    "status": "pending_rebuild",
+    "status": "local_reproducible_build_passed",
     "runtimeZip": "sitewipe-unreleased-candidate-1.12.0.zip",
     "runtimeZipSha256": "10DA4B567510DAB3EBBD7F8DB220ECA9397C1CF669D9A91AC72D3DF098AE0971",
     "runtimeZipBytes": 355071,
     "runtimeFiles": 61,
     "sourceZip": "sitewipe-unreleased-candidate-1.12.0-source.zip",
     "sourceZipSha256": null,
-    "sourceFiles": null,
-    "sourcePackageEquivalence": "pending",
-    "checksumFilesVerified": 0,
-    "consecutiveBuildOutputsCompared": 0,
-    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "sourceFiles": 422,
+    "sourcePackageEquivalence": "exact",
+    "checksumFilesVerified": 7,
+    "consecutiveBuildOutputsCompared": 8,
+    "byteIdenticalAcrossConsecutiveBuilds": true,
     "runtimeSbom": "sitewipe-unreleased-candidate-1.12.0.runtime-sbom.cdx.json",
     "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.12.0.unsigned-provenance-input.json",
     "remoteAttestation": "pending",
@@ -219,15 +219,16 @@
   },
   "publicationGate": {
     "command": "npm run check:publication-gates",
-    "publicationRecommendation": "not_evaluated",
-    "blockerCount": null,
+    "publicationRecommendation": "blocked",
+    "blockerCount": 30,
     "originalBlockerCount": null,
     "closedOriginalBlockers": [],
     "remainingClasses": [
-      "Clean-commit exact-artifact construction, verification, and reproducibility remain pending.",
-      "Installed Chrome, Brave, and accessibility validation remain pending.",
-      "Exact-artifact performance and authentic media evidence remain pending.",
-      "Distinct independent review, hosted privacy-policy parity, exact-head remote checks, and attestation remain pending."
+      "Exact-artifact Chrome and Brave validation, semantic receipts, post-browser finalization, and reviewer approval remain pending.",
+      "Installed accessibility, exact-artifact performance, and their reviewer approvals remain pending.",
+      "Four to six authentic screenshots, a 60-90 second authentic demo, integrity-bound store media, and media approval remain pending.",
+      "Hosted and immutable privacy-policy exact-byte parity remains pending.",
+      "External exact-head remote-publication capture remains pending."
     ]
   },
   "limitations": [
