@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "record": "automated-validation-2026-08-26-v1.12.18.json",
+  "record": "automated-validation-2026-08-26-v1.12.19.json",
   "purpose": "Stable pointer to the active automated validation record. Update this pointer when a new dated evidence record becomes current.",
-  "version": "1.12.18"
+  "version": "1.12.19"
 }

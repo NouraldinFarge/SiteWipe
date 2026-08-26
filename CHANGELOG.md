@@ -6,6 +6,14 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.12.19 — public-source prerelease work — 2026-08-26
+
+### Linux validation-parity correction
+
+- Preserve exact SiteWipe 1.12.18 at signed source head `d0be3337783eb953e0a6d2a1129481c71daefb2c`, with runtime fingerprint `618B759C53A34FC3EA8470E6C7E1330DB919151A4D76C2367B38C07096CE3B90`, 314-input stable-release fingerprint `355B2AED8959FF4CD687BADD85CAA0BA0DF61659F1CE271D877E6FE633D3CCF2`, and runtime ZIP SHA-256 `F73B11BB479EC8A6BB7814289FC13FD57F9AC200EAD4855BC0D947F19B1F0981`. Its pinned local complete check, property suite, required coverage, zero-vulnerability dependency audit, accessibility source contracts, strict packaging, and repeated reproducibility passed. At exact-head draft PR #13, CodeQL passed with zero candidate-ref findings, while required Linux CI run `33014862704` completed 1,444 unit tests at 1,419 passed, 23 failed, and two skipped before later workflow stages were skipped.
+- Record SW-115: those 23 counted failures reduce to three deterministic validation-layer parity defects. Five settings-session cases used one hard-coded Windows download filename in a host-native path validator; 17 coordinator results, including nested aggregate failures, treated mutable POSIX directory link count as immutable workspace identity; and one restrictive-umask transaction case captured mode `000` before its deliberate private-mode repair and then treated the same inode at mode `0600` as replaced.
+- The forward 1.12.19 transaction makes the synthetic download record host-native, excludes mutable child-count metadata from coordinator directory identity while retaining type, device/inode, realpath, alias, and stable-metadata checks, and establishes the intended private control-file mode before capturing its immutable baseline. It changes validation and test infrastructure only; packaged extension runtime behavior, cleanup authority, permission scope, data scope, ordinary downloaded-file policy, incognito-off policy, storage, messaging, reviewer requirements, remote requirements, and publication authority are unchanged. At the 1.12.19 transaction boundary, no 1.12.19 validation or artifact result exists; exact current results belong only to active evidence.
+
 ## 1.12.18 — public-source prerelease work — 2026-08-26
 
 ### Stable status and temporal-truth correction

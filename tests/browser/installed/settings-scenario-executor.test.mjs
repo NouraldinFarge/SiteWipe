@@ -663,7 +663,7 @@ function validSafetyBoundary(phase) {
             danger: 'safe',
             error: null,
             exists: true,
-            filename: 'D:\\owned-synthetic-downloads\\sitewipe-settings-1770000000000.json',
+            filename: resolve('D:\\owned-synthetic-downloads', 'sitewipe-settings-1770000000000.json'),
             id: 1,
             paused: false,
             state: 'complete',

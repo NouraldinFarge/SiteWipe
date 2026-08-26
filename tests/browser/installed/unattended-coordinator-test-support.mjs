@@ -295,7 +295,9 @@ function sameFileIdentity(left, right) {
 
 function sameDirectoryIdentity(left, right) {
   if (!left || !right || !left.isDirectory() || !right.isDirectory()) return false;
-  return ['dev', 'ino', 'mode', 'nlink', 'uid', 'gid', 'rdev'].every((key) => left[key] === right[key]);
+  // Keep fixture revalidation aligned with the production POSIX identity
+  // contract: child creation may change nlink without replacing the node.
+  return ['dev', 'ino', 'mode', 'uid', 'gid', 'rdev'].every((key) => left[key] === right[key]);
 }
 
 function samePath(left, right) {

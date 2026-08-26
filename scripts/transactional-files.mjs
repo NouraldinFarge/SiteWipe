@@ -1324,6 +1324,9 @@ async function writeExactExclusiveTransactionFile(
     });
   }
   try {
+    // A restrictive process umask can create the file as mode 000. Establish
+    // the intended private mode before recording the immutable baseline.
+    if (enforceMode && process.platform !== 'win32') await handle.chmod(createMode);
     const opened = await exactTransactionHandleStat(handle);
     assertExactTransactionFileStat(opened, label, { requireSingleLink: true });
     const pathOpened = await exactTransactionPathStat(path);
@@ -1332,7 +1335,6 @@ async function writeExactExclusiveTransactionFile(
       throw new Error(`${label} path differs from its exact exclusive handle.`);
     }
     await writeAll(handle, bytes);
-    if (enforceMode && process.platform !== 'win32') await handle.chmod(createMode);
     await handle.sync();
     const written = await exactTransactionHandleStat(handle);
     writtenIdentity = written;

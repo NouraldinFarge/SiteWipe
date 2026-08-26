@@ -806,7 +806,9 @@ function sameFileIdentity(left, right) {
 
 function sameDirectoryIdentity(left, right) {
   if (!left || !right || !left.isDirectory() || !right.isDirectory()) return false;
-  return ['dev', 'ino', 'mode', 'nlink', 'uid', 'gid', 'rdev'].every((key) => left[key] === right[key]);
+  // POSIX directory link counts change when owned child directories are
+  // created or removed; device/inode and stable metadata bind the same node.
+  return ['dev', 'ino', 'mode', 'uid', 'gid', 'rdev'].every((key) => left[key] === right[key]);
 }
 
 function samePath(left, right) {

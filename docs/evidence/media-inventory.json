@@ -47,8 +47,8 @@
   "review": null,
   "reviewerApproval": false,
   "artifact": {
-    "version": "1.12.18",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.12.18.zip",
+    "version": "1.12.19",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.12.19.zip",
     "sha256": null
   }
 }
