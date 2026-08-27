@@ -79,6 +79,35 @@ test('fixture Host parsing preserves exact IPv4, IPv6, DNS, and listener-port id
   assert.throws(() => parseExactFixtureHostHeader('selected.example.com@evil.invalid:43819', 43819), /Invalid/);
 });
 
+test('synthetic browser fixture hides handler diagnostics from the loopback client', async () => {
+  const diagnosticSentinel = 'private-fixture-path-and-stack-sentinel';
+  const fixture = await startFixtureServer({
+    runToken: 'ef'.repeat(32),
+    readFixtureFile: async () => {
+      throw new Error(diagnosticSentinel);
+    }
+  });
+  try {
+    const failure = await readFixture(fixture.port, '/popup/popup.html', '127.0.0.1');
+    assert.equal(failure.status, 500);
+    assert.deepEqual(JSON.parse(failure.body), {
+      ok: false,
+      error: 'Synthetic fixture request failed.'
+    });
+    assert.doesNotMatch(failure.body, new RegExp(diagnosticSentinel, 'u'));
+    assert.deepEqual(fixture.requestLedger().at(-1), {
+      method: 'GET',
+      host: null,
+      pathname: null,
+      authorized: false,
+      status: 500,
+      reason: 'handler_error'
+    });
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('synthetic browser fixture server is loopback-only, host-aware, and deterministic', async () => {
   const runToken = 'cd'.repeat(32);
   const fixture = await startFixtureServer({ runToken });

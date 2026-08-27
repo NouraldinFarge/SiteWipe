@@ -397,10 +397,10 @@ test('SMOKE keeps native prompt absence separate from observed permission change
     scenarioId: 'SMOKE-01',
     startedAt: result.startedAt
   });
-  const noAuthorityEvidence = result.evidence.find(
+  const integrityBoundObservationEvidence = result.evidence.find(
     (entry) => decodeSemanticObservationEvidence(entry, { binding }).assertionId === 'load.no_permission_or_cleanup'
   );
-  const payload = decodeSemanticObservationEvidence(noAuthorityEvidence, { binding }).payload;
+  const payload = decodeSemanticObservationEvidence(integrityBoundObservationEvidence, { binding }).payload;
   assert.equal(payload.permissionAddedEventCount, 1);
   assert.equal(payload.nativePermissionPromptObserved, false);
   assert.equal(Object.hasOwn(payload, 'permissionPromptCount'), false);

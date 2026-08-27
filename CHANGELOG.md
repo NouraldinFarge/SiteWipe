@@ -6,6 +6,14 @@ This log distinguishes private engineering candidates from public releases. No v
 
 ## Unreleased
 
+## 1.12.22 — public-source prerelease work — 2026-08-26
+
+### Exact-head CodeQL test-infrastructure correction
+
+- Preserve exact SiteWipe 1.12.21 at signed reproducibility head `e6b8530d62c6e9be6e6eb29be3fb81e8f60482ae`, with runtime fingerprint `E95CF1EB333F531DEFEA353C5E3541CFF86D30BF75C33328BBC533B7B15786DB`, 314-input stable-release fingerprint `861C514C91889B62D3E205BA4DEEB65A21AF5A4DC0EFD2F9ECFBB151F6FB6813`, and runtime ZIP SHA-256 `857704C2A0342DF861A3CB093E9742C7C8D76B5A46C56646BAA2ED014A6C5958`. Its pinned local complete check, coverage, zero-vulnerability dependency audit, accessibility source contracts, strict packaging, and repeated reproducibility passed. Its exact-C3 publication replay retained 26 installed-evidence, finalization, media, and remote-capture blockers.
+- Record SW-118 from draft PR #14. The exact-head `Analyze JavaScript` workflow job passed, but GitHub Advanced Security's separate CodeQL policy check opened alert #8 because the loopback synthetic fixture returned a caught handler message to its HTTP client and alert #9 because a test variable named `noAuthorityEvidence` caused deterministic observation-integrity SHA-256 to be misclassified as password hashing. The first path could disclose local diagnostic text; the second is a naming/dataflow false positive, not a credential or password.
+- The forward 1.12.22 transaction replaces the client-visible diagnostic with one fixed generic error while retaining only the static `handler_error` ledger code, adds a forced read-failure regression, and gives the integrity-bound test observation a non-credential name without changing its SHA-256 format or tamper checks. Required administration separately records chronology, advances version metadata and mutable candidate bindings, rebinds hosted-policy bytes, and resets candidate evidence. Packaged extension cleanup behavior, permission authority, target/data scope, ordinary downloaded-file protection, incognito policy, storage, messaging, reviewer requirements, remote requirements, and publication authority are unchanged. At the 1.12.22 transaction boundary, no successor validation, artifact, browser, reviewer, remote, publication, or supported-binary result exists; exact current results belong only to active evidence.
+
 ## 1.12.21 — public-source prerelease work — 2026-08-26
 
 ### Stable source-state and scope-truth correction

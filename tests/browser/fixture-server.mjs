@@ -185,11 +185,13 @@ export async function startFixtureServer({
   host = '127.0.0.1',
   port = 0,
   allowedHosts = SYNTHETIC_FIXTURE_HOSTS,
-  runToken = randomBytes(32).toString('hex')
+  runToken = randomBytes(32).toString('hex'),
+  readFixtureFile = readFile
 } = {}) {
   const bindHost = validatedBindHost(host);
   const exactAllowedHosts = validatedAllowedHosts(allowedHosts);
   const exactRunToken = validatedRunToken(runToken);
+  if (typeof readFixtureFile !== 'function') throw new Error('Synthetic fixture file reader must be a function.');
   const requestCounts = new Map();
   const requestLedger = [];
   let boundPort = null;
@@ -253,7 +255,7 @@ export async function startFixtureServer({
       }
 
       if (url.pathname === '/popup/popup.html') {
-        const popup = await readFile(resolve(sourceDirectory, 'popup', 'popup.html'), 'utf8');
+        const popup = await readFixtureFile(resolve(sourceDirectory, 'popup', 'popup.html'), 'utf8');
         response.statusCode = 200;
         response.setHeader('Content-Type', 'text/html; charset=utf-8');
         response.end(
@@ -266,7 +268,7 @@ export async function startFixtureServer({
       }
 
       if (url.pathname === '/options/options.html') {
-        const optionsPage = await readFile(resolve(sourceDirectory, 'options', 'options.html'), 'utf8');
+        const optionsPage = await readFixtureFile(resolve(sourceDirectory, 'options', 'options.html'), 'utf8');
         response.statusCode = 200;
         response.setHeader('Content-Type', 'text/html; charset=utf-8');
         response.end(
@@ -286,7 +288,7 @@ export async function startFixtureServer({
       }
 
       if (url.pathname === '/handoff/handoff.html') {
-        const handoff = await readFile(resolve(sourceDirectory, 'handoff', 'handoff.html'), 'utf8');
+        const handoff = await readFixtureFile(resolve(sourceDirectory, 'handoff', 'handoff.html'), 'utf8');
         response.statusCode = 200;
         response.setHeader('Content-Type', 'text/html; charset=utf-8');
         response.end(
@@ -299,7 +301,7 @@ export async function startFixtureServer({
       }
 
       if (url.pathname === '/sidepanel/sidepanel.html') {
-        const sidepanel = await readFile(resolve(sourceDirectory, 'sidepanel', 'sidepanel.html'), 'utf8');
+        const sidepanel = await readFixtureFile(resolve(sourceDirectory, 'sidepanel', 'sidepanel.html'), 'utf8');
         response.statusCode = 200;
         response.setHeader('Content-Type', 'text/html; charset=utf-8');
         response.end(
@@ -315,7 +317,7 @@ export async function startFixtureServer({
       if (popupAsset) {
         response.statusCode = 200;
         response.setHeader('Content-Type', popupAsset.type);
-        response.end(await readFile(popupAsset.file));
+        response.end(await readFixtureFile(popupAsset.file));
         return;
       }
 
@@ -326,8 +328,8 @@ export async function startFixtureServer({
       }
       response.statusCode = 200;
       response.setHeader('Content-Type', asset.type);
-      response.end(await readFile(resolve(fixtureDirectory, asset.file)));
-    } catch (error) {
+      response.end(await readFixtureFile(resolve(fixtureDirectory, asset.file)));
+    } catch {
       requestLedger.push({
         method: String(request.method || ''),
         host: null,
@@ -336,7 +338,7 @@ export async function startFixtureServer({
         status: 500,
         reason: 'handler_error'
       });
-      sendJson(response, 500, { ok: false, error: error?.message || String(error) });
+      sendJson(response, 500, { ok: false, error: 'Synthetic fixture request failed.' });
     }
   });
 
