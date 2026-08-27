@@ -39,6 +39,100 @@ export function runtimeArtifactBase(version) {
   return `sitewipe-unreleased-candidate-${assertSemanticVersion(version)}`;
 }
 
+export async function collectVersionFingerprintPaths(root = projectRoot) {
+  const runtimePaths = Object.freeze(RUNTIME_FILES.map((path) => `src/${path}`));
+  const releaseInputPaths = Object.freeze(
+    (await collectSourceArchivePaths(root))
+      .map((absolute) => relative(root, absolute).split(sep).join('/'))
+      .filter((path) => !isMutableReleaseRecord(path))
+  );
+  const allPaths = Object.freeze([...new Set([...runtimePaths, ...releaseInputPaths])].sort(compareStrings));
+  return Object.freeze({ allPaths, releaseInputPaths, runtimePaths });
+}
+
+export async function computeVersionFingerprintSnapshot(root = projectRoot, overrides = new Map()) {
+  const paths = await collectVersionFingerprintPaths(root);
+  const inputs = new Map();
+  for (const path of paths.allPaths) {
+    const value = overrides.has(path) ? overrides.get(path) : await readFile(resolve(root, path));
+    inputs.set(path, exactFingerprintBytes(value, path));
+  }
+
+  const runtimeHash = createHash('sha256');
+  for (const relativePath of RUNTIME_FILES) {
+    runtimeHash.update(relativePath, 'utf8');
+    runtimeHash.update('\0', 'utf8');
+    runtimeHash.update(inputs.get(`src/${relativePath}`));
+    runtimeHash.update('\0', 'utf8');
+  }
+
+  const releaseInputHash = createHash('sha256');
+  for (const path of paths.releaseInputPaths) {
+    releaseInputHash.update(path, 'utf8');
+    releaseInputHash.update('\0', 'utf8');
+    releaseInputHash.update(inputs.get(path));
+    releaseInputHash.update('\0', 'utf8');
+  }
+
+  return Object.freeze({
+    inputs,
+    paths,
+    releaseInputFingerprint: Object.freeze({
+      fileCount: paths.releaseInputPaths.length,
+      sha256: releaseInputHash.digest('hex').toUpperCase()
+    }),
+    runtimeFingerprintSha256: runtimeHash.digest('hex').toUpperCase()
+  });
+}
+
+/**
+ * Compute the version fingerprints from one already captured source closure.
+ * Release verification uses immutable committed Git blobs here instead of
+ * rediscovering or re-reading mutable worktree paths.
+ */
+export function computeVersionFingerprintFromSourceEntries(sourceEntries) {
+  if (!Array.isArray(sourceEntries) || sourceEntries.length === 0) {
+    throw new Error('Committed version fingerprint requires one non-empty source-entry array.');
+  }
+  const inputs = new Map();
+  for (const entry of sourceEntries) {
+    const path = String(entry?.path || '');
+    if (!path || inputs.has(path) || (!Buffer.isBuffer(entry?.bytes) && !(entry?.bytes instanceof Uint8Array))) {
+      throw new Error(`Committed version fingerprint source entry is invalid or duplicated: ${path || '<missing>'}.`);
+    }
+    inputs.set(path, Buffer.from(entry.bytes));
+  }
+
+  const runtimeHash = createHash('sha256');
+  for (const relativePath of RUNTIME_FILES) {
+    const path = `src/${relativePath}`;
+    const bytes = inputs.get(path);
+    if (!bytes) throw new Error(`Committed version fingerprint runtime input is missing: ${path}.`);
+    runtimeHash.update(relativePath, 'utf8');
+    runtimeHash.update('\0', 'utf8');
+    runtimeHash.update(bytes);
+    runtimeHash.update('\0', 'utf8');
+  }
+
+  const releaseInputPaths = [...inputs.keys()]
+    .filter((path) => !isMutableReleaseRecord(path))
+    .sort((left, right) => left.localeCompare(right));
+  const releaseInputHash = createHash('sha256');
+  for (const path of releaseInputPaths) {
+    releaseInputHash.update(path, 'utf8');
+    releaseInputHash.update('\0', 'utf8');
+    releaseInputHash.update(inputs.get(path));
+    releaseInputHash.update('\0', 'utf8');
+  }
+  return Object.freeze({
+    releaseInputFingerprint: Object.freeze({
+      fileCount: releaseInputPaths.length,
+      sha256: releaseInputHash.digest('hex').toUpperCase()
+    }),
+    runtimeFingerprintSha256: runtimeHash.digest('hex').toUpperCase()
+  });
+}
+
 export async function computeRuntimeFingerprint(root = projectRoot, overrides = new Map()) {
   const hash = createHash('sha256');
   for (const relative of RUNTIME_FILES) {
@@ -77,4 +171,14 @@ export function isMutableReleaseRecord(path) {
 
 export function sha256(value) {
   return createHash('sha256').update(value).digest('hex').toUpperCase();
+}
+
+function exactFingerprintBytes(value, path) {
+  if (typeof value === 'string') return Buffer.from(value, 'utf8');
+  if (Buffer.isBuffer(value) || value instanceof Uint8Array) return Buffer.from(value);
+  throw new Error(`Version fingerprint input must be exact text or bytes: ${path}.`);
+}
+
+function compareStrings(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
 }

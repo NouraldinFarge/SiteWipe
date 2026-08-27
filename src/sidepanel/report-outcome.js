@@ -20,11 +20,22 @@ export function assessReportVerification(summary = {}) {
   const hasCategoryEvidence = REQUIRED_VERIFICATION_CATEGORIES.some((name) =>
     Object.prototype.hasOwnProperty.call(categories, name)
   );
-  const incompleteChecks = hasCategoryEvidence
+  const hasAllCategoryEvidence = REQUIRED_VERIFICATION_CATEGORIES.every((name) =>
+    Object.prototype.hasOwnProperty.call(categories, name)
+  );
+  const completionFlag = summary.verificationAllRequiredChecksSucceeded;
+  const categoryEvidenceRequired = completionFlag != null || hasCategoryEvidence;
+  const incompleteChecks = categoryEvidenceRequired
     ? REQUIRED_VERIFICATION_CATEGORIES.flatMap((name) => {
         const evidence = categories[name];
         const state = String(evidence?.state || VERIFICATION_STATES.unknown).toLowerCase();
         const count = asCount(evidence?.count);
+        if (evidence?.complete === false) {
+          const capped =
+            evidence?.discoveryEvidence?.queryResultCapReached === true ||
+            evidence?.discoveryEvidence?.matchCapReached === true;
+          return [{ name, state: capped ? 'capped' : `${state}_incomplete` }];
+        }
         if (!COMPLETED_VERIFICATION_STATES.has(state)) return [{ name, state }];
         if (state === VERIFICATION_STATES.verifiedZero && count !== 0) {
           return [{ name, state: 'invalid_verified_zero_count' }];
@@ -49,9 +60,8 @@ export function assessReportVerification(summary = {}) {
   const knownResidueCount = Math.max(categoryResidue, surfacedResidue, reportedTotal ?? 0);
   const hasKnownResidue =
     status === VERIFICATION_STATES.residueFound || categoryResidueReported || knownResidueCount > 0;
-  const completionFlag = summary.verificationAllRequiredChecksSucceeded;
   const terminalStatus = [VERIFICATION_STATES.verifiedZero, VERIFICATION_STATES.residueFound].includes(status);
-  const legacyComplete = completionFlag == null && terminalStatus && reportedTotal != null;
+  const legacyComplete = completionFlag == null && !hasCategoryEvidence && terminalStatus && reportedTotal != null;
   const terminalEvidenceConsistent =
     (status === VERIFICATION_STATES.verifiedZero && reportedTotal === 0 && knownResidueCount === 0) ||
     (status === VERIFICATION_STATES.residueFound &&
@@ -60,7 +70,7 @@ export function assessReportVerification(summary = {}) {
       knownResidueCount > 0 &&
       reportedTotal === Math.max(categoryResidue, surfacedResidue));
   const allRequiredChecksSucceeded =
-    (completionFlag === true || legacyComplete) &&
+    ((completionFlag === true && hasAllCategoryEvidence) || legacyComplete) &&
     terminalStatus &&
     terminalEvidenceConsistent &&
     incompleteChecks.length === 0;

@@ -76,10 +76,25 @@ export function buildCleanupReview({
   const willRemoveFiles = Boolean(
     settings.deleteDownloadedFiles && canBindFileCandidates && completedFileIds.length > 0
   );
+  const downloadRecordErasurePolicy = settings.deleteDownloadedFiles
+    ? !canBindFileCandidates
+      ? 'none_incomplete_file_inventory'
+      : willRemoveFiles
+        ? 'approved_file_removal_only'
+        : 'none_no_approved_files'
+    : 'all_matching_records';
   const requiredFileConfirmation = willRemoveFiles
     ? buildFileDeletionConfirmation(primary.normalizedTarget, completedFileIds.length)
     : '';
   const matchingPrivateTabs = finiteCount(impact.matchingPrivateTabs);
+  const matchingHistoryLowerBound = finiteCount(impact.matchingHistoryEntriesLowerBound);
+  const matchingDownloadLowerBound = finiteCount(impact.matchingDownloadRecordsLowerBound);
+  const historyCountComplete = impact.discoveryEvidence?.history
+    ? impact.discoveryEvidence.history.complete === true
+    : finiteCount(impact.matchingHistoryEntries) !== null;
+  const downloadCountComplete = impact.discoveryEvidence?.downloads
+    ? impact.discoveryEvidence.downloads.complete === true
+    : finiteCount(impact.matchingDownloadRecords) !== null;
   const privateDataObserved = Boolean(sourceIncognito || (matchingPrivateTabs !== null && matchingPrivateTabs > 0));
   const requestShieldRequested = settings.temporaryDnrShield !== false || settings.postWipeSessionBlock === true;
   // Session DNR rules are shared across the extension's spanning profile
@@ -106,7 +121,11 @@ export function buildCleanupReview({
       ? 'Selected-site storage, caches, file-system data, and service workers, including embedded third-party partitions under that site'
       : null,
     'Matching browsing-history entries',
-    'Matching download-history records',
+    downloadRecordErasurePolicy === 'all_matching_records'
+      ? 'Matching download-history records'
+      : downloadRecordErasurePolicy === 'approved_file_removal_only'
+        ? 'Preflight-approved download-history records, only after the corresponding on-disk file is removed successfully'
+        : null,
     willRemoveFiles ? 'Preflight-bound completed downloaded files on disk' : null,
     settings.permissionAudit !== false ? 'Live permission-state audit (read-only)' : null,
     settings.verificationPass !== false ? 'Post-clean residue verification (read-only)' : null
@@ -133,6 +152,20 @@ export function buildCleanupReview({
     finiteCount(impact.matchingTabs) > 0
       ? `${impact.matchingTabs} currently matching tab(s) will be closed; additional matching tabs present when cleanup starts may also close.`
       : 'Any matching tabs present when cleanup starts will be closed.',
+    !historyCountComplete && impact.discoveryEvidence?.history
+      ? matchingHistoryLowerBound > 0
+        ? `History discovery was incomplete; at least ${matchingHistoryLowerBound} matching history item(s) were observed, and preflight cannot claim an exact count.`
+        : 'History discovery was incomplete; the browser result limit prevented preflight from proving an exact count or zero matches.'
+      : null,
+    !downloadCountComplete && impact.discoveryEvidence?.downloads
+      ? matchingDownloadLowerBound > 0
+        ? settings.deleteDownloadedFiles
+          ? `Download discovery was incomplete; at least ${matchingDownloadLowerBound} matching download record(s) were observed. No on-disk file deletion or matching download-record erasure is authorized by this review.`
+          : `Download discovery was incomplete; at least ${matchingDownloadLowerBound} matching download record(s) were observed. Only positively discovered matching records may be erased, and no on-disk files will be removed.`
+        : settings.deleteDownloadedFiles
+          ? 'Download discovery was incomplete; the browser result limit prevented preflight from proving an exact count or zero matches. No on-disk file deletion or matching download-record erasure is authorized by this review.'
+          : 'Download discovery was incomplete; the browser result limit prevented preflight from proving an exact count or zero matches. Only positively discovered matching records may be erased, no zero-match claim is made, and no on-disk files will be removed.'
+      : null,
     associatedTargets.length ? 'Associated targets expand the cleanup beyond the primary normalized target.' : null,
     browserStorageScope.selectedSitePartitionDisclosureRequired ? SELECTED_SITE_PARTITION_STORAGE_DISCLOSURE : null,
     browserStorageScope.exactOriginLimitationRequired ? EXACT_ORIGIN_BROWSER_STORAGE_LIMITATION : null,
@@ -143,11 +176,14 @@ export function buildCleanupReview({
     willRemoveFiles
       ? `${completedFileIds.length} preflight-bound completed downloaded file(s) will be removed from disk. SiteWipe cannot undo this.`
       : null,
+    willRemoveFiles
+      ? 'When downloaded-file deletion is enabled, SiteWipe erases a preflight-approved download record only after its corresponding file deletion succeeds. Unapproved or failed file candidates keep their records for recovery.'
+      : null,
     settings.deleteDownloadedFiles && !willRemoveFiles && !canBindFileCandidates
-      ? 'Downloaded-file matching could not be completed during preflight, so this approval authorizes no on-disk file removal.'
+      ? 'Downloaded-file matching could not be completed during preflight, so this approval authorizes no on-disk file removal or matching download-record erasure.'
       : null,
     settings.deleteDownloadedFiles && !willRemoveFiles && canBindFileCandidates
-      ? 'No completed downloaded files matched during preflight, so this approval authorizes no on-disk file removal.'
+      ? 'No completed downloaded files matched during preflight, so this approval authorizes no on-disk file removal or matching download-record erasure.'
       : null,
     requestShieldEnabled && settings.postWipeSessionBlock
       ? 'The target request shield will remain active after cleanup until its configured expiration or browser restart.'
@@ -219,11 +255,19 @@ export function buildCleanupReview({
       },
       removeHistory: {
         enabled: true,
-        matchingCount: finiteCount(impact.matchingHistoryEntries)
+        matchingCount: finiteCount(impact.matchingHistoryEntries),
+        matchingCountLowerBound: matchingHistoryLowerBound,
+        countComplete: historyCountComplete
       },
       removeDownloadRecords: {
-        enabled: true,
-        matchingCount: finiteCount(impact.matchingDownloadRecords)
+        enabled: downloadRecordErasurePolicy === 'all_matching_records' || willRemoveFiles,
+        matchingCount: finiteCount(impact.matchingDownloadRecords),
+        matchingCountLowerBound: matchingDownloadLowerBound,
+        countComplete: downloadCountComplete,
+        erasurePolicy: downloadRecordErasurePolicy,
+        conditionalOnSuccessfulFileRemoval: Boolean(settings.deleteDownloadedFiles),
+        approvedFileCandidateCount: canBindFileCandidates ? completedFileIds.length : null,
+        preservesUnapprovedOrFailedFileRecords: Boolean(settings.deleteDownloadedFiles)
       },
       removeDownloadedFiles: {
         settingEnabled: Boolean(settings.deleteDownloadedFiles),
@@ -245,6 +289,7 @@ export function buildCleanupReview({
       },
       progressOverlay,
       configuredCleanup,
+      operationCapacity: impact.queryCapacityPlan || null,
       verification: { enabled: settings.verificationPass !== false },
       localReport: reportRetention
     },
@@ -398,6 +443,28 @@ export function buildFileDeletionConfirmation(normalizedTarget, count) {
   const safeCount = Math.max(0, Number.parseInt(count, 10) || 0);
   const noun = safeCount === 1 ? 'FILE' : 'FILES';
   return `DELETE ${safeCount} ${noun} FOR ${String(normalizedTarget || '').trim()}`;
+}
+
+export function describeReviewedRecordEffect(effect) {
+  if (effect?.erasurePolicy === 'approved_file_removal_only') {
+    const count = Number.isInteger(effect.approvedFileCandidateCount) ? effect.approvedFileCandidateCount : 0;
+    return `up to ${count} preflight-approved entr${count === 1 ? 'y is' : 'ies are'} removed only after the corresponding file deletion succeeds; unapproved or failed file records are preserved.`;
+  }
+  if (effect?.erasurePolicy === 'none_incomplete_file_inventory') {
+    return 'not removed; download discovery was incomplete, so no file or matching record erasure is authorized.';
+  }
+  if (effect?.erasurePolicy === 'none_no_approved_files') {
+    return 'not removed; no completed file was approved and matching records are preserved.';
+  }
+  if (effect?.enabled !== true) return 'not removed.';
+  if (effect.countComplete === false) {
+    const lowerBound = Number.isInteger(effect.matchingCountLowerBound) ? effect.matchingCountLowerBound : null;
+    return lowerBound === null
+      ? 'positively discovered matching entries are removed; preflight did not prove a full count or zero matches.'
+      : `positively discovered matching entries are removed; preflight found at least ${lowerBound} and did not prove a full count.`;
+  }
+  if (!Number.isInteger(effect.matchingCount)) return 'matching entries removed; preflight count unavailable.';
+  return `matching entries removed; ${effect.matchingCount} found in preflight.`;
 }
 
 export function reviewedFileIds(items = []) {

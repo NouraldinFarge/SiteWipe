@@ -128,6 +128,37 @@ test('green verified-zero outcome requires completed runtime and all four comple
   assert.match(outcome.copy, /outside this verification claim/);
 });
 
+test('a current report cannot claim verified zero when its four category records are missing', () => {
+  const summary = verifiedZeroSummary();
+  delete summary.verificationCategories;
+
+  const assessment = assessReportVerification(summary);
+  const outcome = formatReportOutcome({ status: 'completed', summary, errors: [], unavailable: [] });
+  assert.equal(assessment.kind, 'incomplete');
+  assert.equal(assessment.allRequiredChecksSucceeded, false);
+  assert.deepEqual(
+    assessment.incompleteChecks.map((item) => [item.name, item.state]),
+    [
+      ['cookies', 'unknown'],
+      ['tabs', 'unknown'],
+      ['history', 'unknown'],
+      ['downloads', 'unknown']
+    ]
+  );
+  assert.equal(outcome.tone, 'warning');
+  assert.notEqual(outcome.badge, 'Verified zero');
+  assert.match(outcome.copy, /full four-surface total remains unknown/i);
+});
+
+test('the narrow legacy fallback requires no modern completion flag and a retained numeric total', () => {
+  const legacy = {
+    verificationStatus: 'verified_zero',
+    verificationRemainingTotal: 0
+  };
+  assert.equal(assessReportVerification(legacy).kind, 'verified_zero');
+  assert.equal(assessReportVerification({ ...legacy, verificationRemainingTotal: null }).kind, 'incomplete');
+});
+
 test('runtime errors override a completed status and verified-zero evidence', () => {
   const outcome = formatReportOutcome({
     status: 'completed',

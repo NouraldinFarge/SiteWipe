@@ -22,6 +22,32 @@ test('side panel never falls back to latest when its exact binding is absent', a
   }
 });
 
+test('side panel applies visual settings without requiring a report binding', async () => {
+  const harness = await createSidePanelHarness({
+    binding: null,
+    settings: { reducedMotion: true, highContrast: true }
+  });
+  try {
+    assert.equal(harness.bodyHasClass('reduced-motion'), true);
+    assert.equal(harness.bodyHasClass('high-contrast'), true);
+    assert.equal(harness.reportStateCalls().length, 0);
+
+    harness.emitStorageChange(
+      {
+        'sitewipe.settings.v1': {
+          newValue: { reducedMotion: false, highContrast: false }
+        }
+      },
+      'local'
+    );
+    assert.equal(harness.bodyHasClass('reduced-motion'), false);
+    assert.equal(harness.bodyHasClass('high-contrast'), false);
+    assert.equal(harness.reportStateCalls().length, 0);
+  } finally {
+    harness.dispose();
+  }
+});
+
 test('a report replacement between binding and load cannot flash or enable the replacement', async () => {
   const reportB = report('report-b', 'replacement.example');
   const harness = await createSidePanelHarness({
@@ -185,6 +211,9 @@ async function createSidePanelHarness(options) {
   const chrome = {
     runtime: {
       sendMessage(request) {
+        if (request.type === 'sitewipe.getSettings') {
+          return Promise.resolve(successEnvelope(request, { settings: structuredClone(options.settings || {}) }));
+        }
         if (request.type !== 'sitewipe.getReportState') {
           return Promise.resolve(successEnvelope(request, {}));
         }
@@ -235,6 +264,7 @@ async function createSidePanelHarness(options) {
   const bindingStorageKey = 'sitewipe.sidePanelReportBinding.v1.7';
   return {
     element: (id) => document.byId(id),
+    bodyHasClass: (name) => document.body.classList.contains(name),
     initialization,
     reportStateCalls: () => reportStateCalls.map((call) => structuredClone(call)),
     callForReport(reportId) {
@@ -411,6 +441,10 @@ class FakeClassList {
     if (force) this.values.add(value);
     else this.values.delete(value);
     return force;
+  }
+
+  contains(value) {
+    return this.values.has(value);
   }
 }
 

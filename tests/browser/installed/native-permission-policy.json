@@ -1,0 +1,106 @@
+{
+  "schema": "sitewipe.native-prompt-policy.v1",
+  "extensionName": "SiteWipe",
+  "dialogTitleTemplate": "\"{extensionName}\" has requested additional permissions.",
+  "allowedActions": ["allow", "deny", "dismiss", "observe-none"],
+  "permissionPatterns": [
+    "http://*.example.com/*",
+    "http://example.com/*",
+    "https://*.example.com/*",
+    "https://example.com/*"
+  ],
+  "expectedFragments": ["SiteWipe", "example.com"],
+  "scenarioSchedule": [
+    {
+      "id": "SMOKE-01.observe-none",
+      "scenarioId": "SMOKE-01",
+      "action": "observe-none",
+      "timeoutSeconds": 420,
+      "actionDelaySeconds": 0
+    },
+    {
+      "id": "SETTINGS-01.observe-none",
+      "scenarioId": "SETTINGS-01",
+      "action": "observe-none",
+      "timeoutSeconds": 420,
+      "actionDelaySeconds": 0
+    },
+    {
+      "id": "PERM-01.allow",
+      "scenarioId": "PERM-01",
+      "action": "allow",
+      "timeoutSeconds": 20,
+      "actionDelaySeconds": 0
+    },
+    {
+      "id": "PERM-01.deny",
+      "scenarioId": "PERM-01",
+      "action": "deny",
+      "timeoutSeconds": 20,
+      "actionDelaySeconds": 0
+    },
+    {
+      "id": "PERM-01.dismiss",
+      "scenarioId": "PERM-01",
+      "action": "dismiss",
+      "timeoutSeconds": 20,
+      "actionDelaySeconds": 0
+    },
+    {
+      "id": "PERM-01.timeout-late-allow",
+      "scenarioId": "PERM-01",
+      "action": "allow",
+      "timeoutSeconds": 420,
+      "actionDelaySeconds": 360
+    }
+  ],
+  "actionControlNames": {
+    "allow": "Allow",
+    "deny": "Deny",
+    "dismiss": "Close"
+  },
+  "uiaSnapshots": [
+    {
+      "browserName": "brave",
+      "browserVersion": "151.1.93.138",
+      "browserExecutableSha256": "5765ED474E75FD3C69A418CD6F8A0EC13F4B269459ABF4245674A83355657293",
+      "scheduleIds": ["PERM-01.allow", "PERM-01.deny", "PERM-01.dismiss", "PERM-01.timeout-late-allow"],
+      "exactNormalizedNames": [
+        "Allow",
+        "Close",
+        "Deny",
+        "Read and change your data on example.com and all its subdomains",
+        "SiteWipe"
+      ]
+    },
+    {
+      "browserName": "chrome",
+      "browserVersion": "151.0.7922.174",
+      "browserExecutableSha256": "B6D40F55E48E61760335D18F46ABCEC929E1A11B8330E7F2B501037584AF4AA4",
+      "scheduleIds": ["PERM-01.allow", "PERM-01.deny", "PERM-01.dismiss", "PERM-01.timeout-late-allow"],
+      "exactNormalizedNames": [
+        "Allow",
+        "Close",
+        "Deny",
+        "Read and change your data on example.com and all its subdomains",
+        "SiteWipe"
+      ]
+    }
+  ],
+  "powershell": {
+    "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "sha256": "0FF6F2C94BC7E2833A5F7E16DE1622E5DBA70396F31C7D5F56381870317E8C46"
+  },
+  "constraints": {
+    "exactProcessIdentity": true,
+    "exactlyOneDialog": true,
+    "exactlyOneActionControl": true,
+    "coordinatesAllowed": false,
+    "globalInputAllowed": false,
+    "requiresUnlockedInteractiveSession": true,
+    "readinessHandshakeRequired": true,
+    "controlledObserveNoneStopRequired": true,
+    "maximumTimeoutSeconds": 420,
+    "maximumActionDelaySeconds": 360
+  }
+}

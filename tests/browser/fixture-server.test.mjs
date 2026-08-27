@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { request } from 'node:http';
 
-import { startFixtureServer } from './fixture-server.mjs';
+import { DEFAULT_SETTINGS } from '../../src/shared/constants.js';
+import { parseExactFixtureHostHeader, startFixtureServer } from './fixture-server.mjs';
+import { createOptionsFixtureDefaults, optionsFixtureDefaultsScript } from './options-fixture-defaults.mjs';
 import {
   PARTITION_PROBE_FRAME_PATH,
   createFixtureApi,
@@ -53,11 +55,13 @@ test('partition fixture keeps setup seeding separate from the read-only observat
   assert.equal(setupApi.seedFixture, fixtureOperations.seedFixture);
   assert.equal(setupApi.resetFixture, fixtureOperations.resetFixture);
 
-  const seedUrl = new URL(partitionFrameUrl({ mode: 'seed', port: 43819, scale: 'small' }));
+  const runToken = 'ab'.repeat(32);
+  const seedUrl = new URL(partitionFrameUrl({ mode: 'seed', port: 43819, scale: 'small', runToken }));
   assert.equal(seedUrl.hostname, 'chips.localhost');
   assert.equal(seedUrl.pathname, '/');
   assert.equal(seedUrl.searchParams.get('thirdparty'), '1');
   assert.equal(seedUrl.searchParams.get('autoseed'), '1');
+  assert.equal(seedUrl.searchParams.get('runToken'), runToken);
 
   const probeUrl = new URL(partitionFrameUrl({ mode: 'probe', port: 43819, scale: 'medium' }));
   assert.equal(probeUrl.hostname, 'chips.localhost');
@@ -67,8 +71,46 @@ test('partition fixture keeps setup seeding separate from the read-only observat
   assert.equal(probeUrl.searchParams.has('autoseed'), false);
 });
 
+test('fixture Host parsing preserves exact IPv4, IPv6, DNS, and listener-port identity', () => {
+  assert.equal(parseExactFixtureHostHeader('127.0.0.1:43819', 43819), '127.0.0.1');
+  assert.equal(parseExactFixtureHostHeader('[::1]:43819', 43819), '::1');
+  assert.equal(parseExactFixtureHostHeader('selected.example.com:43819', 43819), 'selected.example.com');
+  assert.throws(() => parseExactFixtureHostHeader('127.0.0.1:43820', 43819), /port differs/);
+  assert.throws(() => parseExactFixtureHostHeader('selected.example.com@evil.invalid:43819', 43819), /Invalid/);
+});
+
+test('synthetic browser fixture hides handler diagnostics from the loopback client', async () => {
+  const diagnosticSentinel = 'private-fixture-path-and-stack-sentinel';
+  const fixture = await startFixtureServer({
+    runToken: 'ef'.repeat(32),
+    readFixtureFile: async () => {
+      throw new Error(diagnosticSentinel);
+    }
+  });
+  try {
+    const failure = await readFixture(fixture.port, '/popup/popup.html', '127.0.0.1');
+    assert.equal(failure.status, 500);
+    assert.deepEqual(JSON.parse(failure.body), {
+      ok: false,
+      error: 'Synthetic fixture request failed.'
+    });
+    assert.doesNotMatch(failure.body, new RegExp(diagnosticSentinel, 'u'));
+    assert.deepEqual(fixture.requestLedger().at(-1), {
+      method: 'GET',
+      host: null,
+      pathname: null,
+      authorized: false,
+      status: 500,
+      reason: 'handler_error'
+    });
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('synthetic browser fixture server is loopback-only, host-aware, and deterministic', async () => {
-  const fixture = await startFixtureServer();
+  const runToken = 'cd'.repeat(32);
+  const fixture = await startFixtureServer({ runToken });
   try {
     const health = await readFixture(fixture.port, '/health?scale=large', 'alice.blogspot.com');
     assert.equal(health.status, 200);
@@ -84,7 +126,7 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
     assert.equal(page.status, 200);
     assert.match(page.body, /Disposable SiteWipe fixture/);
     assert.match(page.headers['content-security-policy'], /default-src 'self'/);
-    assert.match(page.headers['content-security-policy'], /(?:^|;\s*)style-src 'self' 'unsafe-inline'(?:;|$)/);
+    assert.match(page.headers['content-security-policy'], /(?:^|;\s*)style-src 'self' 'unsafe-inline'(?:\s|;|$)/);
 
     const partitionProbe = await readFixture(fixture.port, '/partition-probe?scale=small', 'selected.example.com');
     assert.equal(partitionProbe.status, 200);
@@ -105,13 +147,30 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
     assert.match(partitionRouteModule.body, /mode === 'seed'/);
     assert.match(partitionRouteModule.body, /PARTITION_PROBE_FRAME_PATH/);
 
-    const cookies = await readFixture(fixture.port, '/seed-cookies', 'chips.localhost');
+    const rejectedCookies = await readFixture(fixture.port, '/seed-cookies', 'chips.localhost');
+    assert.equal(rejectedCookies.status, 403);
+    assert.equal(rejectedCookies.headers['set-cookie'], undefined);
+
+    const cookies = await readFixture(fixture.port, '/seed-cookies', 'chips.localhost', {
+      headers: { 'X-SiteWipe-Fixture-Token': runToken }
+    });
     assert.equal(cookies.status, 200);
     assert.equal(cookies.headers['set-cookie'].length, 2);
     assert.match(cookies.headers['set-cookie'][1], /Partitioned/);
 
-    const missing = await readFixture(fixture.port, '/not-a-fixture', 'lookalike.invalid');
+    const missing = await readFixture(fixture.port, '/not-a-fixture', 'selected.example.com');
     assert.equal(missing.status, 404);
+    const rejectedHost = await readFixture(fixture.port, '/health', 'lookalike.invalid');
+    assert.equal(rejectedHost.status, 421);
+    const rejectedMethod = await readFixture(fixture.port, '/health', '127.0.0.1', { method: 'POST' });
+    assert.equal(rejectedMethod.status, 405);
+    assert.equal(rejectedMethod.headers.allow, 'GET');
+    const rejectedUiAlias = await readFixture(fixture.port, '/popup/popup.html', 'selected.example.com');
+    assert.equal(rejectedUiAlias.status, 421);
+    const rejectedPort = await readFixture(fixture.port, '/health', '127.0.0.1', {
+      hostHeader: `127.0.0.1:${fixture.port + 1}`
+    });
+    assert.equal(rejectedPort.status, 400);
 
     const popup = await readFixture(fixture.port, '/popup/popup.html', '127.0.0.1');
     assert.equal(popup.status, 200);
@@ -129,6 +188,10 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
     assert.match(popupMock.body, /fixtureParameters\.get\('permission'\) === 'deny'/);
     assert.match(popupMock.body, /fixtureParameters\.get\('permission'\) === 'expire-after-grant'/);
     assert.match(popupMock.body, /fixtureParameters\.get\('mode'\) === 'standard'/);
+    assert.match(popupMock.body, /fixtureParameters\.get\('fixtureControls'\) === '1'/);
+    assert.match(popupMock.body, /fixtureParameters\.get\('surface'\) === 'tab'/);
+    assert.match(popupMock.body, /fixtureDirectOpenSurface/);
+    assert.match(popupMock.body, /if \(showFixtureControls\) document\.body\.append\(settingsChangeButton\)/);
     assert.match(popupMock.body, /approvalMode: directCleanup \? 'settings_direct' : 'detailed_review'/);
     assert.match(popupMock.body, /case 'sitewipe\.armCleanupApproval'/);
     assert.match(popupMock.body, /case 'sitewipe\.beginCleanupPermissionPrompt'/);
@@ -140,6 +203,8 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
     assert.match(popupMock.body, /promptGrantObserved/);
     assert.match(popupMock.body, /preRequestTemporaryOriginsAbsent/);
     assert.match(popupMock.body, /fixtureLastApprovalMode/);
+    assert.match(popupMock.body, /fixtureHandoffOpenAttempts/);
+    assert.match(popupMock.body, /sitewipe\.openCleanupPermissionHandoff/);
     assert.match(popupMock.body, /fixtureExpireAfterNativeGrant/);
     assert.match(popupMock.body, /Unsupported scheme chrome-extension:\. Use http or https domains only\./);
     for (const modulePath of [
@@ -162,8 +227,20 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
 
     const options = await readFixture(fixture.port, '/options/options.html', '127.0.0.1');
     assert.equal(options.status, 200);
+    assert.match(options.body, /options-browser-defaults\.js/);
     assert.match(options.body, /options-browser-mock\.js/);
     assert.match(options.body, /<script type="module" src="options\.js"><\/script>/);
+    const optionsModule = await readFixture(fixture.port, '/options/options.js', '127.0.0.1');
+    assert.equal(optionsModule.status, 200);
+    assert.match(optionsModule.headers['content-type'], /^text\/javascript/);
+    assert.match(optionsModule.body, /from '\.\.\/shared\/storage\.js'/);
+    const storageModule = await readFixture(fixture.port, '/shared/storage.js', '127.0.0.1');
+    assert.equal(storageModule.status, 200);
+    assert.match(storageModule.headers['content-type'], /^text\/javascript/);
+    assert.match(storageModule.body, /from '\.\/state-schema\.js'/);
+    const stateSchemaModule = await readFixture(fixture.port, '/shared/state-schema.js', '127.0.0.1');
+    assert.equal(stateSchemaModule.status, 200);
+    assert.match(stateSchemaModule.headers['content-type'], /^text\/javascript/);
     const permissionLifecycle = await readFixture(fixture.port, '/options/permission-lifecycle.js', '127.0.0.1');
     assert.equal(permissionLifecycle.status, 200);
     assert.match(permissionLifecycle.body, /await permissionsApi\.request\(request\)/);
@@ -171,6 +248,22 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
     assert.equal(optionsMock.status, 200);
     assert.match(optionsMock.body, /async contains\(/);
     assert.match(optionsMock.body, /fixtureNamedPermissionRequestUserActivation/);
+    assert.match(optionsMock.body, /fixtureParams\.get\('fixtureControls'\) === '1'/);
+    assert.match(optionsMock.body, /structuredClone\(productionDefaults\)/);
+    const optionsDefaults = await readFixture(fixture.port, '/options-browser-defaults.js', '127.0.0.1');
+    assert.equal(optionsDefaults.status, 200);
+    assert.equal(optionsDefaults.body, optionsFixtureDefaultsScript());
+
+    const handoff = await readFixture(fixture.port, '/handoff/handoff.html?outcome=deny', '127.0.0.1');
+    assert.equal(handoff.status, 200);
+    assert.match(handoff.body, /handoff-browser-mock\.js/);
+    assert.match(handoff.body, /<script type="module" src="handoff\.js"><\/script>/);
+    const handoffMock = await readFixture(fixture.port, '/handoff-browser-mock.js', '127.0.0.1');
+    assert.equal(handoffMock.status, 200);
+    assert.match(handoffMock.body, /sitewipe\.claimCleanupPermissionHandoff/);
+    assert.match(handoffMock.body, /outcome !== 'deny'/);
+    assert.match(handoffMock.body, /fixtureHandoffPermissionRequests/);
+    assert.match(optionsMock.body, /if \(showFixtureControls\) document\.body\.append\(activeJobButton\)/);
 
     const sidepanel = await readFixture(fixture.port, '/sidepanel/sidepanel.html?width=320&view=matrix', '127.0.0.1');
     assert.equal(sidepanel.status, 200);
@@ -216,19 +309,27 @@ test('synthetic browser fixture server is loopback-only, host-aware, and determi
     const sidepanelStyles = await readFixture(fixture.port, '/sidepanel/sidepanel.css', '127.0.0.1');
     assert.equal(sidepanelStyles.status, 200);
     assert.match(sidepanelStyles.headers['content-type'], /^text\/css/);
+
+    assert.deepEqual(createOptionsFixtureDefaults(), DEFAULT_SETTINGS);
+    const ledger = fixture.requestLedger();
+    assert.ok(ledger.some((entry) => entry.reason === 'fixture_token_rejected'));
+    assert.ok(ledger.some((entry) => entry.reason === 'host_not_allowed'));
+    assert.ok(ledger.some((entry) => entry.reason === 'method_not_allowed'));
+    assert.ok(ledger.every((entry) => !Object.hasOwn(entry, 'runToken')));
   } finally {
     await fixture.close();
   }
 });
 
-function readFixture(port, path, host) {
+function readFixture(port, path, host, { headers = {}, hostHeader = `${host}:${port}`, method = 'GET' } = {}) {
   return new Promise((resolve, reject) => {
     const outgoing = request(
       {
         hostname: '127.0.0.1',
         port,
         path,
-        headers: { Host: `${host}:${port}` }
+        method,
+        headers: { Host: hostHeader, ...headers }
       },
       (response) => {
         response.setEncoding('utf8');

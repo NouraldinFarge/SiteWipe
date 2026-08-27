@@ -6,7 +6,8 @@ import {
   verificationFailure,
   verificationFromCount,
   verificationNotAttempted,
-  verificationNotSupported
+  verificationNotSupported,
+  verificationUnknown
 } from '../shared/verification-evidence.js';
 
 const VERIFICATION_TIMEOUT_MS = 15000;
@@ -30,7 +31,9 @@ export async function verifyExposedResidue(target, report, options = {}, depende
   report.summary.verificationScopeLabel = 'Cookies, tabs, history, and download records only';
 
   await runVerificationCheck('tabs', Boolean(chrome.tabs?.query), 'chrome.tabs.query is unavailable.', async () => {
+    options.operationBudget?.claimQuery('verification tab discovery');
     const tabs = await chrome.tabs.query({});
+    options.operationBudget?.observeRecords(tabs?.length || 0, 'verification tab discovery results');
     const matchingTabs = tabs.filter((tab) =>
       tabMatchesReviewedCleanupTarget(tab, target, options.incognitoAccess === true)
     );
@@ -63,9 +66,10 @@ export async function verifyExposedResidue(target, report, options = {}, depende
     Boolean(chrome.history?.search && typeof discoverHistory === 'function'),
     chrome.history?.search ? 'History verification adapter is unavailable.' : 'chrome.history.search is unavailable.',
     async () => {
-      const matches = await discoverHistory(target, options);
+      const result = normalizeDiscoveryResult(await discoverHistory(target, options), 'history');
+      const matches = result.items;
       samples.historyUrls = matches.slice(0, 10).map((item) => redactUrlForReport(item.url));
-      return matches.length;
+      return verificationFromDiscoveryResult(result, 'History');
     }
   );
 
@@ -76,14 +80,17 @@ export async function verifyExposedResidue(target, report, options = {}, depende
       ? 'Download verification adapter is unavailable.'
       : 'chrome.downloads.search is unavailable.',
     async () => {
-      const discovered = await discoverDownloads(target, { ...options, downloadRecentFallback: false });
-      const matches = (Array.isArray(discovered) ? discovered : []).filter((item) =>
+      const result = normalizeDiscoveryResult(
+        await discoverDownloads(target, { ...options, downloadRecentFallback: false }),
+        'downloads'
+      );
+      const matches = result.items.filter((item) =>
         downloadMatchesReviewedCleanupTarget(item, target, options.incognitoAccess === true)
       );
       samples.downloadUrls = matches
         .slice(0, 10)
         .map((item) => redactUrlForReport(item.finalUrl || item.url || item.referrer));
-      return matches.length;
+      return verificationFromDiscoveryResult({ ...result, items: matches }, 'Download');
     }
   );
 
@@ -119,7 +126,7 @@ export async function verifyExposedResidue(target, report, options = {}, depende
         'zoom, mute, pin, badge, and page permission evidence',
         'request-shield side effects'
       ],
-      note: 'Best-effort four-surface verification reports explicit evidence states. Failed, timed-out, unsupported, skipped, capped, and unknown checks are never converted to zero. Verified zero means only that cookies, open target tabs, matching history URLs, and matching download records returned zero through exposed Chrome MV3 APIs.'
+      note: 'Best-effort four-surface verification reports explicit evidence states. Failed, timed-out, unsupported, skipped, capped, and unknown checks are never converted to zero. Verified zero means only that cookies, open target tabs, matching history URLs, and matching download records returned zero through exposed browser extension APIs.'
     }
   );
 
@@ -132,18 +139,80 @@ export async function verifyExposedResidue(target, report, options = {}, depende
     try {
       await throwIfCancellationRequested(options.shouldCancel, `verification of ${name}`);
       options.operationBudget?.check(`verification of ${name}`);
-      const count = await withTimeoutReject(
+      const result = await withTimeoutReject(
         Promise.resolve().then(operation),
         Number(options.verificationTimeoutMs) || VERIFICATION_TIMEOUT_MS,
         `Verification ${name}`
       );
-      categories[name] = verificationFromCount(count);
+      categories[name] = isVerificationEvidence(result) ? result : verificationFromCount(result);
     } catch (error) {
       categories[name] = verificationFailure(error);
       errors.push({ area: name, state: categories[name].state, message: readableMessage(error) });
       addError(report, `Verification failed: ${name}`, error);
     }
   }
+}
+
+function normalizeDiscoveryResult(value, expectedKind) {
+  // Legacy injected adapters in focused tests may still return an array. The
+  // runtime adapters return an evidence-bearing result so browser caps cannot
+  // be mistaken for a complete zero.
+  if (Array.isArray(value)) return { items: value, evidence: { kind: expectedKind, complete: true } };
+  if (!value || typeof value !== 'object' || !Array.isArray(value.items)) {
+    throw new Error(`${expectedKind} verification returned a malformed discovery result.`);
+  }
+  const evidence = value.evidence && typeof value.evidence === 'object' ? value.evidence : {};
+  const complete =
+    evidence.complete === true &&
+    evidence.queryResultCapReached !== true &&
+    evidence.matchCapReached !== true &&
+    !(Number(evidence.queryFailures) > 0) &&
+    !(
+      Number.isSafeInteger(evidence.queriesPlanned) &&
+      Number.isSafeInteger(evidence.queriesRun) &&
+      evidence.queriesRun < evidence.queriesPlanned
+    );
+  return {
+    items: value.items,
+    evidence: {
+      ...evidence,
+      kind: evidence.kind || expectedKind,
+      complete
+    }
+  };
+}
+
+function verificationFromDiscoveryResult(result, label) {
+  const count = result.items.length;
+  if (result.evidence.complete === true) return verificationFromCount(count);
+  const limitations = Array.isArray(result.evidence.limitations)
+    ? result.evidence.limitations.map(String).filter(Boolean)
+    : [];
+  const reason =
+    limitations.join(' ') ||
+    `${label} discovery was incomplete, so the observed count is only a lower bound and cannot prove zero.`;
+  if (count > 0) {
+    return {
+      state: 'residue_found',
+      count,
+      observedCount: count,
+      complete: false,
+      lowerBound: true,
+      reason,
+      discoveryEvidence: result.evidence
+    };
+  }
+  return {
+    ...verificationUnknown(reason),
+    observedCount: 0,
+    complete: false,
+    lowerBound: true,
+    discoveryEvidence: result.evidence
+  };
+}
+
+function isVerificationEvidence(value) {
+  return Boolean(value && typeof value === 'object' && typeof value.state === 'string');
 }
 
 function redactUrlForReport(url) {

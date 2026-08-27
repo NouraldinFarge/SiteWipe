@@ -441,7 +441,8 @@ function createHarness(settingsOverrides = {}, options = {}) {
   };
   const token = options.token || 'a'.repeat(48);
   const hostPermissions = { granted: options.hostPermissionsGranted ?? true };
-  const inspectImpact = options.inspectImpact || (async () => structuredClone(options.impact || emptyImpact()));
+  const rawInspectImpact = options.inspectImpact || (async () => structuredClone(options.impact || emptyImpact()));
+  const inspectImpact = async (...args) => completeCapacityImpactFixture(await rawInspectImpact(...args));
 
   const dependencies = {
     getSettings: async () => structuredClone(settings),
@@ -516,12 +517,54 @@ function detailedApproval(overrides = {}) {
 }
 
 function emptyImpact() {
-  return {
+  return completeCapacityImpactFixture({
     matchingTabs: 0,
     matchingPrivateTabs: 0,
     matchingHistoryEntries: 0,
     matchingDownloadRecords: 0,
     matchedCompletedFileIds: [],
+    limitations: []
+  });
+}
+
+function completeCapacityImpactFixture(value = {}) {
+  const matchingTabs = Number.isSafeInteger(value.matchingTabs) ? value.matchingTabs : 0;
+  const matchingHistoryEntries = Number.isSafeInteger(value.matchingHistoryEntries) ? value.matchingHistoryEntries : 0;
+  const matchingDownloadRecords = Math.max(
+    Number.isSafeInteger(value.matchingDownloadRecords) ? value.matchingDownloadRecords : 0,
+    Array.isArray(value.matchedCompletedFileIds) ? value.matchedCompletedFileIds.length : 0
+  );
+  return {
+    ...value,
+    matchingTabs,
+    tabEnumerationComplete: value.tabEnumerationComplete ?? true,
+    matchingHistoryEntries,
+    matchingHistoryEntriesLowerBound: value.matchingHistoryEntriesLowerBound ?? matchingHistoryEntries,
+    matchingDownloadRecords,
+    matchingDownloadRecordsLowerBound: value.matchingDownloadRecordsLowerBound ?? matchingDownloadRecords,
+    cookieStoreCount: value.cookieStoreCount ?? 1,
+    cookieStoreEnumerationComplete: value.cookieStoreEnumerationComplete ?? true,
+    overlayEligibleTabs: value.overlayEligibleTabs ?? matchingTabs,
+    discoveryEvidence: value.discoveryEvidence || {
+      history: completeDiscoveryEvidence('history', matchingHistoryEntries),
+      downloads: completeDiscoveryEvidence('downloads', matchingDownloadRecords)
+    }
+  };
+}
+
+function completeDiscoveryEvidence(kind, matches) {
+  return {
+    kind,
+    queriesPlanned: 1,
+    queriesRun: 1,
+    recordsObserved: matches,
+    matches,
+    cappedQueries: 0,
+    queryResultCapReached: false,
+    matchCapReached: false,
+    queryFailures: 0,
+    complete: true,
+    truncated: false,
     limitations: []
   };
 }

@@ -68,7 +68,9 @@ export function summarizeVerification(categories, requiredNames = Object.keys(ca
   );
   const incomplete = required
     .filter(
-      ([, evidence]) => ![VERIFICATION_STATES.verifiedZero, VERIFICATION_STATES.residueFound].includes(evidence.state)
+      ([, evidence]) =>
+        evidence.complete === false ||
+        ![VERIFICATION_STATES.verifiedZero, VERIFICATION_STATES.residueFound].includes(evidence.state)
     )
     .map(([name, evidence]) => ({
       name,
@@ -78,14 +80,15 @@ export function summarizeVerification(categories, requiredNames = Object.keys(ca
   const allRequiredChecksSucceeded = required.length > 0 && incomplete.length === 0;
 
   let status = 'incomplete';
-  if (required.length && states.every((state) => state === VERIFICATION_STATES.verifiedZero)) status = 'verified_zero';
+  if (allRequiredChecksSucceeded && states.every((state) => state === VERIFICATION_STATES.verifiedZero))
+    status = 'verified_zero';
   else if (states.some((state) => state === VERIFICATION_STATES.residueFound)) status = 'residue_found';
   else if (states.every((state) => state === VERIFICATION_STATES.notAttempted)) status = 'not_attempted';
 
   return {
     status,
     allRequiredChecksSucceeded,
-    noExposedResidueFound: status === 'verified_zero',
+    noExposedResidueFound: allRequiredChecksSucceeded && status === 'verified_zero',
     residueCount: residue,
     incomplete
   };

@@ -39,18 +39,20 @@ export function fixtureStartupAction({ pathname = '/', autoseed = null } = {}) {
   return autoseed === '1' ? 'seed' : null;
 }
 
-export function partitionFrameUrl({ mode, port = '', scale = 'small' }) {
+export function partitionFrameUrl({ mode, port = '', scale = 'small', runToken = '' }) {
   if (mode !== 'seed' && mode !== 'probe') throw new TypeError('Partition fixture mode must be seed or probe.');
   if (!['small', 'medium', 'large'].includes(scale)) throw new TypeError('Partition fixture scale is invalid.');
 
   const normalizedPort = String(port);
   if (normalizedPort && !/^\d{1,5}$/.test(normalizedPort)) throw new TypeError('Partition fixture port is invalid.');
+  if (runToken && !/^[A-Fa-f0-9]{64}$/.test(runToken)) throw new TypeError('Partition fixture run token is invalid.');
 
   const authority = normalizedPort ? `${PARTITION_FIXTURE_HOST}:${normalizedPort}` : PARTITION_FIXTURE_HOST;
   const pathname = mode === 'probe' ? PARTITION_PROBE_FRAME_PATH : '/';
   const url = new URL(`http://${authority}${pathname}`);
   url.searchParams.set('scale', scale);
   url.searchParams.set('thirdparty', '1');
+  if (runToken) url.searchParams.set('runToken', runToken);
   if (mode === 'seed') url.searchParams.set('autoseed', '1');
   return url.href;
 }

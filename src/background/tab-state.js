@@ -8,8 +8,8 @@ import {
   withTimeoutReject,
   yieldEvery
 } from './operation-control.js';
+import { MAX_TAB_STATE_AUDIT_TABS } from './cleanup-capacity.js';
 
-const MAX_TAB_STATE_AUDIT_TABS = 100;
 const TAB_STATE_CONCURRENCY = 6;
 const TAB_REMOVE_TIMEOUT_MS = 15_000;
 const OPERATION_YIELD_EVERY = 10;
@@ -318,7 +318,7 @@ export async function closeMatchingTabs(target, report, incognitoAccess, context
       skipped: skippedAfterRevalidation
     }),
     incognitoAccess,
-    note: 'Each discovered tab was re-read and matched against the approved target and reviewed private-window scope immediately before individual closure. A close timeout remains an unknown outcome because Chrome may finish it later.'
+    note: 'Each discovered tab was re-read and matched against the approved target and reviewed private-window scope immediately before individual closure. A close timeout remains an unknown outcome because the browser may finish it later.'
   });
 }
 

@@ -1,0 +1,206 @@
+{
+  "schemaVersion": 1,
+  "status": "superseded_after_complete_check_without_valid_coverage",
+  "validatedAt": "2026-08-25T21:38:28.1101876-05:00",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
+  "environment": {
+    "osDescription": "Microsoft Windows 10.0.26100",
+    "osArchitecture": "X64",
+    "processArchitecture": "X64",
+    "node": "v24.18.1",
+    "npm": "11.16.0",
+    "scope": "Exact local 1.11.97 complete-check execution on the pinned Node/npm toolchain. The command passed every source safeguard, 1,402 of 1,405 unit tests with zero failures and three explicit platform-inapplicable skips, and 11 of 11 property tests. A required coverage run was then started, but a late release-protocol audit found that stable local and CI instructions disagreed with the exact clean-install and low-threshold JSON audit commands bound in active evidence and that the CI timeout was shorter than the measured mandatory check-plus-coverage duration. Coverage was intentionally interrupted, its partial threshold output is not a valid result, and every later stage did not run for 1.11.97."
+  },
+  "baseline": {
+    "beforeState": "The 1.11.96 record remains unchanged in automated-validation-2026-08-25-v1.11.96.json.",
+    "baselineVersion": "1.11.96",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-25-v1.11.96.json"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "passed",
+    "format": "passed",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.11.97",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "6100275EAF1021C61B01871BCCBB43D1C5A65AAC61966FC4E2CC24AC94B87FA7",
+      "stableReleaseInputFingerprintSha256": "27DEAEC49B04239C5989D2B8E856179E56D3CD117F81BDE9FE1E49D6747A66E7",
+      "stableReleaseInputFiles": 310
+    },
+    "manifest": {
+      "status": "passed",
+      "version": "1.11.97",
+      "descriptionCharacters": 123,
+      "descriptionMaximum": 132,
+      "requiredNamedPermissions": 10,
+      "optionalNamedPermissions": 1,
+      "requiredHostPatterns": 0,
+      "optionalHostPatterns": 2
+    },
+    "syntaxModules": 217,
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "htmlValidation": "passed",
+    "cssValidation": "passed",
+    "remoteCodeAndRuntimeSecretScan": {
+      "status": "passed",
+      "runtimeFiles": 61
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 417
+    },
+    "developmentSbom": {
+      "status": "passed",
+      "components": 358,
+      "dependencyNodes": 417,
+      "sha256": "DF9281E574C8294B50F3BA4A7A8CD0F0FCC865775F4A579775F76130BAB30C98"
+    },
+    "dependencyLicenseInventory": {
+      "status": "passed",
+      "runtimeDependencies": 0,
+      "lockedDevelopmentGraph": 416,
+      "lockfileSha256": "0F77DF9166AC62330A59FB038A1BEBF94BC574FA378D1D3D3C31CE1628B8F10C",
+      "developmentSbomSha256": "DF9281E574C8294B50F3BA4A7A8CD0F0FCC865775F4A579775F76130BAB30C98",
+      "metadataExceptionsResolved": 1
+    },
+    "projectLicense": {
+      "status": "passed",
+      "spdxIdentifier": "MIT",
+      "licenseFileSha256": "86ECA68E8C1B0498315252BD01B6190F01500EE720C333D00793DD947F5B6511"
+    },
+    "thirdPartyNoticeAndPslHash": "passed",
+    "iconSourceAndPngProvenance": "passed",
+    "documentation": {
+      "status": "passed",
+      "markdownFiles": 49
+    },
+    "githubActionPins": {
+      "status": "passed",
+      "references": 10
+    },
+    "runtimeAllowlist": {
+      "status": "passed",
+      "runtimeFiles": 61,
+      "sourceOnlyFiles": 3
+    },
+    "legacyReleaseSelfTest": "passed",
+    "nodeTests": {
+      "tests": 1405,
+      "suites": 0,
+      "passed": 1402,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 3,
+      "todo": 0,
+      "durationMs": 486086.3038,
+      "explicitPlatformSkips": [
+        "capture rejects symbolic package entries when the host supports creating them: This host does not permit creation of a disposable symbolic link.",
+        "capture rejects case collisions when the host filesystem can represent them: This host filesystem is case-insensitive.",
+        "private control records remain owner-readable under a restrictive process umask: skipped on win32."
+      ]
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "tests": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 254.7893
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "interrupted_no_valid_result",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    },
+    "reason": "The required 1.11.97 coverage command began, but a late protocol/CI-parity audit found that stable release/testing instructions and both CI workflows did not prescribe the active record's exact clean-install and low-threshold JSON-audit commands, docs/testing.md falsely claimed a separate CI property step that does not exist, and the CI time budget was shorter than the measured mandatory validation duration. The run was intentionally interrupted. Its partial threshold errors are interruption artifacts, not a completed pass or failure; a forward successor must rerun coverage from the beginning after the stable protocol correction."
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "not_run",
+    "installedPackages": null,
+    "auditedPackagesIncludingRoot": null,
+    "lifecycleScriptsDisabled": null,
+    "deprecationWarnings": []
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=low --json",
+    "status": "not_run",
+    "auditedAt": null,
+    "knownVulnerabilities": null,
+    "runtimeDependencies": null,
+    "lockedDevelopmentGraph": null,
+    "lockfileSha256": null
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "passed",
+    "redactionCanaries": "passed",
+    "privateContextPersistenceRefusal": "passed",
+    "deterministicThirtyMinuteExpiry": "passed"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "passed",
+    "installedChromeRun": "not_run",
+    "installedBraveRun": "not_run",
+    "browserEvidenceRecord": "docs/evidence/browser-validation.json",
+    "note": "The deterministic loopback fixture server contract passed. No installed Chrome or Brave execution is claimed."
+  },
+  "gitInitialization": {
+    "status": "not_run",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "No exact 1.11.97 candidate commit, clean-checkout validation, push, or remote check was performed."
+  },
+  "artifacts": {
+    "status": "not_run",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.97.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.97-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "not_run",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.97.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.97.unsigned-provenance-input.json",
+    "remoteAttestation": "not_run",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "Exact 1.11.97 passed its complete local check and property suite, but a late protocol audit found contradictory clean-install/audit commands and CI timeouts shorter than the measured mandatory validation duration.",
+      "Coverage was started but intentionally interrupted and not counted. Dependency reinstall/audit, the separate 48-test accessibility source-contract evidence run, artifacts, installed browsers, performance, media, independent review, commit, push, remote validation, and publication evaluation did not run for 1.11.97."
+    ]
+  },
+  "limitations": [
+    "No installed-browser, performance, accessibility, media, artifact, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior.",
+    "Exact 1.11.97 passed its complete local check and property suite, then was superseded before a valid completed coverage result or later stage because stable release-protocol and CI-parity corrections require a forward version.",
+    "The interrupted coverage process produced no valid candidate result; no dependency reinstall/audit, separately counted and current-candidate-bound 48-test accessibility source-contract evidence, artifact, browser, performance, media, Git publication, or remote result is claimed for 1.11.97."
+  ]
+}

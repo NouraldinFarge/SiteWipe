@@ -2,7 +2,7 @@
 
 > **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**
 
-- Status: Accepted for the public-source prerelease; installed-browser validation pending
+- Status: Accepted for the public-source prerelease; exact installed-browser status belongs only to active browser evidence
 - Date: 2026-08-20
 - Owner decision: [`direct-cleanup-owner-decision.json`](./direct-cleanup-owner-decision.json)
 - Supersedes: the mandatory-display requirement in [ADR 0009](./0009-mandatory-cleanup-review.md)
@@ -62,4 +62,4 @@ Existing installations and imports normalize to detailed review unless `skipClea
 
 This design gives the owner-requested fast path while retaining target, settings, context, permission, impact, file-identity, single-use, and adapter safety boundaries. It deliberately trades away per-run visibility and acknowledgements when the opt-in is enabled. A saved setting cannot make deletion recoverable, eliminate live browser races, or substitute for installed evidence.
 
-Before a supported binary or store submission, exact-artifact disposable-profile tests must cover default-off behavior, the Settings confirmation, Standard and Expert direct runs, pregranted one-activation admission, missing-access first-arm/exact-ack/handoff-tab request ordering, associated/protected/file effects, native prompt grant/denial/abandonment, stale settings and private-state changes, exact tab/context binding, absent optional sender document ID, direct-open/duplicate/reload/navigation/replacement rejection, handoff-page close and restart recovery, raw-capability non-persistence, permission-event/no-possession authority, report truthfulness, token replay, and enabled/disabled incognito paths. Installed Chrome/Brave, native prompt, file-system, accessibility, and performance evidence remains pending and must not be fabricated from source or synthetic Browser tests.
+Before a supported binary or store submission, exact-artifact disposable-profile tests must cover default-off behavior, the Settings confirmation, Standard and Expert direct runs, pregranted one-activation admission, missing-access first-arm/exact-ack/handoff-tab request ordering, associated/protected/file effects, native prompt grant/denial/abandonment, stale settings and private-state changes, exact tab/context binding, absent optional sender document ID, direct-open/duplicate/reload/navigation/replacement rejection, handoff-page close and restart recovery, raw-capability non-persistence, permission-event/no-possession authority, report truthfulness, token replay, and enabled/disabled incognito paths. Exact installed Chrome/Brave, native-prompt, file-system, accessibility, and performance status belongs only to its active evidence; source or synthetic Browser tests cannot create those results.

@@ -47,10 +47,13 @@ test('popup exposes calm, named completion highlights and a distinct direct mode
   assert.match(html, /id="summaryMetrics"[^>]+role="list"[^>]+aria-label="Cleanup highlights"/);
   assert.match(html, /id="summaryAnnouncement"[^>]+role="status"[^>]+aria-live="polite"/);
   assert.match(html, /id="summaryTitle"[^>]+tabindex="-1"/);
+  assert.match(html, /<h1 id="summaryTitle"[^>]*>Cleanup complete<\/h1>/);
   assert.match(html, /id="cleanupModeBadge"[^>]+role="status"/);
   assert.match(script, /`\$\{mode\} · \$\{directCleanupEnabled\(\) \? 'Direct' : 'Review'\}`/);
-  assert.match(html, /Missing browser access requires a separate grant\s+activation/);
+  assert.match(html, /browser access is missing[\s\S]*?second activation there/);
   assert.match(script, /function cleanupOutcomeTitle\(report\)/);
+  assert.match(script, /function formatDownloadRecordEffect\(effect\)/);
+  assert.match(script, /only after the corresponding file deletion succeeds/);
   assert.match(script, /metric\.setAttribute\('role', 'listitem'\)/);
 });
 
@@ -98,7 +101,7 @@ test('detailed-review approval failures stay visible and announced inside the op
     script,
     /setReviewMode\(Boolean\(cleanupReview\)\);[\s\S]*?setReviewApprovalError\(detailedReviewRetryError, \{ runtime: true \}\)/
   );
-  assert.match(script, /Grant reviewed access and run/);
+  assert.match(script, /Open reviewed access tab/);
   assert.match(script, /qs\('#approveCleanup'\)\.focus\(\{ preventScroll: true \}\)/);
   assert.match(script, /if \(!direct\) setReviewApprovalError\(''\)/);
 });
@@ -124,4 +127,41 @@ test('narrow popup overrides retain enough specificity to stack the candidate no
   );
   assert.match(css, /\.candidate-label,\s*\.mode-chip \{\s*width: 100%;/);
   assert.match(css, /\.brand-title,\s*\.brand-subtitle \{[\s\S]*?overflow-wrap: anywhere;/);
+  assert.match(
+    css,
+    /\.brand-title \{\s*font-size: 13px;\s*letter-spacing: -0\.04em;\s*overflow-wrap: normal;\s*word-break: normal;/
+  );
+});
+
+test('browser-action and direct-tab roots shrink to the viewport while preserving one internal scroll owner', async () => {
+  const [css, script] = await Promise.all([source('popup/popup.css'), source('popup/popup.js')]);
+  assert.match(
+    css,
+    /html,\s*body \{\s*width: 380px;\s*max-width: 100vw;\s*min-width: 0;\s*height: 600px;\s*min-height: 0;\s*max-height: 100vh;/
+  );
+  assert.match(css, /html\.popup-opened-in-tab,\s*html\.popup-opened-in-tab body \{\s*width: min\(380px, 100vw\);/);
+  assert.match(css, /body \{\s*container: popup-document \/ inline-size;/);
+  assert.match(css, /\.popup-shell \{[\s\S]*?height: 100%;[\s\S]*?min-height: 0;[\s\S]*?max-height: 100%;/);
+  assert.match(css, /@media \(max-height: 570px\) \{\s*\.popup-shell \{\s*height: 100%;/);
+  assert.doesNotMatch(css, /@media \(max-height: 570px\) \{[\s\S]*?height: 560px;/);
+  assert.match(script, /chrome\.tabs\?\.getCurrent/);
+  assert.match(script, /popup-opened-in-tab/);
+  assert.match(css, /@container popup \(max-width: 280px\)/);
+  assert.match(css, /\.popup-shell :where\(p, h1, h2, h3,[\s\S]*?overflow-wrap: anywhere;/);
+  assert.doesNotMatch(css, /word-break:\s*break-all/);
+});
+
+test('permission-recovery lock remains fail-closed and its full guidance reflows without character stacking', async () => {
+  const [css, script] = await Promise.all([source('popup/popup.css'), source('popup/popup.js')]);
+
+  assert.match(script, /function renderPermissionRecoveryPending\(access = \{\}\)/);
+  assert.match(script, /Previous target access needs recovery/);
+  assert.match(script, /No new cleanup can start\. Open Options and use Maintenance/);
+  assert.match(script, /permissionRecoveryPending = temporaryHostAccessNeedsRecovery\(access\)/);
+  assert.match(script, /const locked = Boolean\(reviewActive \|\| busy \|\| permissionRecoveryPending\)/);
+  assert.match(
+    css,
+    /\.progress-copy span \{\s*min-width: 0;\s*max-width: 100%;[\s\S]*?overflow-wrap: anywhere;\s*word-break: normal;/
+  );
+  assert.doesNotMatch(css, /\.progress-copy (?:strong|span) \{[^}]*word-break:\s*break-all/);
 });

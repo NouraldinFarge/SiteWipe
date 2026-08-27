@@ -128,7 +128,6 @@
   background: rgba(23, 28, 40, 0.84);
   color: var(--text-main);
   padding: 0 13px;
-  outline: none;
   transition:
     border-color 150ms var(--ease),
     box-shadow 150ms var(--ease),
@@ -313,12 +312,39 @@
   right: 16px;
   bottom: 16px;
   z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
   padding: 12px 14px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-strong);
   background: rgba(16, 20, 29, 0.96);
   box-shadow: var(--shadow-card);
   color: var(--text-main);
+}
+.toast[hidden] {
+  display: none;
+}
+.toast-message {
+  min-width: 0;
+  padding-block: 5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.toast-dismiss {
+  min-height: 32px;
+  padding: 4px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-main);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 680;
+}
+.toast-dismiss:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 .empty-state {
   color: var(--text-muted);

@@ -29,9 +29,9 @@ async function init() {
     });
     document.querySelector('#targetName').textContent = claimed.targetDisplayName || 'Reviewed target';
     renderOrigins(origins);
+    renderReviewedEffects(claimed.reviewedEffects);
     setStatus(`Ready. This reviewed approval expires at ${formatExpiry(claimed.expiresAt)}.`);
     document.querySelector('#grantAccess').disabled = false;
-    document.querySelector('#grantAccess').focus({ preventScroll: true });
   } catch (error) {
     failClosed(error);
   }
@@ -94,7 +94,7 @@ async function runReviewedPermissionHandoff() {
         invocation.error ||
         snapshot.error ||
         request.error ||
-        new Error('Chrome target access was already present or could not be proved absent before this request.')
+        new Error('Browser target access was already present or could not be proved absent before this request.')
     );
   }
   if (request.value !== true) {
@@ -103,7 +103,7 @@ async function runReviewedPermissionHandoff() {
       new Error(
         request.value === false
           ? 'Site access was not granted. No cleanup has started.'
-          : 'Chrome returned an invalid target-access result. No cleanup has started.'
+          : 'The browser returned an invalid target-access result. No cleanup has started.'
       )
     );
   }
@@ -166,17 +166,69 @@ function temporaryHostAccessWasAbsent(snapshot, requiredOrigins) {
 
 function renderOutcome(result) {
   if (result?.report || result?.resumedCompletedResult === true) {
-    setStatus('Cleanup finished. The exact temporary target access was reconciled by SiteWipe.');
+    setStatus('Cleanup finished. Reopen SiteWipe to inspect the final report and any retained target-access recovery.');
   } else if (result?.cleanupStarted === true || result?.approvalHandoffRunning === true) {
-    setStatus('Cleanup started from the exact reviewed handoff. You may keep this tab open for status.');
+    setStatus(
+      'Cleanup started from the exact reviewed handoff. This tab does not live-update after handoff; reopen SiteWipe to inspect the current job or report, and do not repeat the cleanup.'
+    );
   } else if (result?.approvalHandoffCanceled === true) {
-    setStatus('No cleanup started. SiteWipe reconciled the temporary target access.');
+    setStatus(
+      result.temporaryAccessReleased === true
+        ? 'No cleanup started. SiteWipe proved the temporary target access absent.'
+        : result.externalAccessPreserved === true
+          ? 'No cleanup started. SiteWipe preserved access that it could not prove this review created.'
+          : 'No cleanup started. Reopen SiteWipe to inspect target-access recovery before trying again.'
+    );
   } else {
     setStatus('SiteWipe is still reconciling this exact reviewed handoff. Do not repeat the cleanup yet.');
   }
   busy = false;
   setButtonBusy(false);
   document.querySelector('#grantAccess').disabled = true;
+}
+
+function renderReviewedEffects(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('The reviewed cleanup effects are unavailable.');
+  }
+  const associatedTargetCount = Number(value.associatedTargetCount);
+  if (!Number.isInteger(associatedTargetCount) || associatedTargetCount < 0) {
+    throw new Error('The reviewed associated-target count is invalid.');
+  }
+  document.querySelector('#reviewedMode').textContent =
+    `${String(value.cleanupMode || 'Unknown')} · ${String(value.approvalPath || 'Approval path unavailable')}`;
+  document.querySelector('#reviewedWindowScope').textContent = String(
+    value.windowScope || 'Browser-window scope unavailable.'
+  );
+  document.querySelector('#reviewedAssociatedTargets').textContent = associatedTargetCount
+    ? `${associatedTargetCount} additional reviewed target${associatedTargetCount === 1 ? '' : 's'} included.`
+    : 'None.';
+  document.querySelector('#reviewedDownloadedFiles').textContent = String(
+    value.downloadedFileSummary || 'Downloaded-file scope unavailable.'
+  );
+  document.querySelector('#reviewedStorageScope').textContent = String(
+    value.storageSummary || 'Storage scope unavailable.'
+  );
+  document.querySelector('#reviewedCategories').textContent = String(
+    value.categorySummary || 'Cleanup categories unavailable.'
+  );
+  document.querySelector('#reviewedBrowserRecords').textContent = String(
+    value.browserRecordSummary || 'Browser-record scope unavailable.'
+  );
+  document.querySelector('#reviewedRequestShield').textContent = String(
+    value.requestShieldSummary || 'Request-shield effect unavailable.'
+  );
+  document.querySelector('#reviewedProgressOverlay').textContent = String(
+    value.progressOverlaySummary || 'Page-overlay effect unavailable.'
+  );
+  document.querySelector('#reviewedProtectedOrigins').textContent = String(
+    value.protectedOriginSummary || 'Protected-origin scope unavailable.'
+  );
+  document.querySelector('#reviewedEvidence').textContent = String(
+    value.evidenceSummary || 'Verification and report behavior unavailable.'
+  );
+  document.querySelector('#reviewedMatchingTabs').textContent =
+    value.matchingTabsClose === true ? 'Matching tabs close as reviewed.' : 'Matching-tab closure is off.';
 }
 
 function renderOrigins(origins) {
@@ -195,10 +247,12 @@ function formatExpiry(value) {
 }
 
 function failClosed(error, { cleanupMayHaveStarted = false } = {}) {
+  const hadBoundHandoff = Boolean(handoff);
   handoff = null;
   busy = false;
   setButtonBusy(false);
   document.querySelector('#grantAccess').disabled = true;
+  if (!hadBoundHandoff) renderUnavailableReview();
   setStatus(
     cleanupMayHaveStarted
       ? 'SiteWipe could not confirm the cleanup outcome. Do not repeat the cleanup; reopen this tab or SiteWipe to inspect the active job.'
@@ -209,6 +263,30 @@ function failClosed(error, { cleanupMayHaveStarted = false } = {}) {
       ? `${formatError(error)} The worker may still be completing or reconciling this exact cleanup.`
       : formatError(error)
   );
+}
+
+function renderUnavailableReview() {
+  document.querySelector('#targetName').textContent = 'Unavailable';
+  document.querySelector('#originSummary').textContent =
+    'No target patterns are available because this handoff could not be verified.';
+  renderOrigins([]);
+  const unavailable = 'Unavailable because this handoff could not be verified.';
+  for (const selector of [
+    '#reviewedMode',
+    '#reviewedWindowScope',
+    '#reviewedAssociatedTargets',
+    '#reviewedDownloadedFiles',
+    '#reviewedStorageScope',
+    '#reviewedCategories',
+    '#reviewedBrowserRecords',
+    '#reviewedRequestShield',
+    '#reviewedProgressOverlay',
+    '#reviewedProtectedOrigins',
+    '#reviewedEvidence',
+    '#reviewedMatchingTabs'
+  ]) {
+    document.querySelector(selector).textContent = unavailable;
+  }
 }
 
 function setButtonBusy(value) {

@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "status": "superseded_before_complete_validation",
+  "validatedAt": null,
+  "releaseState": "Superseded local-only source candidate; complete validation, coverage, build, browser execution, commit, push, and remote validation did not occur.",
+  "environment": {},
+  "baseline": {
+    "beforeState": "The 1.11.90 record remains unchanged in automated-validation-2026-08-25-v1.11.90.json.",
+    "baselineVersion": "1.11.90",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-25-v1.11.90.json"
+  },
+  "supersession": {
+    "status": "superseded_before_complete_validation",
+    "issue": "SW-080",
+    "reason": "A post-bump adversarial audit found eight installed-evidence integrity defects: uncertain close receipts were not centrally rejected; SETTINGS negative-safety claims were provisional constants; the in-progress SMOKE producer and validator had diverged; settlement could consume its capability before durable completion; CLI refusals could leak private diagnostics; workspace markers and coordinator outputs lacked complete identity and post-write binding; external output creation had a parent-swap window; and the native permission helper lacked bounded cancellation and output.",
+    "nextAction": "Preserve this 1.11.91 record as superseded history, complete the evidence-integrity repairs, format every stable input, and advance the resulting bytes only through a forward 1.11.92 version transaction.",
+    "preBumpEvidenceLimitation": "Passing focused version, documentation, dependency-license, versioning, Direct Cleanup, and safety-mutation audits do not certify a complete exact 1.11.91 candidate."
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "not_run",
+    "versionContract": {
+      "command": "npm run check:version",
+      "status": "passed",
+      "version": "1.11.91",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "1397136ED952AA30D1FAFB5E229F95122151E7376EE50EF498593A1D4654E841",
+      "stableReleaseInputFingerprintSha256": "FC00EE1B823C216A7011728163E0CB47B0CAF768A5ACEC1BED30A8F2DD93DF0C"
+    },
+    "manifest": {
+      "status": "not_run",
+      "version": "1.11.91"
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "status": "not_run",
+      "reason": "The candidate was superseded after the adversarial audit and before the complete check began."
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "not_run",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    }
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "not_run",
+    "installedPackages": null,
+    "auditedPackagesIncludingRoot": null,
+    "lifecycleScriptsDisabled": null,
+    "deprecationWarnings": []
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=low --json",
+    "status": "not_run",
+    "auditedAt": null,
+    "knownVulnerabilities": null,
+    "runtimeDependencies": null,
+    "lockedDevelopmentGraph": null,
+    "lockfileSha256": null
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "focused_pre_supersession_pass",
+    "redactionCanaries": "focused_pre_supersession_pass",
+    "privateContextPersistenceRefusal": "focused_pre_supersession_pass",
+    "deterministicThirtyMinuteExpiry": "focused_pre_supersession_pass"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "not_run",
+    "installedChromeRun": "not_run",
+    "installedBraveRun": "not_run"
+  },
+  "gitInitialization": {
+    "status": "not_run",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "No candidate commit, clean-checkout validation, push, remote check, or publication action was performed for superseded 1.11.91."
+  },
+  "artifacts": {
+    "status": "not_run",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.91.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.91-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "pending",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.91.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.91.unsigned-provenance-input.json",
+    "remoteAttestation": "pending",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated_superseded",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "Exact 1.11.91 was superseded before complete validation after the SW-080 adversarial evidence-integrity audit.",
+      "No clean dependency install, dependency audit, complete check, property suite, coverage run, artifact build, browser validation, accessibility review, performance measurement, media capture, commit, push, remote validation, or publication action was completed for this version."
+    ]
+  },
+  "limitations": [
+    "No automated, installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior.",
+    "The passing version contract records only the exact 1.11.91 runtime and stable-input fingerprints shown above; it is not a passing complete check.",
+    "Focused documentation validation passed for 49 Markdown files, dependency-license validation passed for 416 components, and focused versioning, Direct Cleanup, and safety-mutation validation passed 204/204 before supersession; those results do not replace the complete check, property suite, coverage command, clean install, dependency audit, or exact artifact validation.",
+    "No browser run, build, artifact, commit, push, remote-publication action, or public-release action is claimed for superseded 1.11.91."
+  ]
+}

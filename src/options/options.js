@@ -15,16 +15,21 @@ import {
 } from '../shared/settings-backup.js';
 import {
   observeOptionalPermission,
-  reconcileNewOptionalPermissionGrant,
-  requestOptionalPermissionWithProvenance
+  removeOptionalPermission,
+  requestOptionalPermission
 } from './permission-lifecycle.js';
+import { describeLocalStateResetResponse, describeSettingsResetResponse } from '../shared/maintenance-results.js';
+import { sanitizeAssociatedDomainGroupsWithEvidence } from '../shared/storage.js';
 
 let currentSettings = null;
 let webNavigationPermissionObservation = null;
 let cleanupJobRunning = false;
+let incognitoAccessAllowed = null;
 let activeJobCanClear = false;
 let authoritativeStateReady = false;
 let shieldControlAvailability = Object.freeze({ clear: false, repair: false });
+let associatedGroupsRawInput = null;
+let associatedGroupsStorageEvidence = null;
 
 const AUTHORITATIVE_CONTROL_SELECTOR = [
   '#mainContent input',
@@ -33,8 +38,50 @@ const AUTHORITATIVE_CONTROL_SELECTOR = [
   '#mainContent button'
 ].join(', ');
 
-const JOB_GUARDED_CONTROL_IDS = Object.freeze([
+const SETTINGS_CONTROL_IDS = Object.freeze([
+  'cleanupMode',
   'skipCleanupReview',
+  'keepHistory',
+  'reportRetentionDays',
+  'latestReportRetentionMinutes',
+  'aggressiveCookieSweep',
+  'includeProtectedWebOrigins',
+  'pageScriptScrub',
+  'storageBucketScrub',
+  'embeddedFrameDiscovery',
+  'probePartitionedCookiesWithEmbeddingSites',
+  'exhaustiveCookieStoreScan',
+  'downloadRecentFallback',
+  'broadDiscoveryFallback',
+  'verificationPass',
+  'temporaryDnrShield',
+  'progressOverlay',
+  'progressOverlayCancelButton',
+  'overlayScope',
+  'postWipeSessionBlock',
+  'postWipeShieldExpiresMinutes',
+  'autoRepairOrphanedShields',
+  'resetZoom',
+  'resetMutedTabs',
+  'unpinTargetTabs',
+  'opfsScrub',
+  'serviceWorkerExtraScrub',
+  'appBadgeClear',
+  'permissionAudit',
+  'redactReports',
+  'deleteDownloadedFiles',
+  'allowLocalTargets',
+  'blockOnAssociatedGroupErrors',
+  'associatedDomainGroups',
+  'reducedMotion',
+  'highContrast',
+  'debugLog'
+]);
+
+const JOB_GUARDED_CONTROL_IDS = Object.freeze([
+  ...SETTINGS_CONTROL_IDS,
+  'grantWebNavigationAccess',
+  'removeWebNavigationAccess',
   'importSettings',
   'clearShield',
   'repairShield',
@@ -71,6 +118,8 @@ const SETTING_DEPENDENCIES = Object.freeze({
 
 const REFRESH_STORAGE_KEYS = new Set(Object.values(STORAGE_KEYS));
 let pendingSettingsPanelRefresh = false;
+/** @type {{ isConnected?: boolean, disabled?: boolean, focus?: () => void } | null} */
+let toastReturnFocus = null;
 const refreshFromStorage = debounce(() => {
   const renderSettingsPanel = pendingSettingsPanelRefresh;
   pendingSettingsPanelRefresh = false;
@@ -84,15 +133,15 @@ const PERMISSIONS = [
   ],
   [
     'webNavigation (optional)',
-    'Requested only when Expert embedded-frame discovery is enabled; released when that feature is disabled.'
+    'Granted only through its separate Options action before Expert embedded-frame discovery can be enabled. It is removed by the explicit Remove access action or when an already-enabled feature is disabled.'
   ],
   [
     'browsingData',
-    'Origin-scoped deletion for site storage, cache, Cache Storage, IndexedDB, LocalStorage, File Systems, Service Workers, WebSQL, and cookies across discovered matching origins where Chrome exposes origin targeting.'
+    'Origin-scoped deletion for site storage, cache, Cache Storage, IndexedDB, LocalStorage, File Systems, Service Workers, WebSQL, and cookies across discovered matching origins where the browser exposes origin targeting.'
   ],
   [
     'cookies',
-    'Enumerates and removes cookies for the selected registrable domain and subdomains, including partitioned-cookie attempts with discovered embedding-site partition keys where Chrome exposes them.'
+    'Enumerates and removes cookies for the selected registrable domain and subdomains, including partitioned-cookie attempts with discovered embedding-site partition keys where the browser exposes them.'
   ],
   ['tabs', 'Finds and closes only tabs whose URL host exactly matches the target domain or one of its subdomains.'],
   [
@@ -113,7 +162,7 @@ const PERMISSIONS = [
   ],
   [
     'declarativeNetRequest',
-    'Installs temporary session rules to block the target while cleanup runs, and optionally keeps a post-wipe target block until browser restart.'
+    'When private-window access is enabled, installs profile-spanning temporary session rules to block the reviewed target in normal and private windows while cleanup runs, and can optionally keep that block until browser restart. Normal-only cleanup skips these shared rules so private traffic is never affected.'
   ],
   ['sidePanel', 'Opens the detailed report workspace from the popup.'],
   [
@@ -166,6 +215,7 @@ function wireSettingAccessibility() {
 }
 
 function bindControls() {
+  document.querySelector('#dismissToast')?.addEventListener('click', dismissToast);
   document.querySelector('#retryOptionsLoad').addEventListener('click', retryOptionsLoad);
   document.querySelector('#skipCleanupReview').addEventListener('change', async (event) => {
     if (!requireAuthoritativeState()) return;
@@ -239,6 +289,8 @@ function bindControls() {
     await saveFromForm(event);
   });
   document.querySelector('#postWipeShieldExpiresMinutes').addEventListener('change', saveFromForm);
+  document.querySelector('#grantWebNavigationAccess').addEventListener('click', grantWebNavigationAccess);
+  document.querySelector('#removeWebNavigationAccess').addEventListener('click', removeWebNavigationAccess);
   document.querySelector('#cleanupMode').addEventListener('change', async (event) => {
     if (!requireAuthoritativeState()) return;
     applyCleanupMode(valueOf('cleanupMode'));
@@ -247,10 +299,18 @@ function bindControls() {
     }
     await saveFromForm(event);
   });
-  document.querySelector('#associatedDomainGroups').addEventListener('input', debounce(validateAssociatedGroups, 300));
+  const validateAssociatedGroupsAfterInput = debounce(() => void validateAssociatedGroups(), 300);
+  document.querySelector('#associatedDomainGroups').addEventListener('input', () => {
+    rememberAssociatedGroupsRawInput();
+    validateAssociatedGroupsAfterInput();
+  });
   document.querySelector('#associatedDomainGroups').addEventListener('change', async () => {
+    rememberAssociatedGroupsRawInput();
     await saveFromForm();
-    await validateAssociatedGroups();
+    await validateAssociatedGroups({
+      groupsText: associatedGroupsRawInput,
+      storageEvidence: associatedGroupsStorageEvidence
+    });
   });
   document.querySelector('#clearReports').addEventListener('click', clearReports);
   document.querySelector('#clearShield').addEventListener('click', clearActiveShield);
@@ -289,6 +349,7 @@ async function refresh({ renderSettingsPanel = true } = {}) {
       throw new Error('SiteWipe could not verify optional browser-permission state.');
     }
     webNavigationPermissionObservation = permissionObservation;
+    renderWebNavigationPermissionState();
     if (renderSettingsPanel) renderSettings(state.settings);
     renderIncognito(state.incognitoAccess);
     renderDebug(state.debugLog || []);
@@ -300,7 +361,6 @@ async function refresh({ renderSettingsPanel = true } = {}) {
   } catch (error) {
     const message = formatError(error);
     setOptionsLoadFailed(message);
-    toast(message, 'error');
     return null;
   }
 }
@@ -340,7 +400,12 @@ function renderSettings(settings) {
   setChecked('deleteDownloadedFiles', settings.deleteDownloadedFiles);
   setChecked('allowLocalTargets', settings.allowLocalTargets);
   setChecked('blockOnAssociatedGroupErrors', settings.blockOnAssociatedGroupErrors);
-  setValue('associatedDomainGroups', settings.associatedDomainGroups || '');
+  const authoritativeAssociatedGroups = settings.associatedDomainGroups || '';
+  if (associatedGroupsStorageEvidence && associatedGroupsStorageEvidence.value !== authoritativeAssociatedGroups) {
+    associatedGroupsRawInput = null;
+    associatedGroupsStorageEvidence = null;
+  }
+  setValue('associatedDomainGroups', authoritativeAssociatedGroups);
   setChecked('reducedMotion', settings.reducedMotion);
   setChecked('highContrast', settings.highContrast);
   setChecked('debugLog', settings.debugLog);
@@ -348,6 +413,7 @@ function renderSettings(settings) {
   document.body.classList.toggle('high-contrast', Boolean(settings.highContrast));
   applyCleanupMode(settings.cleanupMode);
   renderSettingsSummary(settings);
+  renderRequestShieldEffectiveState();
 }
 
 function renderSettingsSummary(settings) {
@@ -414,6 +480,10 @@ function renderUnavailableOptionsStatus() {
   document.querySelector('#activeShieldText').textContent = 'Shield state is unavailable until settings reload.';
   document.querySelector('#maintenanceText').textContent = 'Maintenance state is unavailable until settings reload.';
   document.querySelector('#activeJobText').textContent = 'Cleanup-job state is unavailable until settings reload.';
+  webNavigationPermissionObservation = null;
+  renderWebNavigationPermissionState();
+  incognitoAccessAllowed = null;
+  renderRequestShieldEffectiveState();
 }
 
 function setOptionsReady({ afterRetry = false } = {}) {
@@ -529,9 +599,69 @@ function setupSectionNavigation() {
 }
 
 function renderIncognito(allowed) {
+  incognitoAccessAllowed = Boolean(allowed);
   const badge = document.querySelector('#incognitoBadge');
   badge.textContent = allowed ? 'Private: enabled' : 'Private: not enabled';
   badge.className = `badge ${allowed ? 'success' : 'warning'}`;
+  renderRequestShieldEffectiveState();
+}
+
+function renderRequestShieldEffectiveState() {
+  const help = document.querySelector('#temporaryDnrShieldHelp');
+  if (!help) return;
+  if (currentSettings?.temporaryDnrShield === false) {
+    help.textContent = 'Off. SiteWipe will not install a target request shield during cleanup.';
+    help.dataset.state = 'off';
+    return;
+  }
+  if (incognitoAccessAllowed === true) {
+    help.textContent =
+      'Available. Cleanup can install a profile-spanning target request shield because the reviewed scope includes normal and private windows.';
+    help.dataset.state = 'available';
+    return;
+  }
+  if (incognitoAccessAllowed === false) {
+    help.textContent =
+      'Configured on, but normal-only cleanup skips the shield: browser session rules cannot be limited to normal windows without also affecting private target traffic.';
+    help.dataset.state = 'normal-only';
+    return;
+  }
+  help.textContent = 'Request-shield availability is being checked against current private-window access.';
+  help.dataset.state = 'checking';
+}
+
+function renderWebNavigationPermissionState() {
+  const status = document.querySelector('#webNavigationAccessStatus');
+  if (!status) return;
+  if (webNavigationPermissionObservation === true) {
+    status.textContent =
+      'Optional webNavigation access is granted. You can now enable embedded-frame discovery with its separate setting.';
+    status.dataset.state = 'granted';
+  } else if (webNavigationPermissionObservation === false) {
+    status.textContent =
+      'Optional webNavigation access is not granted. Grant access first, then enable embedded-frame discovery separately.';
+    status.dataset.state = 'absent';
+  } else {
+    status.textContent =
+      'Optional webNavigation access could not be verified. Access controls stay locked until it is known.';
+    status.dataset.state = 'unknown';
+  }
+  applyWebNavigationPermissionControlState();
+}
+
+function applyWebNavigationPermissionControlState() {
+  const stateLocked = !authoritativeStateReady || cleanupJobRunning;
+  const expert = isExpertCleanupMode(document.querySelector('#cleanupMode')?.value || currentSettings?.cleanupMode);
+  const grant = document.querySelector('#grantWebNavigationAccess');
+  const remove = document.querySelector('#removeWebNavigationAccess');
+  if (grant) {
+    grant.disabled = stateLocked || !expert || webNavigationPermissionObservation !== false;
+    grant.setAttribute('aria-disabled', String(grant.disabled));
+  }
+  if (remove) {
+    remove.disabled = stateLocked || webNavigationPermissionObservation !== true;
+    remove.setAttribute('aria-disabled', String(remove.disabled));
+  }
 }
 
 function renderPermissionCards() {
@@ -563,9 +693,102 @@ function renderDebug(entries) {
     .join('\n');
 }
 
+async function grantWebNavigationAccess() {
+  if (!requireAuthoritativeState()) return;
+  if (cleanupJobRunning) {
+    document.querySelector('#activeJobText')?.focus();
+    toast('Optional access cannot change while a cleanup job is running. No browser permission was requested.', 'info');
+    return;
+  }
+  if (!isExpertCleanupMode(valueOf('cleanupMode'))) {
+    toast('Choose and save Expert mode before granting embedded-frame access.', 'info');
+    return;
+  }
+  setSettingsState('Requesting optional access…', 'working');
+  try {
+    // Keep permissions.request() as the first asynchronous browser API in this
+    // dedicated user-gesture path. Permission inspection happens afterwards.
+    const result = await requestOptionalPermission('webNavigation');
+    webNavigationPermissionObservation = await observeOptionalPermission('webNavigation');
+    renderWebNavigationPermissionState();
+    if (result.granted && webNavigationPermissionObservation === true) {
+      toast(
+        'Optional webNavigation access is granted. Embedded-frame discovery is still off; enable its setting separately when ready.',
+        'success'
+      );
+      setSettingsState('Access granted · feature still off', 'success');
+      document.querySelector('#embeddedFrameDiscovery')?.focus();
+      return;
+    }
+    if (webNavigationPermissionObservation === false) {
+      toast('Optional webNavigation access was not granted. Embedded-frame discovery remains off.', 'info');
+      setSettingsState('Access not granted', 'ready');
+      return;
+    }
+    toast('The browser permission result could not be verified. Embedded-frame discovery remains off.', 'error');
+    setSettingsState('Access needs attention', 'error');
+  } catch (error) {
+    webNavigationPermissionObservation = await observeOptionalPermission('webNavigation');
+    renderWebNavigationPermissionState();
+    toast(formatError(error), 'error');
+    setSettingsState('Access request failed', 'error');
+  }
+}
+
+async function removeWebNavigationAccess() {
+  if (!requireAuthoritativeState()) return;
+  if (cleanupJobRunning) {
+    document.querySelector('#activeJobText')?.focus();
+    toast('Optional access cannot change while a cleanup job is running.', 'info');
+    return;
+  }
+  setSettingsState('Removing optional access…', 'working');
+  try {
+    // Persist the feature-off state first. If a cleanup won the lifecycle
+    // race, the authoritative save rejects before this action can revoke
+    // browser access.
+    const response = await sendMessage(MESSAGE_TYPES.saveSettings, {
+      settings: { embeddedFrameDiscovery: false }
+    });
+    // This mutation exists only behind the explicit Remove access action. It
+    // does not inspect or infer which context originally created the grant.
+    const removal = await removeOptionalPermission('webNavigation');
+    webNavigationPermissionObservation = await observeOptionalPermission('webNavigation');
+    renderSettings(response.settings || { ...currentSettings, embeddedFrameDiscovery: false });
+    renderWebNavigationPermissionState();
+    if (webNavigationPermissionObservation === false) {
+      toast(
+        removal.removed
+          ? 'Optional webNavigation access was removed and embedded-frame discovery is off.'
+          : 'Optional webNavigation access was already absent; embedded-frame discovery is off.',
+        'success'
+      );
+      setSettingsState('Access removed · feature off', 'success');
+      return;
+    }
+    toast('The browser did not confirm that optional webNavigation access was removed.', 'error');
+    setSettingsState('Access removal needs attention', 'error');
+  } catch (error) {
+    const refreshed = await refresh();
+    toast(
+      `${formatError(error)}${refreshed ? '' : ' Authoritative settings and optional access could not be refreshed.'}`,
+      'error'
+    );
+    setSettingsState('Access removal failed', 'error');
+  }
+}
+
 async function saveFromForm(event) {
   if (!requireAuthoritativeState()) return;
   const changedControlId = event?.currentTarget?.id || '';
+  if (cleanupJobRunning) {
+    renderSettings(currentSettings || {});
+    applyCleanupJobControlState();
+    document.querySelector('#activeJobText')?.focus();
+    toast('Settings cannot change while a cleanup job is running. No browser permission was requested.', 'info');
+    setSettingsState('Cleanup running · settings locked', 'working');
+    return;
+  }
   applySettingDependencies();
   setSettingsState('Saving…', 'working');
   const settings = {
@@ -607,76 +830,45 @@ async function saveFromForm(event) {
     highContrast: isChecked('highContrast'),
     debugLog: isChecked('debugLog')
   };
-  let framePermissionDenied = false;
-  let framePermissionGrant = null;
+  const attemptedFrameEnable =
+    settings.embeddedFrameDiscovery === true && currentSettings?.embeddedFrameDiscovery !== true;
   try {
     if (!isExpertCleanupMode(settings.cleanupMode)) {
       settings.embeddedFrameDiscovery = false;
       setChecked('embeddedFrameDiscovery', false);
     }
-    const explicitlyEnablingFrameDiscovery =
-      settings.embeddedFrameDiscovery && currentSettings?.embeddedFrameDiscovery !== true;
-    if (explicitlyEnablingFrameDiscovery) {
-      framePermissionGrant = await requestOptionalPermissionWithProvenance('webNavigation', {
-        observedBeforeGesture: webNavigationPermissionObservation
-      });
-      if (!framePermissionGrant.granted) {
-        framePermissionDenied = true;
-        settings.embeddedFrameDiscovery = false;
-        setChecked('embeddedFrameDiscovery', false);
-        document.querySelector('#embeddedFrameDiscovery').focus();
-      }
-    }
     const response = await sendMessage(MESSAGE_TYPES.saveSettings, { settings });
-    const authoritativeSettings = response.settings || null;
     webNavigationPermissionObservation = await observeOptionalPermission('webNavigation');
-    const framePermissionReconciliation = await reconcileNewOptionalPermissionGrant({
-      permission: 'webNavigation',
-      granted: framePermissionGrant?.granted === true && webNavigationPermissionObservation !== false,
-      grantProvenance: framePermissionGrant?.grantProvenance,
-      authoritativeStateKnown: Boolean(authoritativeSettings),
-      authoritativeFeatureEnabled: authoritativeFrameDiscoveryEnabled(authoritativeSettings)
-    });
+    renderWebNavigationPermissionState();
     renderSettings(response.settings || settings);
-    const permissionWarning = optionalPermissionReconciliationNeedsAttention(framePermissionReconciliation)
-      ? ' Optional webNavigation access could not be reconciled automatically; review SiteWipe extension permissions.'
-      : '';
-    toast(
-      framePermissionDenied
-        ? 'Settings saved. Embedded-frame discovery remains off because optional webNavigation access was not granted.'
-        : `Settings saved.${permissionWarning}`,
-      framePermissionDenied || permissionWarning ? 'info' : 'success'
-    );
-    setSettingsState(framePermissionDenied || permissionWarning ? 'Saved · check access' : 'Saved', 'success');
+    const frameEnableRejected = attemptedFrameEnable && response.settings?.embeddedFrameDiscovery !== true;
+    if (frameEnableRejected) {
+      toast(
+        webNavigationPermissionObservation === false
+          ? 'Settings saved. Embedded-frame discovery remains off. Grant optional access first, then enable the setting in a separate action.'
+          : 'Settings saved, but embedded-frame discovery remains off. Verify optional access and try enabling it again.',
+        'info'
+      );
+      setSettingsState('Saved · enable needs access', 'success');
+      document.querySelector('#grantWebNavigationAccess')?.focus();
+    } else {
+      toast('Settings saved.', 'success');
+      setSettingsState('Saved', 'success');
+    }
   } catch (error) {
-    const refreshedState = await refresh();
-    const framePermissionReconciliation = await reconcileNewOptionalPermissionGrant({
-      permission: 'webNavigation',
-      granted: framePermissionGrant?.granted === true && webNavigationPermissionObservation !== false,
-      grantProvenance: framePermissionGrant?.grantProvenance,
-      authoritativeStateKnown: Boolean(refreshedState?.settings),
-      authoritativeFeatureEnabled: authoritativeFrameDiscoveryEnabled(refreshedState?.settings)
-    });
-    const permissionWarning = optionalPermissionReconciliationNeedsAttention(framePermissionReconciliation)
-      ? ' Optional webNavigation access was preserved because Chrome does not prove whether this request created the grant; review extension permissions if the feature remains off.'
+    let refreshFailed;
+    try {
+      refreshFailed = !(await refresh());
+    } catch {
+      refreshFailed = true;
+    }
+    const refreshWarning = refreshFailed
+      ? ' Authoritative settings and optional access could not be refreshed; controls remain locked.'
       : '';
-    toast(`${formatError(error)}${permissionWarning}`, 'error');
+    toast(`${formatError(error)}${refreshWarning}`, 'error');
     setSettingsState('Save needs attention', 'error');
     if (changedControlId) document.querySelector(`#${changedControlId}`)?.focus();
   }
-}
-
-function authoritativeFrameDiscoveryEnabled(settings) {
-  return Boolean(isExpertCleanupMode(settings?.cleanupMode) && settings?.embeddedFrameDiscovery === true);
-}
-
-function optionalPermissionReconciliationNeedsAttention(result) {
-  return [
-    'authoritative_state_unknown',
-    'grant_provenance_unknown',
-    'release_not_confirmed',
-    'release_uncertain'
-  ].includes(result?.reason);
 }
 
 function renderActiveShield(shield, diagnostics = null) {
@@ -721,7 +913,7 @@ function renderActiveJob(job) {
   const target = job.targetDomain || 'target';
   const detail = job.detail ? ` ${job.detail}` : '';
   const safeguards = cleanupJobRunning
-    ? ' Cleanup-review changes, settings import/reset, local-state reset, request-shield changes, and manual maintenance are disabled until this cleanup stops.'
+    ? ' All settings, settings import/reset, local-state reset, request-shield changes, and manual maintenance are disabled until this cleanup stops.'
     : '';
   text.textContent = `${target}: ${status} · ${percent} · ${job.label || job.phase || 'No phase'}.${detail}${job.updatedAt ? ` Updated ${formatDateTime(job.updatedAt)}.` : ''}${safeguards}`;
   text.dataset.state = status;
@@ -737,13 +929,13 @@ function applyCleanupJobControlState() {
   document.querySelector('#repairShield').disabled =
     stateLocked || cleanupJobRunning || !shieldControlAvailability.repair;
   document.querySelector('#clearActiveJob').disabled = stateLocked || !activeJobCanClear;
-  for (const id of [
-    'skipCleanupReview',
-    'importSettings',
-    'runMaintenanceNow',
-    'resetExtensionState',
-    'resetSettings'
-  ]) {
+  for (const id of SETTINGS_CONTROL_IDS) {
+    const control = document.querySelector(`#${id}`);
+    if (!control) continue;
+    control.disabled = stateLocked || cleanupJobRunning;
+    control.setAttribute('aria-disabled', String(control.disabled));
+  }
+  for (const id of ['importSettings', 'runMaintenanceNow', 'resetExtensionState', 'resetSettings']) {
     const control = document.querySelector(`#${id}`);
     control.disabled = stateLocked || cleanupJobRunning;
     control.setAttribute('aria-disabled', String(control.disabled));
@@ -752,6 +944,8 @@ function applyCleanupJobControlState() {
     const control = document.querySelector(`#${id}`);
     control.setAttribute('aria-disabled', String(control.disabled));
   }
+  applyWebNavigationPermissionControlState();
+  if (!stateLocked && !cleanupJobRunning) applyCleanupMode(currentSettings?.cleanupMode);
   if (cleanupJobRunning && focusedControlIsGuarded) document.querySelector('#activeJobText').focus();
 }
 
@@ -765,7 +959,7 @@ function renderMaintenanceStatus(status) {
   const alarms =
     (status.alarms || [])
       .map((alarm) => `${alarm.name}: ${alarm.scheduledTime ? formatDateTime(alarm.scheduledTime) : 'not scheduled'}`)
-      .join(' · ') || 'No Chrome alarms are currently scheduled.';
+      .join(' · ') || 'No browser alarms are currently scheduled.';
   const orphanRules = status.shieldDiagnostics?.orphanRuleIds?.length || 0;
   const latestReport = status.latestReportExpiresAt
     ? ` Latest report auto-forgets at ${formatDateTime(status.latestReportExpiresAt)}.`
@@ -784,7 +978,7 @@ function renderMaintenanceStatus(status) {
     targetAccess.state === 'none'
       ? ' No temporary target-access lease is recorded.'
       : ` Temporary target access: ${targetAccess.state}; ${Number(targetAccess.temporaryOriginCount) || 0} pattern(s); recovery ${targetAccess.recoveryPending ? 'pending' : 'not pending'}.${targetAccess.reviewExpiresAt ? ` Review window ends ${formatDateTime(targetAccess.reviewExpiresAt)}.` : ''}${targetAccess.lastError ? ` Last recovery error: ${targetAccess.lastError}` : ''}`;
-  text.textContent = `${status.alarmsAvailable ? 'Chrome alarms available.' : 'Chrome alarms unavailable.'} Auto-repair orphan shields: ${status.autoRepairOrphanedShields ? 'on' : 'off'}. Orphan shield rules: ${orphanRules}.${targetAccessText} ${shieldExpiry}${latestReport}${last} ${jobAge} Alarms: ${alarms}`;
+  text.textContent = `${status.alarmsAvailable ? 'Browser alarms available.' : 'Browser alarms unavailable.'} Auto-repair orphan shields: ${status.autoRepairOrphanedShields ? 'on' : 'off'}. Orphan shield rules: ${orphanRules}.${targetAccessText} ${shieldExpiry}${latestReport}${last} ${jobAge} Alarms: ${alarms}`;
 }
 
 async function runMaintenanceNow() {
@@ -803,16 +997,26 @@ async function resetExtensionState() {
   if (!requireAuthoritativeState()) return;
   if (
     !globalThis.confirm(
-      'Reset all SiteWipe-local state? This permanently deletes local reports, debug logs, job status, settings, and any active SiteWipe request shield. It does not restore or delete website data.'
+      'Reset SiteWipe-local state? This permanently deletes resettable local reports, debug logs, job status, and settings. SiteWipe retains permission or request-shield recovery proof when Chrome/Brave does not prove it safe to discard. This does not restore or delete website data.'
     )
   )
     return;
+  let outcome;
   try {
-    await sendMessage(MESSAGE_TYPES.resetExtensionLocalState);
-    toast('SiteWipe local state reset.', 'success');
+    const response = await sendMessage(MESSAGE_TYPES.resetExtensionLocalState);
+    outcome = describeLocalStateResetResponse(response);
+  } catch (error) {
+    const message = formatError(error);
+    renderResetOutcome({ status: 'failed', tone: 'error', message });
+    toast(message, 'error');
+    return;
+  }
+  renderResetOutcome(outcome);
+  toast(outcome.message, outcome.tone);
+  try {
     await refresh();
   } catch (error) {
-    toast(formatError(error), 'error');
+    toast(`Reset result retained, but Options could not refresh: ${formatError(error)}`, 'warning');
   }
 }
 
@@ -830,10 +1034,31 @@ async function clearActiveJobRecord() {
   }
 }
 
-async function validateAssociatedGroups() {
+function rememberAssociatedGroupsRawInput() {
+  const rawInput = valueOf('associatedDomainGroups');
+  const evidence = sanitizeAssociatedDomainGroupsWithEvidence(rawInput);
+  if (evidence.ignoredLineCount > 0 || evidence.shortenedLineNumbers.length > 0) {
+    associatedGroupsRawInput = rawInput;
+    associatedGroupsStorageEvidence = evidence;
+  } else {
+    associatedGroupsRawInput = null;
+    associatedGroupsStorageEvidence = null;
+  }
+}
+
+async function validateAssociatedGroups(options = {}) {
   const diagnostics = document.querySelector('#associatedGroupsDiagnostics');
   if (!diagnostics) return;
-  const groupsText = valueOf('associatedDomainGroups');
+  const groupsText =
+    typeof options?.groupsText === 'string'
+      ? options.groupsText
+      : typeof associatedGroupsRawInput === 'string'
+        ? associatedGroupsRawInput
+        : valueOf('associatedDomainGroups');
+  const storageEvidence =
+    options?.storageEvidence ||
+    associatedGroupsStorageEvidence ||
+    sanitizeAssociatedDomainGroupsWithEvidence(groupsText);
   if (!groupsText.trim()) {
     diagnostics.textContent = 'No associated-domain groups configured.';
     diagnostics.className = 'diagnostic-box';
@@ -845,12 +1070,33 @@ async function validateAssociatedGroups() {
       groupsText
     });
     const validation = response.validation || {};
+    const capacityErrors = validation.capacityErrors || [];
+    const syntaxErrors = (validation.errors || []).filter((error) => error?.capacity !== true);
     const lines = [];
     lines.push(
-      `${validation.groupCount || 0} group(s), ${validation.associatedTargetCount || 0} related target(s) accepted.`
+      `${validation.groupCount || 0} group(s), ${validation.associatedTargetCount || 0} related target(s) parsed.`
     );
-    if ((validation.errors || []).length)
-      lines.push('Cleanup gate: errors will block cleanup while the safety toggle is enabled.');
+    if (validation.capacityChecked === true && capacityErrors.length === 0) {
+      lines.push('Structural preflight: every merged primary scope fits the current cleanup settings.');
+    } else if (validation.capacityChecked !== true) {
+      lines.push('Structural preflight is inactive until Expert mode enables associated targets.');
+    }
+    if (storageEvidence.ignoredLineCount > 0) {
+      lines.push(
+        `Storage limit: ${storageEvidence.ignoredLineCount} line${storageEvidence.ignoredLineCount === 1 ? '' : 's'} beyond the 50-line limit ${storageEvidence.ignoredLineCount === 1 ? 'was' : 'were'} ignored before saving.`
+      );
+    }
+    if (storageEvidence.shortenedLineNumbers.length > 0) {
+      lines.push(
+        `Storage limit: line${storageEvidence.shortenedLineNumbers.length === 1 ? '' : 's'} ${storageEvidence.shortenedLineNumbers.join(', ')} exceeded 500 characters and ${storageEvidence.shortenedLineNumbers.length === 1 ? 'was' : 'were'} shortened before saving.`
+      );
+    }
+    if (syntaxErrors.length) lines.push('Cleanup gate: errors will block cleanup while the safety toggle is enabled.');
+    if (capacityErrors.length) {
+      lines.push(
+        'Capacity gate: these merged scopes will always be blocked before cleanup, regardless of the syntax-error toggle.'
+      );
+    }
     for (const group of (validation.groups || []).slice(0, 6)) {
       lines.push(`• ${group.primary}: ${group.associated.map((item) => item.target).join(', ')}`);
     }
@@ -867,7 +1113,7 @@ async function validateAssociatedGroups() {
     }
     if ((validation.errors || []).length > 6) lines.push(`+${validation.errors.length - 6} more error(s)`);
     diagnostics.textContent = lines.join('\n');
-    diagnostics.className = `diagnostic-box ${(validation.errors || []).length ? 'error' : (validation.warnings || []).length ? 'warn' : 'good'}`;
+    diagnostics.className = `diagnostic-box ${(validation.errors || []).length ? 'error' : (validation.warnings || []).length || storageEvidence.ignoredLineCount || storageEvidence.shortenedLineNumbers.length ? 'warn' : 'good'}`;
     document
       .querySelector('#associatedDomainGroups')
       .setAttribute('aria-invalid', (validation.errors || []).length ? 'true' : 'false');
@@ -915,7 +1161,10 @@ async function clearReports() {
   )
     return;
   try {
-    await sendMessage(MESSAGE_TYPES.clearHistory);
+    const response = await sendMessage(MESSAGE_TYPES.clearReports);
+    if (response.report !== null || !Array.isArray(response.reports) || response.reports.length !== 0) {
+      throw new Error('SiteWipe did not prove that the latest report and report history were both deleted.');
+    }
     toast('All extension-local reports deleted.', 'success');
   } catch (error) {
     toast(formatError(error), 'error');
@@ -1085,7 +1334,8 @@ async function resetSettings() {
   try {
     const response = await sendMessage(MESSAGE_TYPES.resetSettings);
     renderSettings(response.settings || {});
-    toast('Settings reset.', 'success');
+    const outcome = describeSettingsResetResponse(response);
+    toast(outcome.message, outcome.tone);
   } catch (error) {
     toast(formatError(error), 'error');
   }
@@ -1116,7 +1366,7 @@ function applyCleanupMode(mode) {
   for (const id of EXPERT_CONTROL_IDS) {
     const control = document.querySelector(`#${id}`);
     if (!control) continue;
-    control.disabled = !authoritativeStateReady || !expert;
+    control.disabled = !authoritativeStateReady || cleanupJobRunning || !expert;
     control.setAttribute('aria-disabled', String(control.disabled));
     control.closest('.setting-row')?.classList.toggle('expert-disabled', !expert);
   }
@@ -1127,6 +1377,7 @@ function applyCleanupMode(mode) {
       : 'Standard mode keeps cleanup targeted to the selected site. Expanded, heavy, and destructive options are disabled until you choose Expert mode.';
   }
   applySettingDependencies();
+  applyWebNavigationPermissionControlState();
 }
 
 function applySettingDependencies() {
@@ -1138,7 +1389,7 @@ function applySettingDependencies() {
       const control = document.querySelector(`#${childId}`);
       if (!control) continue;
       const expertOnly = EXPERT_CONTROL_IDS.includes(childId);
-      const disabled = !authoritativeStateReady || !parentEnabled || (expertOnly && !expert);
+      const disabled = !authoritativeStateReady || cleanupJobRunning || !parentEnabled || (expertOnly && !expert);
       control.disabled = disabled;
       control.closest('.setting-row')?.classList.toggle('dependency-disabled', !parentEnabled);
       control.setAttribute('aria-disabled', String(disabled));
@@ -1148,18 +1399,54 @@ function applySettingDependencies() {
 
 function toast(message, tone = 'info') {
   const el = document.querySelector('#toast');
-  el.setAttribute('role', tone === 'error' ? 'alert' : 'status');
-  el.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
+  const messageCandidate = document.querySelector('#toastMessage');
+  const messageElement = messageCandidate?.parentElement === el ? messageCandidate : el;
+  const dismissButton = document.querySelector('#dismissToast');
+  toastReturnFocus = document.activeElement;
+  messageElement.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+  messageElement.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
   el.className = `toast ${tone}`;
   el.hidden = false;
-  el.textContent = '';
+  messageElement.textContent = '';
   requestAnimationFrame(() => {
-    el.textContent = message;
+    messageElement.textContent = message;
   });
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => {
-    el.hidden = true;
-  }, 2600);
+  toast.timer = null;
+  const autoDismissMs = tone === 'error' ? null : tone === 'success' ? 3200 : 8000;
+  if (autoDismissMs !== null) {
+    toast.timer = setTimeout(
+      () => hideToast(el, dismissButton, dismissButton?.ownerDocument?.activeElement || null),
+      autoDismissMs
+    );
+  }
+  dismissButton?.setAttribute('aria-label', tone === 'error' ? 'Dismiss error message' : 'Dismiss message');
+  if (dismissButton) dismissButton.disabled = false;
+}
+
+function dismissToast() {
+  hideToast(document.querySelector('#toast'), document.querySelector('#dismissToast'), document.activeElement);
+}
+
+function hideToast(el, dismissButton, activeElement) {
+  const restoreFocus = activeElement === dismissButton ? toastReturnFocus : null;
+  clearTimeout(toast.timer);
+  toast.timer = null;
+  el.hidden = true;
+  if (dismissButton) dismissButton.disabled = true;
+  toastReturnFocus = null;
+  if (restoreFocus?.isConnected && restoreFocus.disabled !== true && typeof restoreFocus.focus === 'function') {
+    restoreFocus.focus();
+  }
+}
+
+function renderResetOutcome(outcome) {
+  const element = document.querySelector('#resetOutcome');
+  element.hidden = false;
+  element.dataset.state = outcome.status;
+  element.setAttribute('role', outcome.tone === 'error' ? 'alert' : 'status');
+  element.setAttribute('aria-live', outcome.tone === 'error' ? 'assertive' : 'polite');
+  element.textContent = outcome.message;
 }
 
 function debounce(fn, delay) {

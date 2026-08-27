@@ -65,17 +65,26 @@ test('Options keeps essential cleanup decisions visible and progressively disclo
 test('Options replaces the stacked mobile menu with horizontally scrollable section chips', async () => {
   const css = await source('options.css');
   const mobile = css.slice(css.indexOf('@media (max-width: 860px)'));
-  const phone = css.slice(css.indexOf('@media (max-width: 560px)'));
+  const phoneStart = css.indexOf('@media (max-width: 560px)');
+  const phoneEnd = css.indexOf('@media (max-width: 430px)', phoneStart);
+  const phone = css.slice(phoneStart, phoneEnd);
 
   assert.ok(mobile.length > 0, 'The compact navigation breakpoint must exist');
   assert.match(mobile, /\.rail \{[\s\S]*?position: sticky;[\s\S]*?display: block;/);
   assert.match(mobile, /\.rail-brand,[\s\S]*?\.rail-note \{\s*display: none;/);
   assert.match(mobile, /\.rail-nav \{[\s\S]*?display: flex;[\s\S]*?overflow-x: auto;/);
+  assert.match(mobile, /\.rail-nav \{[\s\S]*?scrollbar-width: thin;/);
+  assert.match(mobile, /\.rail-nav::-webkit-scrollbar \{\s*height: 6px;/);
+  assert.match(mobile, /\.rail-nav::-webkit-scrollbar-thumb \{[\s\S]*?background: var\(--text-faint\);/);
+  assert.doesNotMatch(mobile, /\.rail-nav::-webkit-scrollbar \{[^}]*display:\s*none;/);
   assert.match(mobile, /\.rail-nav a \{[\s\S]*?flex: 0 0 auto;[\s\S]*?min-height: 40px;/);
   assert.match(mobile, /\.rail-nav a\[aria-current='location'\]/);
   assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*?\.support-grid,[\s\S]*?grid-template-columns: 1fr;/);
   assert.ok(phone.length > 0, 'The phone status-layout breakpoint must exist');
   assert.match(phone, /\.hero-status \{\s*flex-wrap: wrap;\s*overflow: visible;/);
+  assert.match(phone, /\.setting-row\.status-row \{\s*grid-template-columns: minmax\(0, 1fr\);\s*\}/);
+  assert.match(phone, /\.permission-actions \{\s*width: 100%;\s*max-width: none;\s*\}/);
+  assert.match(phone, /\.permission-actions \.btn \{\s*min-width: 0;\s*\}/);
   assert.doesNotMatch(phone, /\.rail-nav \{[^}]*overflow-x: visible;/);
 });
 
@@ -89,10 +98,9 @@ test('Options provides concise save, cleanup-mode, review-mode, and active-job s
   assert.match(script, /function renderSettingsSummary\(settings\)/);
   assert.match(script, /Review: skipped by setting/);
   assert.match(script, /setSettingsState\('Saving…', 'working'\)/);
-  assert.match(
-    script,
-    /setSettingsState\(framePermissionDenied \|\| permissionWarning \? 'Saved · check access' : 'Saved'/
-  );
+  assert.match(script, /setSettingsState\('Saved · enable needs access', 'success'\)/);
+  assert.match(script, /setSettingsState\('Saved', 'success'\)/);
+  assert.doesNotMatch(script, /framePermissionDenied|permissionWarning/);
   assert.match(script, /job\.detail/);
   assert.match(script, /formatDateTime\(job\.updatedAt\)/);
 });

@@ -33,9 +33,19 @@ test('an installed-shaped review survives storage dictionary key canonicalizatio
     inspectImpact: async () => ({
       matchingTabs: 1,
       matchingPrivateTabs: 0,
+      tabEnumerationComplete: true,
       matchingHistoryEntries: 0,
       matchingDownloadRecords: 0,
+      matchingHistoryEntriesLowerBound: 0,
+      matchingDownloadRecordsLowerBound: 0,
       matchedCompletedFileIds: [],
+      cookieStoreCount: 1,
+      cookieStoreEnumerationComplete: true,
+      overlayEligibleTabs: 1,
+      discoveryEvidence: {
+        history: completeDiscoveryEvidence('history'),
+        downloads: completeDiscoveryEvidence('downloads')
+      },
       limitations: []
     }),
     storageSession: storage,
@@ -73,6 +83,23 @@ test('an installed-shaped review survives storage dictionary key canonicalizatio
   assert.equal(consumed.incognitoAccess, true);
   assert.deepEqual(consumed.hostPermissionInventory.broadGrantedHostPermissionOrigins, ['http://*/*', 'https://*/*']);
 });
+
+function completeDiscoveryEvidence(kind) {
+  return {
+    kind,
+    queriesPlanned: 1,
+    queriesRun: 1,
+    recordsObserved: 0,
+    matches: 0,
+    cappedQueries: 0,
+    queryResultCapReached: false,
+    matchCapReached: false,
+    queryFailures: 0,
+    complete: true,
+    truncated: false,
+    limitations: []
+  };
+}
 
 function createCanonicalizingStorage() {
   const values = {};

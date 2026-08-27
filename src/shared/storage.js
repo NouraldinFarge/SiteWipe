@@ -162,14 +162,25 @@ function sanitizeTimestamp(value, allowNull = false) {
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined;
 }
 
-function sanitizeAssociatedDomainGroups(value) {
+export function sanitizeAssociatedDomainGroupsWithEvidence(value) {
   const text = String(value || '').replace(/\r\n?/g, '\n');
-  return text
-    .split('\n')
-    .slice(0, 50)
-    .map((line) => line.slice(0, 500))
-    .join('\n')
-    .trim();
+  const inputLines = text.split('\n');
+  const retainedLines = inputLines.slice(0, 50);
+  const shortenedLineNumbers = retainedLines
+    .map((line, index) => (line.length > 500 ? index + 1 : null))
+    .filter((lineNumber) => lineNumber !== null);
+  return {
+    value: retainedLines
+      .map((line) => line.slice(0, 500))
+      .join('\n')
+      .trim(),
+    ignoredLineCount: Math.max(0, inputLines.length - retainedLines.length),
+    shortenedLineNumbers
+  };
+}
+
+function sanitizeAssociatedDomainGroups(value) {
+  return sanitizeAssociatedDomainGroupsWithEvidence(value).value;
 }
 
 function sanitizeReportRetentionDays(value) {

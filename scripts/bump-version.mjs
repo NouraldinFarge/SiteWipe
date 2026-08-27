@@ -5,8 +5,8 @@ import { resolve } from 'node:path';
 import { format, resolveConfig } from 'prettier';
 
 import {
-  computeReleaseInputFingerprint,
-  computeRuntimeFingerprint,
+  collectVersionFingerprintPaths,
+  computeVersionFingerprintSnapshot,
   projectRoot,
   resolveNextVersion,
   runtimeArtifactBase
@@ -17,15 +17,25 @@ import {
   resetAccessibilityEvidence,
   resetAutomatedValidationEvidence,
   resetDependencyLicenseInventoryEvidence,
+  resetMediaEvidence,
+  resetPerformanceEvidence,
   resetProvenanceTechnicalEvidence
 } from './evidence-reset.mjs';
-import { transactionalWriteFiles } from './transactional-files.mjs';
+import { assertFileTransactionCanStart, transactionalWriteFiles } from './transactional-files.mjs';
+import {
+  BROWSER_MATRIX_VERSION,
+  CANONICAL_BROWSER_MATRIX_IDS,
+  CANONICAL_BROWSER_MATRIX_SHA256
+} from './browser-validation-policy.mjs';
 import {
   planValidationEvidenceVersionTransition,
   stageValidationEvidenceVersionTransition
 } from './validation-evidence.mjs';
 
+await assertFileTransactionCanStart(projectRoot, 'sitewipe-version-bump');
+
 const updates = new Map();
+const expectedOriginals = new Map();
 const request = process.argv[2] || 'patch';
 const currentStatus =
   'Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.';
@@ -77,12 +87,9 @@ for (const [path, before, after] of [
   await queueRequiredReplacement(path, before, after);
 }
 
-await assertRequiredMarker(
-  'docs/architecture.md',
-  `\`${nextVersion}\` is the forward public-source prerelease candidate`
-);
+await assertRequiredMarker('docs/architecture.md', `forward ${nextVersion} transaction`);
 await assertRequiredMarker('docs/threat-model.md', `the ${nextVersion} corrective working source`);
-await assertRequiredMarker('docs/release-readiness.md', `local ${nextVersion} corrective handoff-tab source`);
+await assertRequiredSourceStateMarker('docs/release-readiness.md', nextVersion);
 
 // Release-readiness prose is deliberately staged for the exact successor
 // before the transaction. Requiring the next-version marker keeps the update
@@ -98,12 +105,17 @@ browser.status = 'pending';
 browser.attemptedAt = null;
 delete browser.attemptedAtApproximate;
 browser.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sha256: null };
+browser.matrixVersion = BROWSER_MATRIX_VERSION;
+browser.matrixSha256 = CANONICAL_BROWSER_MATRIX_SHA256;
+browser.requiredMatrix = [...CANONICAL_BROWSER_MATRIX_IDS];
 browser.chrome = emptyBrowserEvidence();
 browser.brave = emptyBrowserEvidence();
 browser.syntheticInAppBrowser = emptySyntheticInAppBrowserEvidence();
 browser.automationAttempt = null;
+browser.installedEvidence = emptyInstalledBrowserEvidence();
 browser.limitations = [
   'Node tests and static checks do not establish installed Chrome behavior.',
+  'Only canonical assertions with both an implemented semantic validator and authentic exact-artifact executor observations may pass; every unimplemented, unobserved, unsupported, ambiguous, or incomplete assertion remains non-passing in the mechanical 48-cell aggregate.',
   'Chrome evidence cannot be reused as Brave evidence.',
   'No browser version or extension artifact hash is approved until the matrix is actually run.',
   'Executable version discovery is not a disposable-profile run and must not satisfy any browser assertion.',
@@ -112,13 +124,10 @@ browser.limitations = [
 browser.reviewerApproval = false;
 queueJson('docs/evidence/browser-validation.json', browser);
 
-const performance = await json('docs/evidence/performance-results.json');
-performance.status = 'pending';
-performance.measuredAt = null;
-performance.environment = {};
-performance.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sha256: null };
-performance.fixtures = [];
-performance.reviewerApproval = false;
+const performance = resetPerformanceEvidence(await json('docs/evidence/performance-results.json'), {
+  version: nextVersion,
+  artifactBase
+});
 queueJson('docs/evidence/performance-results.json', performance);
 
 const accessibility = resetAccessibilityEvidence(await json('docs/evidence/accessibility-results.json'), {
@@ -127,23 +136,13 @@ const accessibility = resetAccessibilityEvidence(await json('docs/evidence/acces
 });
 queueJson('docs/evidence/accessibility-results.json', accessibility);
 
-const media = await json('docs/evidence/media-inventory.json');
-media.status = 'pending';
-media.authenticScreenshotCount = 0;
-media.demoDurationSeconds = 0;
-media.screenshots = [];
-media.demo = null;
-media.artifact = { version: nextVersion, runtimeZip: `${artifactBase}.zip`, sha256: null };
-media.storeAssets = {
-  ...media.storeAssets,
-  screenshots1280x800: [],
-  promotionalTile440x280: null,
-  marquee1400x560: null,
-  githubSocialPreview: null
-};
-media.reviewerApproval = false;
+const media = resetMediaEvidence(await json('docs/evidence/media-inventory.json'), {
+  version: nextVersion,
+  artifactBase
+});
 queueJson('docs/evidence/media-inventory.json', media);
 
+await source('docs/evidence/automated-validation-current.json');
 const validationEvidenceTransition = await planValidationEvidenceVersionTransition(projectRoot, {
   previousVersion,
   nextVersion,
@@ -172,8 +171,16 @@ for (const path of ['CHANGELOG.md', 'docs/architecture.md', 'docs/release-readin
   );
 }
 
-const fingerprint = await computeRuntimeFingerprint(projectRoot, updates);
-const releaseInputFingerprint = await computeReleaseInputFingerprint(projectRoot, updates);
+const fingerprintSnapshot = await computeVersionFingerprintSnapshot(projectRoot, updates);
+const fingerprint = fingerprintSnapshot.runtimeFingerprintSha256;
+const releaseInputFingerprint = fingerprintSnapshot.releaseInputFingerprint;
+const validationRecordInputPath = validationEvidenceTransition.current.relativePath;
+if (fingerprintSnapshot.inputs.has(validationRecordInputPath)) {
+  throw new Error('Current validation evidence record unexpectedly entered the stable version fingerprint inventory.');
+}
+const versionTransactionInputSnapshot = new Map(fingerprintSnapshot.inputs);
+versionTransactionInputSnapshot.set(validationRecordInputPath, validationEvidenceTransition.previousBytes);
+await source('docs/evidence/version-state.json');
 updates.set(
   'docs/evidence/version-state.json',
   `${JSON.stringify(
@@ -199,7 +206,20 @@ const validationCreateOnlyPaths = stageValidationEvidenceVersionTransition(
   automated
 );
 await transactionalWriteFiles(projectRoot, updates, 'sitewipe-version-bump', {
-  createOnlyPaths: validationCreateOnlyPaths
+  createOnlyPaths: validationCreateOnlyPaths,
+  expectedOriginals: new Map(
+    [...expectedOriginals].filter(([path]) => updates.has(path) && !validationCreateOnlyPaths.has(path))
+  ),
+  expectedInputSnapshot: versionTransactionInputSnapshot,
+  resolveInputPaths: async () => {
+    const { allPaths } = await collectVersionFingerprintPaths(projectRoot);
+    if (allPaths.includes(validationRecordInputPath)) {
+      throw new Error(
+        'Current validation evidence record unexpectedly entered the stable version fingerprint inventory.'
+      );
+    }
+    return [...allPaths, validationRecordInputPath].sort();
+  }
 });
 
 console.log(
@@ -218,7 +238,10 @@ console.log(
 );
 
 async function source(relative) {
-  return updates.get(relative) ?? readFile(resolve(projectRoot, relative), 'utf8');
+  if (updates.has(relative)) return updates.get(relative);
+  const value = await readFile(resolve(projectRoot, relative), 'utf8');
+  if (!expectedOriginals.has(relative)) expectedOriginals.set(relative, value);
+  return value;
 }
 
 async function json(relative) {
@@ -237,6 +260,16 @@ async function assertRequiredMarker(relative, marker) {
   const value = await source(relative);
   const occurrences = value.split(marker).length - 1;
   if (occurrences !== 1) throw new Error(`${relative} must contain exactly one staged next-version marker: ${marker}`);
+}
+
+async function assertRequiredSourceStateMarker(relative, version) {
+  const value = await source(relative);
+  const sourceStateLines = value.split(/\r?\n/u).filter((line) => line.startsWith('Source state:'));
+  const marker = `SiteWipe ${version} is the forward`;
+  const occurrences = sourceStateLines.length === 1 ? sourceStateLines[0].split(marker).length - 1 : 0;
+  if (sourceStateLines.length !== 1 || occurrences !== 1) {
+    throw new Error(`${relative} Source state must contain exactly one staged next-version marker: ${marker}`);
+  }
 }
 
 function replaceRequired(value, before, after, label) {
@@ -291,5 +324,12 @@ function emptySyntheticInAppBrowserEvidence() {
       'Does not exercise native host-permission prompts, incognito spanning, MV3 worker lifecycle, or privileged browser-data mutation APIs.',
       'Cannot satisfy Chrome, Brave, installed accessibility, exact-artifact performance, compatibility, or store-media approval fields.'
     ]
+  };
+}
+
+function emptyInstalledBrowserEvidence() {
+  return {
+    schema: 'sitewipe.private-installed-browser-run-commitment.v1',
+    status: 'not_run'
   };
 }

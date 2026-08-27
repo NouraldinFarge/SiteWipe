@@ -1,23 +1,23 @@
 {
   "schemaVersion": 1,
   "status": "technical_inventory_complete_owner_acknowledged",
-  "inventoriedAt": "2026-08-23",
-  "lastAuditAt": "2026-08-23",
-  "lockfileSha256": "36A91DAAAAB0D4C0CEDA4612B02AE74FD87F227AF5F8C25F5C832EE583979F6E",
+  "inventoriedAt": "2026-08-26",
+  "lastAuditAt": "2026-08-26",
+  "lockfileSha256": "BBC4EA0A0CAEFA6CBDBFB33790F37F6F6C4D3C113BDADF214A29452505D757B3",
   "runtimeDependencyCount": 0,
-  "lockedDevelopmentGraphCount": 406,
+  "lockedDevelopmentGraphCount": 416,
   "licenseCounts": {
     "(BSD-2-Clause OR MIT OR Apache-2.0)": 1,
     "(MIT OR WTFPL)": 1,
-    "Apache-2.0": 41,
+    "Apache-2.0": 45,
     "BSD-2-Clause": 8,
-    "BSD-3-Clause": 9,
+    "BSD-3-Clause": 10,
     "BlueOak-1.0.0": 14,
     "CC-BY-3.0": 1,
     "CC0-1.0": 3,
     "ISC": 53,
     "MISSING": 1,
-    "MIT": 269,
+    "MIT": 274,
     "MIT-0": 3,
     "MPL-2.0": 1,
     "Python-2.0": 1
@@ -39,7 +39,7 @@
       "path": "node_modules/libxmljs2",
       "name": "libxmljs2",
       "version": "0.37.0",
-      "control": "All documented local and CI installations use npm ci --ignore-scripts."
+      "control": "All documented local and CI candidate installations use npm ci --ignore-scripts --no-audit --no-fund, followed by the separately recorded low-threshold JSON audit."
     }
   ],
   "highAttentionLicenses": [
@@ -72,15 +72,15 @@
   },
   "developmentSbom": {
     "status": "passed",
-    "path": "dist/sitewipe-development-sbom.cdx.json",
+    "path": "validation-output/sitewipe-development-sbom.cdx.json",
     "bomFormat": "CycloneDX",
     "specVersion": "1.6",
-    "componentVersion": "1.11.67",
-    "components": 329,
-    "dependencyNodes": 388,
-    "bytes": 807991,
-    "sha256": "2F8F66A449CED573D971F539984926E840D6DC412F38482C09D919CE69CEC8F8",
-    "generatedAt": "2026-08-23T21:01:46.117Z"
+    "componentVersion": "1.12.22",
+    "components": 358,
+    "dependencyNodes": 417,
+    "bytes": 575813,
+    "sha256": "C86948D7A1E52A19F5903853141620082E6067005AB8603EDD74B8CBC211B309",
+    "generatedAt": "2026-08-27T00:37:03.2349032Z"
   },
   "directDevelopmentDependencies": [
     {
@@ -139,6 +139,11 @@
       "license": "MIT"
     },
     {
+      "name": "puppeteer-core",
+      "version": "25.8.0",
+      "license": "Apache-2.0"
+    },
+    {
       "name": "stylelint",
       "version": "17.14.1",
       "license": "MIT"
@@ -165,12 +170,12 @@
     }
   ],
   "controls": [
-    "Every direct dependency is pinned to an exact version in package.json and package-lock.json.",
-    "Installation and CI use npm ci --ignore-scripts.",
-    "scripts/check-dependency-licenses.mjs binds this inventory to the lockfile hash, exact license counts, metadata exceptions, installed license text, and install-script package inventory.",
-    "npm audit reported zero known vulnerabilities at every severity for the exact 1.11.67 lockfile on 2026-08-23.",
-    "The 59-file runtime allowlist contains no npm runtime dependency files.",
-    "The CycloneDX 1.6 development-graph SBOM was regenerated and integrity-bound for 1.11.67."
+    "Pin every direct dependency to the exact version recorded in package.json and package-lock.json.",
+    "Install the locked development graph with lifecycle scripts disabled.",
+    "Bind the reviewed dependency inventory to the current lockfile hash, exact license counts, metadata exceptions, installed license text, and install-script package inventory.",
+    "Run a fresh vulnerability audit for the current lockfile and record its exact result before publication.",
+    "Keep the runtime allowlist free of npm runtime dependency files.",
+    "Regenerate and integrity-bind the CycloneDX development-graph SBOM for the current candidate before publication."
   ],
   "limitations": [
     "Registry/package metadata and license text are evidence inputs, not a legal license conclusion.",
@@ -179,5 +184,5 @@
   ],
   "ownerApproval": true,
   "ownerApprovedAt": "2026-08-17",
-  "candidateVersion": "1.11.67"
+  "candidateVersion": "1.12.22"
 }

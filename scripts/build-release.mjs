@@ -1,25 +1,42 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import yazl from 'yazl';
 import { RUNTIME_FILES } from './release-files.mjs';
-import { collectSourceArchiveEntries } from './source-archive.mjs';
-import { resolveCurrentValidationEvidence } from './validation-evidence.mjs';
+import {
+  assertGeneratedReleaseChild,
+  createGeneratedReleaseChild,
+  ensureGeneratedReleaseRoot,
+  removeGeneratedReleaseChild
+} from './generated-release-root.mjs';
+import {
+  createCurrentReleaseIndex,
+  createReleaseNotes,
+  createRuntimeSbom,
+  createSourcePackageEquivalence,
+  createUnsignedProvenance,
+  parsePublicSuffixMetadata,
+  serializeReleaseJson
+} from './release-metadata.mjs';
+import {
+  assertGitWorktreeClean,
+  collectCommittedSourceArchiveEntries,
+  selectCommittedRuntimeEntries
+} from './source-archive.mjs';
+import { resolveTrustedGitExecutable } from './trusted-git.mjs';
 import { runtimeArtifactBase } from './versioning.mjs';
 import { readZipEntries } from './zip-utils.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const src = resolve(root, 'src');
 const distRoot = resolve(root, 'dist');
 const dist = resolve(distRoot, '.current-staging');
 const currentDist = resolve(distRoot, 'current');
-const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
-const manifest = JSON.parse(await readFile(resolve(src, 'manifest.json'), 'utf8'));
-if (pkg.version !== manifest.version) throw new Error('Version parity failed before packaging.');
+const trustedGit = resolveTrustedGitExecutable({ root });
+const sourceCommit = assertGitWorktreeClean(root);
 
 for (const validator of [
   'validate-manifest.mjs',
@@ -39,25 +56,25 @@ for (const validator of [
     windowsHide: true
   });
 }
+assertGitWorktreeClean(root, { expectedCommit: sourceCommit });
+const committedSource = await collectCommittedSourceArchiveEntries(root, { ref: sourceCommit });
+if (committedSource.commit !== sourceCommit)
+  throw new Error('Committed source snapshot changed during release construction.');
+const sourceArchiveEntries = committedSource.entries;
+const committedSourceByPath = new Map(sourceArchiveEntries.map((entry) => [entry.path, entry]));
+const pkg = parseCommittedJson(committedSourceByPath, 'package.json');
+const manifest = parseCommittedJson(committedSourceByPath, 'src/manifest.json');
+if (pkg.version !== manifest.version) throw new Error('Version parity failed before packaging.');
+const publicSuffixMetadata = parsePublicSuffixMetadata(
+  committedSourceByPath.get('src/shared/public-suffix-data.js')?.bytes
+);
 
-await prepareBuildDirectory(dist);
+await ensureGeneratedReleaseRoot(distRoot);
+await prepareBuildDirectory();
 const base = runtimeArtifactBase(manifest.version);
 const zipPath = resolve(dist, `${base}.zip`);
 const fixedTime = new Date('1980-01-01T00:00:00.000Z');
-const sourceEntries = [];
-
-for (const relative of RUNTIME_FILES) {
-  const absolute = resolve(src, relative);
-  const info = await stat(absolute);
-  if (!info.isFile() || info.size <= 0) throw new Error(`Runtime file is missing or empty: ${relative}`);
-  const bytes = await readFile(absolute);
-  sourceEntries.push({
-    path: relative,
-    bytes,
-    sha256: sha256(bytes),
-    size: bytes.length
-  });
-}
+const sourceEntries = selectCommittedRuntimeEntries(sourceArchiveEntries, RUNTIME_FILES);
 
 await writeZip(zipPath, sourceEntries, fixedTime);
 const zipEntries = (await readZipEntries(zipPath)).sort((a, b) => a.path.localeCompare(b.path));
@@ -65,26 +82,6 @@ assertEquivalent(sourceEntries, zipEntries);
 
 const zipBytes = await readFile(zipPath);
 const zipDigest = sha256(zipBytes);
-await updateAutomatedArtifactEvidence({
-  runtimeZip: `${base}.zip`,
-  runtimeZipSha256: zipDigest,
-  runtimeZipBytes: zipBytes.length,
-  sourceZip: `${base}-source.zip`
-});
-execFileSync(
-  process.execPath,
-  [resolve(root, 'scripts', 'check-version.mjs'), '--require-artifact', '--artifact-dir', dist],
-  {
-    cwd: root,
-    stdio: 'inherit',
-    windowsHide: true
-  }
-);
-
-let sourceArchiveEntries = await collectSourceArchiveEntries(root);
-if (await updateSourceArtifactEvidence(sourceArchiveEntries.length)) {
-  sourceArchiveEntries = await collectSourceArchiveEntries(root);
-}
 const sourceArchivePath = resolve(dist, `${base}-source.zip`);
 await writeZip(sourceArchivePath, sourceArchiveEntries, fixedTime, { compress: false });
 const sourceArchiveZipEntries = (await readZipEntries(sourceArchivePath)).sort((a, b) => a.path.localeCompare(b.path));
@@ -92,119 +89,45 @@ assertEquivalent(sourceArchiveEntries, sourceArchiveZipEntries, { requireRootMan
 assertStored(sourceArchiveZipEntries);
 const sourceArchiveBytes = await readFile(sourceArchivePath);
 const sourceArchiveDigest = sha256(sourceArchiveBytes);
-const equivalence = {
-  schema: 'sitewipe.source-package-equivalence.v1',
-  state: 'Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.',
-  artifact: `${base}.zip`,
-  artifactSha256: zipDigest,
-  manifestAtZipRoot: zipEntries.some((entry) => entry.path === 'manifest.json'),
-  expectedFileCount: RUNTIME_FILES.length,
+const equivalence = createSourcePackageEquivalence({
+  base,
+  runtimeArtifactSha256: zipDigest,
+  sourceCommit,
+  runtimeEntries: sourceEntries,
   packagedFileCount: zipEntries.length,
-  exactPathParity: true,
-  exactByteParity: true,
-  fixedZipTimestamp: fixedTime.toISOString(),
-  sourceArchiveCompression: 'stored',
-  files: sourceEntries.map(({ path, size, sha256: digest }) => ({
-    path,
-    size,
-    sha256: digest
-  }))
-};
+  manifestAtZipRoot: zipEntries.some((entry) => entry.path === 'manifest.json')
+});
 const equivalencePath = resolve(dist, `${base}.source-package-equivalence.json`);
-await writeFile(equivalencePath, `${JSON.stringify(equivalence, null, 2)}\n`, 'utf8');
+await writeFile(equivalencePath, serializeReleaseJson(equivalence), 'utf8');
 
-const sbom = {
-  bomFormat: 'CycloneDX',
-  specVersion: '1.6',
-  version: 1,
-  metadata: {
-    component: {
-      type: 'application',
-      name: manifest.name,
-      version: manifest.version,
-      properties: [
-        { name: 'sitewipe:release-state', value: 'unreleased-candidate' },
-        { name: 'sitewipe:runtime-dependencies', value: '0' }
-      ]
-    }
-  },
-  components: [
-    {
-      type: 'data',
-      name: 'Public Suffix List snapshot',
-      version: '2026-08-14_20-15-49_UTC',
-      licenses: [{ license: { id: 'MPL-2.0' } }],
-      hashes: [
-        {
-          alg: 'SHA-256',
-          content: '155B43D46932E933F622365225E7861288C36A45380B1F7D00B3D09748926226'
-        }
-      ],
-      externalReferences: [
-        {
-          type: 'distribution',
-          url: 'https://publicsuffix.org/list/public_suffix_list.dat'
-        }
-      ],
-      properties: [
-        {
-          name: 'sitewipe:purpose',
-          value: 'Registrable-domain and private-tenant boundary data'
-        }
-      ]
-    }
-  ]
-};
+const sbom = createRuntimeSbom({
+  name: manifest.name,
+  version: manifest.version,
+  publicSuffixMetadata
+});
 const sbomPath = resolve(dist, `${base}.runtime-sbom.cdx.json`);
-await writeFile(sbomPath, `${JSON.stringify(sbom, null, 2)}\n`, 'utf8');
+await writeFile(sbomPath, serializeReleaseJson(sbom), 'utf8');
 
 const releaseNotesPath = resolve(dist, `${base}.release-notes.md`);
-await writeFile(
-  releaseNotesPath,
-  `# ${manifest.name} ${manifest.version} unreleased candidate\n\nStatus: **Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.**\n\nThis exact version is a reviewable public-source candidate; exact-version and artifact approvals are recorded separately. The artifact is for disposable-profile validation only. Public source availability does not make it a supported binary, approve a browser-store submission, or authorize portfolio promotion. Installed-browser evidence, authentic media, exact-head remote CI and repository controls, and separate binary/store/promotion approvals remain gates.\n\nThe owner selected MIT for SiteWipe's first-party source. Third-party material remains governed by its identified terms and notices.\n\nThe loadable ZIP places \`manifest.json\` at its root and contains only the explicit runtime allowlist. Verify it with \`npm run verify:release-candidate\`.\n`,
-  'utf8'
-);
+await writeFile(releaseNotesPath, createReleaseNotes({ name: manifest.name, version: manifest.version }), 'utf8');
 
 const provenancePath = resolve(dist, `${base}.unsigned-provenance-input.json`);
 await writeFile(
   provenancePath,
-  `${JSON.stringify(
-    {
-      _type: 'https://in-toto.io/Statement/v1',
-      subject: [{ name: `${base}.zip`, digest: { sha256: zipDigest } }],
-      predicateType: 'https://slsa.dev/provenance/v1',
-      predicate: {
-        buildDefinition: {
-          buildType: 'urn:sitewipe:build-type:local-unreleased-candidate:v1',
-          externalParameters: {
-            version: manifest.version,
-            runtimeAllowlist: 'scripts/release-files.mjs'
-          },
-          internalParameters: {
-            node: process.version,
-            platform: os.platform(),
-            architecture: os.arch()
-          },
-          resolvedDependencies: sourceEntries.map((entry) => ({
-            uri: `file:src/${entry.path}`,
-            digest: { sha256: entry.sha256 }
-          }))
-        },
-        runDetails: {
-          builder: { id: 'local-unattested-build' },
-          metadata: {
-            invocationId: 'not-attested',
-            startedOn: null,
-            finishedOn: null
-          }
-        }
-      },
-      warning:
-        'Unsigned local provenance input only. This is not a GitHub artifact attestation and must not be represented as one.'
-    },
-    null,
-    2
-  )}\n`,
+  serializeReleaseJson(
+    createUnsignedProvenance({
+      base,
+      runtimeArtifactSha256: zipDigest,
+      version: manifest.version,
+      sourceCommit,
+      runtimeEntries: sourceEntries,
+      nodeVersion: process.version,
+      platform: os.platform(),
+      architecture: os.arch(),
+      gitVersion: trustedGit.version,
+      gitExecutableSha256: trustedGit.sha256
+    })
+  ),
   'utf8'
 );
 
@@ -221,21 +144,9 @@ for (const path of checksumTargets) {
 const currentReleasePath = resolve(dist, 'current-release.json');
 await writeFile(
   currentReleasePath,
-  `${JSON.stringify(
-    {
-      schema: 'sitewipe.current-unreleased-candidate.v1',
-      state:
-        'Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.',
-      version: manifest.version,
-      artifactBase: base,
-      runtimeArtifact: `${base}.zip`,
-      sourceArtifact: `${base}-source.zip`,
-      checksumFile: 'SHA256SUMS',
-      outputs: indexedOutputs
-    },
-    null,
-    2
-  )}\n`,
+  serializeReleaseJson(
+    createCurrentReleaseIndex({ base, version: manifest.version, sourceCommit, outputs: indexedOutputs })
+  ),
   'utf8'
 );
 checksumTargets.push(currentReleasePath);
@@ -245,6 +156,7 @@ for (const path of checksumTargets) {
 }
 await writeFile(resolve(dist, 'SHA256SUMS'), `${checksumLines.join('\n')}\n`, 'utf8');
 await promoteCurrentRelease();
+assertGitWorktreeClean(root, { expectedCommit: sourceCommit });
 
 console.log(
   JSON.stringify(
@@ -259,6 +171,7 @@ console.log(
       sourceSha256: sourceArchiveDigest,
       sourceFiles: sourceArchiveEntries.length,
       sourceArchiveCompression: 'stored',
+      sourceCommit,
       sourcePackageEquivalence: 'exact',
       currentReleaseDirectory: currentDist,
       outputs: checksumTargets.map((path) => path.split(/[\\/]/).at(-1)).concat('SHA256SUMS')
@@ -268,16 +181,17 @@ console.log(
   )
 );
 
-async function prepareBuildDirectory(path) {
-  assertGeneratedReleaseDirectory(path);
-  await rm(path, { recursive: true, force: true });
-  await mkdir(path, { recursive: true });
+async function prepareBuildDirectory() {
+  await removeGeneratedReleaseChild(distRoot, '.current-staging');
+  await createGeneratedReleaseChild(distRoot, '.current-staging');
 }
 
 async function promoteCurrentRelease() {
   const previous = resolve(distRoot, '.current-previous');
-  for (const path of [dist, currentDist, previous]) assertGeneratedReleaseDirectory(path);
-  await rm(previous, { recursive: true, force: true });
+  for (const name of ['.current-staging', 'current', '.current-previous']) {
+    await assertGeneratedReleaseChild(distRoot, name, { allowMissing: true });
+  }
+  await removeGeneratedReleaseChild(distRoot, '.current-previous');
   const hadCurrent = await pathExists(currentDist);
   if (hadCurrent) await rename(currentDist, previous);
   try {
@@ -286,14 +200,7 @@ async function promoteCurrentRelease() {
     if (hadCurrent && (await pathExists(previous))) await rename(previous, currentDist);
     throw new Error('Could not promote the staged current release directory.', { cause: error });
   }
-  await rm(previous, { recursive: true, force: true });
-}
-
-function assertGeneratedReleaseDirectory(path) {
-  const allowed = new Set(['.current-staging', '.current-previous', 'current']);
-  if (resolve(dirname(path)) !== distRoot || !allowed.has(path.split(/[\\/]/).at(-1))) {
-    throw new Error(`Refusing generated release-directory operation outside dist: ${path}`);
-  }
+  await removeGeneratedReleaseChild(distRoot, '.current-previous');
 }
 
 async function pathExists(path) {
@@ -350,42 +257,12 @@ function assertEquivalent(sourceFiles, packagedFiles, options = {}) {
     throw new Error('manifest.json is not at the ZIP root.');
 }
 
-async function updateAutomatedArtifactEvidence({ runtimeZip, runtimeZipSha256, runtimeZipBytes, sourceZip }) {
-  const automatedPath = (await resolveCurrentValidationEvidence(root)).relativePath;
-  const automated = await readJson(automatedPath);
-  automated.artifacts = {
-    ...automated.artifacts,
-    runtimeZip,
-    runtimeZipSha256,
-    runtimeZipBytes,
-    runtimeFiles: RUNTIME_FILES.length,
-    sourceZip
-  };
-  await writeJson(automatedPath, automated);
-}
-
-async function updateSourceArtifactEvidence(sourceFiles) {
-  const path = (await resolveCurrentValidationEvidence(root)).relativePath;
-  const automated = await readJson(path);
-  if (automated.artifacts?.sourceFiles === sourceFiles) return false;
-  automated.artifacts = {
-    ...automated.artifacts,
-    sourceFiles,
-    sourceArchiveCompression: 'stored',
-    sourceArchiveCrossPlatformExactByteContract: 'designed_not_two_host_validated'
-  };
-  await writeJson(path, automated);
-  return true;
-}
-
-async function readJson(relativePath) {
-  return JSON.parse(await readFile(resolve(root, relativePath), 'utf8'));
-}
-
-async function writeJson(relativePath, value) {
-  await writeFile(resolve(root, relativePath), `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-}
-
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex').toUpperCase();
+}
+
+function parseCommittedJson(entries, path) {
+  const bytes = entries.get(path)?.bytes;
+  if (!bytes) throw new Error(`Required committed JSON source is missing: ${path}`);
+  return JSON.parse(bytes.toString('utf8'));
 }

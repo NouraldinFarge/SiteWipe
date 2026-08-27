@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "status": "local_automated_validation_failed",
+  "validatedAt": "2026-08-25T05:57:48.0098360-05:00",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
+  "environment": {
+    "osDescription": "Microsoft Windows 11 Pro 10.0.26100",
+    "osArchitecture": "64-bit",
+    "processArchitecture": "x64",
+    "node": "v24.18.0",
+    "npm": "11.16.0",
+    "scope": "First exact 1.11.84 local locked-dependency and complete-check attempt. Coverage, property tests, clean-commit artifacts, installed browsers, accessibility, performance, media, and remote publication validation remain separate or pending."
+  },
+  "baseline": {
+    "beforeState": "The 1.11.83 record remains unchanged in automated-validation-2026-08-25-v1.11.83.json.",
+    "baselineVersion": "1.11.83",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-25-v1.11.83.json"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "failed",
+    "format": "passed",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.11.84",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "22AE1DE08D05C7737942F4958CF926A0EA2D31192276BE38710D4A8CBBF1D3A7",
+      "stableReleaseInputFingerprintSha256": "F15BD0D2214585188D09A99F55C549316781D1D01DFCD99840919FA86E45368B"
+    },
+    "manifest": {
+      "status": "passed",
+      "version": "1.11.84"
+    },
+    "syntax": "passed",
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "htmlValidation": "passed",
+    "cssValidation": "passed",
+    "remoteCodeAndRuntimeSecretScan": {
+      "status": "passed",
+      "runtimeFiles": 61
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed"
+    },
+    "developmentSbom": {
+      "status": "passed",
+      "components": 358,
+      "dependencyNodes": 417,
+      "sha256": "BFABCB8EC6BA8AB08ACEEB8A102DCF631D37CE9135EDCFEB656D5C898A8AB24C"
+    },
+    "dependencyLicenseInventory": {
+      "status": "passed",
+      "runtimeDependencies": 0,
+      "lockedDevelopmentGraph": 416,
+      "lockfileSha256": "8A1257360F0C2C3B06539126528CDD5E4D2D575003A67B5CF974462911348A91"
+    },
+    "projectLicense": {
+      "status": "passed",
+      "spdxIdentifier": "MIT",
+      "licenseFileSha256": "86ECA68E8C1B0498315252BD01B6190F01500EE720C333D00793DD947F5B6511"
+    },
+    "thirdPartyNoticeAndPslHash": "passed",
+    "iconSourceAndPngProvenance": "passed",
+    "documentation": "passed",
+    "githubActionPins": "passed",
+    "runtimeAllowlist": {
+      "status": "passed",
+      "runtimeFiles": 61
+    },
+    "legacyReleaseSelfTest": "passed",
+    "nodeTests": {
+      "tests": 954,
+      "passed": 953,
+      "failed": 1,
+      "skipped": 0
+    },
+    "failure": {
+      "file": "tests/release/direct-cleanup-publication-contract.test.mjs",
+      "test": "publication contract accepts the exact current owner-amended source-candidate design",
+      "reason": "docs/decisions/direct-cleanup-owner-decision.json still bound reviewedVersion to 1.11.83 while the exact current source candidate is 1.11.84.",
+      "interpretation": "This is a release-blocking first-attempt full-check failure. The other 953 passing tests do not convert the complete check into a pass."
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "status": "not_run",
+      "reason": "The npm run check command chain stopped after the failing unit-test stage."
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "pending",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    }
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "passed",
+    "installedPackages": 397,
+    "auditedPackagesIncludingRoot": null,
+    "lifecycleScriptsDisabled": true,
+    "automaticAuditDisabled": true,
+    "deprecationWarnings": [
+      "prebuild-install@7.1.3 is no longer maintained",
+      "glob@10.5.0 is a deprecated transitive development-tool version"
+    ],
+    "interpretation": "The exact lockfile was installed with lifecycle scripts and automatic audit traffic disabled. The separate explicit audit is recorded below."
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=low --json",
+    "status": "passed",
+    "auditedAt": null,
+    "knownVulnerabilities": 0,
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "packageMetadata": {
+      "prod": 1,
+      "dev": 416,
+      "optional": 145,
+      "total": 416
+    },
+    "runtimeDependencies": 0,
+    "lockedDevelopmentGraph": 416,
+    "lockfileSha256": "8A1257360F0C2C3B06539126528CDD5E4D2D575003A67B5CF974462911348A91"
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "failed",
+    "redactionCanaries": "pending",
+    "privateContextPersistenceRefusal": "pending",
+    "deterministicThirtyMinuteExpiry": "pending"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "pending",
+    "installedChromeRun": "pending",
+    "installedBraveRun": "pending"
+  },
+  "gitInitialization": {
+    "status": "pending_exact_candidate_validation",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "Exact candidate commit, clean checkout, remote checks, and repository state require fresh validation."
+  },
+  "artifacts": {
+    "status": "pending_rebuild",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.84.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.84-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "pending",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.84.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.84.unsigned-provenance-input.json",
+    "remoteAttestation": "pending",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "The first exact 1.11.84 complete check failed because the owner-amended Direct Cleanup decision still identified reviewedVersion 1.11.83.",
+      "Property tests and coverage were not run after the command chain stopped, and exact-artifact, browser, accessibility, performance, media, independent-review, and remote-publication evidence remain pending."
+    ]
+  },
+  "limitations": [
+    "No automated, installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior.",
+    "The first exact 1.11.84 npm run check attempt passed 953 of 954 tests but failed the exact current owner-amended source-candidate publication-contract test, so the complete check remains failed.",
+    "The property suite was not run because the command chain stopped at the failing unit-test stage; coverage was not run and remains pending.",
+    "No clean exact-commit artifact, installed Chrome or Brave result, installed accessibility result, performance measurement, authentic media, independent review, or remote-publication result is claimed for this attempt."
+  ]
+}

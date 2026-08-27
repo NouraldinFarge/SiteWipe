@@ -32,9 +32,24 @@ const DIRECT_PREPARATION_MAX_ATTEMPTS = 2;
 
 const SETTINGS_CHANGED_REVIEW_MESSAGE =
   'Settings changed. No cleanup started. Review the current scope again before approving.';
+const TECHNICAL_ERROR_DETAILS_MARKER = ' Technical details: ';
 
+void markPopupSurface();
 onceDomReady(init);
 globalThis.addEventListener?.('pagehide', clearPopupLifetimeTimers, { once: true });
+
+async function markPopupSurface() {
+  const root = document.documentElement;
+  if (!root?.classList) return;
+  try {
+    const currentTab = typeof chrome.tabs?.getCurrent === 'function' ? await chrome.tabs.getCurrent() : null;
+    root.classList.toggle('popup-opened-in-tab', Number.isInteger(currentTab?.id));
+  } catch {
+    // The browser-action popup is the safe sizing default. A failed context
+    // observation must not collapse it to the tiny remaining toolbar width.
+    root.classList.remove('popup-opened-in-tab');
+  }
+}
 
 function clearPopupLifetimeTimers() {
   clearPreparedReviewExpiry(false);
@@ -306,7 +321,7 @@ function applySettings(settings) {
   const mode = settings?.cleanupMode === 'expert' ? 'Expert' : 'Standard';
   qs('#cleanupModeBadge').textContent = `${mode} · ${directCleanupEnabled() ? 'Direct' : 'Review'}`;
   qs('#directCleanupMode').textContent =
-    `Clean now uses your current ${mode} settings and eligible normal/private scope. If target access is missing, SiteWipe first saves the exact approval and then requires a separate Grant access and clean activation before Chrome opens its prompt.`;
+    `Clean now uses your current ${mode} settings and eligible normal/private scope. If target access is missing, SiteWipe saves the exact approval and opens a persistent access tab. A second activation there requests access and runs the cleanup.`;
   updatePrimaryAction();
 }
 
@@ -463,14 +478,14 @@ async function performDirectCleanupPreparation(input) {
       showProgress(
         20,
         'Cleanup approval saved',
-        'No cleanup has started. Keep this popup open and activate Grant access and clean to open Chrome target access and run this exact cleanup.',
+        'No cleanup has started. Activate Open reviewed access tab to open or focus the worker-created SiteWipe handoff, then continue only there; this popup may close.',
         { cancelable: false }
       );
     } else if (preparedReview.approvalHandoffStatus) {
       showProgress(
         10,
         'Cleanup approval is still saving',
-        'Wait for SiteWipe to finish durably binding this exact cleanup before requesting Chrome target access.',
+        'Wait for SiteWipe to finish durably binding this exact cleanup before requesting browser target access.',
         { cancelable: false }
       );
     }
@@ -654,7 +669,7 @@ async function runPreparedCleanup(review, sourceContext, approval, direct) {
     review.hostPermissionsGranted
       ? 'The single-use authorization is being validated before any browser data changes.'
       : approvalCommitRequired
-        ? 'The worker is durably binding this exact approval before Chrome is allowed to open its site-access prompt. No cleanup has started.'
+        ? 'The worker is durably binding this exact approval before the browser is allowed to open its site-access prompt. No cleanup has started.'
         : 'SiteWipe is opening a persistent extension tab for the exact reviewed browser prompt. No cleanup has started.',
     { cancelable: false }
   );
@@ -1084,7 +1099,7 @@ function updateReviewApprovalPhase(review) {
   if (!review?.hostPermissionsGranted && !handoffArmed) {
     qs('#reviewHostPermissionTitle').textContent = 'Approval is saved before target-specific site access is requested';
     qs('#reviewHostPermissionDetail').textContent =
-      'First activate Approve reviewed cleanup so the worker can durably bind this exact approval. SiteWipe will then expose a separate Grant reviewed access and run action. Chrome will request only the reviewed target patterns, and access newly granted for this review is tracked until Chrome/Brave proves it has been released. Access that existed before the review is preserved.';
+      'Activate Approve reviewed cleanup so the worker can durably bind this exact approval and open a SiteWipe access tab. A second activation there requests only the reviewed target patterns and runs the cleanup. Access newly granted for this review is tracked until Chrome/Brave proves it has been released. Access that existed before the review is preserved.';
   }
 }
 
@@ -1154,7 +1169,7 @@ function handleApprovalInput() {
 function updateApprovalButtonLabel() {
   const approveButton = qs('#approveCleanup');
   if (cleanupApprovalHandoffIsArmed(cleanupReview)) {
-    approveButton.textContent = 'Grant reviewed access and run';
+    approveButton.textContent = 'Open reviewed access tab';
     return;
   }
   if (cleanupReview?.approvalHandoffStatus) {
@@ -1262,7 +1277,7 @@ function renderReviewEffects(review) {
       configured.protectedWebOrigins ? 'Included — separately acknowledged below' : 'Not included'
     ],
     ['History entries removed', formatEnabledCount(effects.removeHistory, 'currently matched')],
-    ['Download records removed', formatEnabledCount(effects.removeDownloadRecords, 'currently matched')],
+    ['Download records removed', formatDownloadRecordEffect(effects.removeDownloadRecords)],
     ['Downloaded files removed', formatFileEffect(effects.removeDownloadedFiles)],
     ['Cleanup progress overlay', formatProgressOverlay(effects.progressOverlay)],
     ['In-page overlay cancel button', formatProgressOverlayCancel(effects.progressOverlay)],
@@ -1276,6 +1291,20 @@ function renderReviewEffects(review) {
 function formatEnabledCount(effect, suffix) {
   if (!effect?.enabled) return 'No';
   return Number.isInteger(effect.matchingCount) ? `Yes — ${effect.matchingCount} ${suffix}` : 'Yes — count unavailable';
+}
+
+function formatDownloadRecordEffect(effect) {
+  if (effect?.erasurePolicy === 'approved_file_removal_only') {
+    const count = Number.isInteger(effect.approvedFileCandidateCount) ? effect.approvedFileCandidateCount : 'bounded';
+    return `Conditional — up to ${count} preflight-approved record(s), only after the corresponding file deletion succeeds; all others are preserved`;
+  }
+  if (effect?.erasurePolicy === 'none_incomplete_file_inventory') {
+    return 'No — download discovery was incomplete, so no file or matching record erasure is authorized';
+  }
+  if (effect?.erasurePolicy === 'none_no_approved_files') {
+    return 'No — no completed file was approved, so matching download records are preserved';
+  }
+  return formatEnabledCount(effect, 'currently matched');
 }
 
 function formatFileEffect(effect) {
@@ -1712,7 +1741,7 @@ function setNormalized(domain) {
 function primaryActionLabel() {
   if (!directCleanupEnabled()) return 'Review cleanup';
   return cleanupApprovalHandoffIsArmed(directCleanupReview) && !directCleanupReview?.hostPermissionsGranted
-    ? 'Grant access and clean'
+    ? 'Open reviewed access tab'
     : 'Clean now';
 }
 
@@ -1739,9 +1768,23 @@ function directCleanupEnabled() {
 }
 
 function showError(message) {
-  qs('#targetError').textContent = message || '';
-  qs('#targetInput').setAttribute('aria-invalid', message ? 'true' : 'false');
-  if (!busy) setReadyStatus(message ? 'Needs attention' : 'Ready', message ? 'danger' : 'success');
+  const displayed = splitDisplayedError(message);
+  qs('#targetError').textContent = displayed.summary;
+  qs('#targetErrorTechnical').textContent = displayed.technicalDetails;
+  qs('#targetErrorDetails').hidden = !displayed.technicalDetails;
+  qs('#targetErrorDetails').open = false;
+  qs('#targetInput').setAttribute('aria-invalid', displayed.summary ? 'true' : 'false');
+  if (!busy) setReadyStatus(displayed.summary ? 'Needs attention' : 'Ready', displayed.summary ? 'danger' : 'success');
+}
+
+function splitDisplayedError(message) {
+  const value = String(message || '').trim();
+  const markerIndex = value.indexOf(TECHNICAL_ERROR_DETAILS_MARKER);
+  if (markerIndex < 0) return { summary: value, technicalDetails: '' };
+  return {
+    summary: value.slice(0, markerIndex).trim(),
+    technicalDetails: value.slice(markerIndex + TECHNICAL_ERROR_DETAILS_MARKER.length).trim()
+  };
 }
 
 function setReadyStatus(label, tone) {

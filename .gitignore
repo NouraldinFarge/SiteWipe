@@ -1,6 +1,7 @@
 node_modules/
 coverage/
 dist/
+validation-output/
 *.log
 .DS_Store
 Thumbs.db

@@ -1,0 +1,34 @@
+{
+  "schema": "sitewipe.installed-browser-policy.v2",
+  "launchPolicySha256": "AD0C8E2A6BBC44ABD81C173A4FD511B6ADC2041D2D5F4E6B7E689ED114ACB668",
+  "browsers": [
+    {
+      "name": "brave",
+      "executablePath": "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+      "version": "151.1.93.138",
+      "executableSha256": "5765ED474E75FD3C69A418CD6F8A0EC13F4B269459ABF4245674A83355657293",
+      "runtimeRootPath": "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\151.1.93.138",
+      "runtimeVersion": "151.1.93.138",
+      "runtimeFileCount": 176,
+      "runtimeBytes": 1076868141,
+      "runtimeManifestSha256": "CA052AF57242A333EE4485E28D5E78AB84A3F368BA4BF71E2EBBF31533962C51"
+    },
+    {
+      "name": "chrome",
+      "executablePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "version": "151.0.7922.174",
+      "executableSha256": "B6D40F55E48E61760335D18F46ABCEC929E1A11B8330E7F2B501037584AF4AA4",
+      "runtimeRootPath": "C:\\Program Files\\Google\\Chrome\\Application\\151.0.7922.174",
+      "runtimeVersion": "151.0.7922.174",
+      "runtimeFileCount": 266,
+      "runtimeBytes": 514076268,
+      "runtimeManifestSha256": "9CFE73F1FF7BE51552E1E7E603B7794EC7BFA721DDB3691267225D16EB10291A"
+    }
+  ],
+  "transport": {
+    "pipe": true,
+    "remoteDebuggingPortAllowed": false,
+    "attachToExistingBrowserAllowed": false,
+    "existingProfileAllowed": false
+  }
+}

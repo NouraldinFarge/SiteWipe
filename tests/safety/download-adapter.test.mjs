@@ -56,6 +56,7 @@ test('failed downloaded-file deletion preserves its browser record for recovery'
 test('an approved file record is erased only after on-disk removal succeeds', async () => {
   const { target, report } = targetAndReport();
   const events = [];
+  const claimedQueries = [];
   globalThis.chrome = {
     downloads: {
       search: async ({ id }) => {
@@ -81,13 +82,98 @@ test('an approved file record is erased only after on-disk removal succeeds', as
     target,
     report,
     { matchingDownloads: [candidate] },
-    { deleteDownloadedFiles: true, approvedDownloadFileIds: ['7'] }
+    {
+      deleteDownloadedFiles: true,
+      approvedDownloadFileIds: ['7'],
+      operationBudget: {
+        check() {},
+        claimQuery(label) {
+          claimedQueries.push(label);
+        }
+      }
+    }
   );
 
   assert.deepEqual(events, ['search:7', 'file:7', 'search:7', 'record:7']);
+  assert.deepEqual(claimedQueries, ['download live revalidation', 'download live revalidation']);
   assert.equal(report.summary.downloadedFilesRemoved, 1);
   assert.equal(report.summary.downloadHistoryEntriesRemoved, 1);
   assert.equal(report.sections.find((item) => item.key === 'downloads').status, 'success');
+});
+
+test('download-record erasure requires one exact confirmed browser record id', async () => {
+  for (const eraseResult of [[], {}, [999], [41, 41]]) {
+    const { target, report } = targetAndReport();
+    const candidate = {
+      id: 41,
+      state: 'complete',
+      exists: true,
+      filename: 'C:\\Users\\Private\\Downloads\\example.txt',
+      url: 'https://example.com/example.txt'
+    };
+    globalThis.chrome = {
+      downloads: {
+        search: async () => [candidate],
+        erase: async () => eraseResult
+      }
+    };
+
+    await eraseDownloadHistory(target, report, { matchingDownloads: [candidate] });
+
+    assert.equal(report.summary.downloadHistoryEntriesRemoved, 0);
+    assert.equal(report.summary.downloadRecordEraseFailures, 1);
+    const section = report.sections.find((item) => item.key === 'downloads');
+    assert.equal(section.status, 'partial');
+    assert.equal(section.details.recordOutcome.succeeded, 0);
+    assert.equal(section.details.recordOutcome.failed, 1);
+  }
+});
+
+test('download cleanup performs no file or record mutation after its live-query budget is exhausted', async () => {
+  const { target, report } = targetAndReport();
+  const events = [];
+  globalThis.chrome = {
+    downloads: {
+      search: async ({ id }) => {
+        events.push(`search:${id}`);
+        return [candidate];
+      },
+      removeFile: async (id) => events.push(`file:${id}`),
+      erase: async ({ id }) => {
+        events.push(`record:${id}`);
+        return [id];
+      }
+    }
+  };
+  const candidate = {
+    id: 71,
+    state: 'complete',
+    exists: true,
+    filename: 'C:\\Users\\Private\\Downloads\\example.txt',
+    url: 'https://example.com/example.txt'
+  };
+  const budgetError = new Error('Synthetic query budget exhausted.');
+  budgetError.name = 'OperationBudgetExceededError';
+
+  await assert.rejects(
+    eraseDownloadHistory(
+      target,
+      report,
+      { matchingDownloads: [candidate] },
+      {
+        deleteDownloadedFiles: true,
+        approvedDownloadFileIds: ['71'],
+        operationBudget: {
+          check() {},
+          claimQuery() {
+            throw budgetError;
+          }
+        }
+      }
+    ),
+    (error) => error === budgetError
+  );
+  assert.deepEqual(events, []);
 });
 
 test('downloaded-file deletion fails closed when the exact record disappears before removal', async () => {

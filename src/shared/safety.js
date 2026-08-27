@@ -75,12 +75,20 @@ export function assertSafeOriginScopedRemoval(options, dataTypes, reviewedTarget
     }
   }
 
+  const safeOrigins = /** @type {[string, ...string[]]} */ ([origins[0], ...origins.slice(1)]);
+  const safeOriginTypes = /** @type {chrome.browsingData.OriginTypes} */ (
+    Object.fromEntries(enabledOriginTypes.map((key) => [key, true]))
+  );
+  const safeDataTypes = /** @type {chrome.browsingData.DataTypeSet} */ (
+    Object.fromEntries(enabledDataTypes.map((key) => [key, true]))
+  );
+
   return {
     options: {
-      origins,
-      originTypes: Object.fromEntries(enabledOriginTypes.map((key) => [key, true]))
+      origins: safeOrigins,
+      originTypes: safeOriginTypes
     },
-    dataTypes: Object.fromEntries(enabledDataTypes.map((key) => [key, true]))
+    dataTypes: safeDataTypes
   };
 }
 

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createCleanupProgressOverlay, renderSiteWipeProgressOverlay } from '../../src/background/progress-overlay.js';
+import { MAX_PROGRESS_OVERLAY_SHOW_UPDATES } from '../../src/background/cleanup-capacity.js';
 
 const target = {
   domain: 'example.com',
@@ -29,6 +30,158 @@ test('disabled overlay reports its cancel affordance as disabled and never inspe
   assert.equal(calls.executeScript.length, 0);
   assert.equal(report.summary.progressOverlayEnabled, false);
   assert.equal(report.summary.progressOverlayCancelButtonEnabled, false);
+});
+
+test('cleanup-start overlay snapshot never expands and claims its exact worst-case read bound', async (t) => {
+  const previousChrome = globalThis.chrome;
+  const reviewedTab = {
+    id: 31,
+    windowId: 7,
+    url: 'https://example.com/reviewed',
+    incognito: false,
+    discarded: false
+  };
+  const calls = { query: 0, get: 0, sendMessage: 0, executeScript: 0, claimed: 0 };
+  globalThis.chrome = {
+    tabs: {
+      async query() {
+        calls.query += 1;
+        return [reviewedTab, { ...reviewedTab, id: 32, url: 'https://example.com/opened-later' }];
+      },
+      async get(tabId) {
+        calls.get += 1;
+        assert.equal(tabId, reviewedTab.id);
+        return structuredClone(reviewedTab);
+      },
+      async sendMessage() {
+        calls.sendMessage += 1;
+        throw new Error('Synthetic receiver navigation.');
+      }
+    },
+    scripting: {
+      async executeScript() {
+        calls.executeScript += 1;
+        return [];
+      }
+    }
+  };
+  t.after(() => {
+    globalThis.chrome = previousChrome;
+  });
+  const report = { summary: {}, sections: [] };
+  const overlay = createCleanupProgressOverlay(target, report, {
+    progressOverlay: true,
+    progressOverlayCancelButton: true,
+    overlayScope: 'target_tabs',
+    incognitoAccess: false,
+    sourceWindowId: 7,
+    overlayTabsSnapshot: [reviewedTab],
+    operationBudget: {
+      claimQuery() {
+        calls.claimed += 1;
+      }
+    }
+  });
+
+  for (let index = 0; index < MAX_PROGRESS_OVERLAY_SHOW_UPDATES; index += 1) {
+    await overlay.update(index, `Fixed update ${index}`, 'Synthetic fixed-snapshot bound');
+  }
+  await assert.rejects(
+    overlay.update(99, 'Excess update', 'Must fail closed'),
+    /more than the reviewed.*progress-overlay updates/i
+  );
+  await overlay.hide('complete');
+
+  assert.equal(calls.query, 0, 'a fixed cleanup-start snapshot must suppress every later tabs.query');
+  assert.equal(calls.get, 26);
+  assert.equal(calls.claimed, 26);
+  assert.equal(calls.executeScript, MAX_PROGRESS_OVERLAY_SHOW_UPDATES);
+  const details = report.sections.find((section) => section.key === 'progressOverlay')?.details;
+  assert.equal(details.fixedSnapshotUsed, true);
+  assert.equal(details.perUpdateCapDoesNotGuaranteeSimultaneousVisibleTotal, false);
+});
+
+test('current-window fixed snapshot excludes earlier other-window tabs before the cap and matches its reviewed read bound', async (t) => {
+  const previousChrome = globalThis.chrome;
+  const sourceWindowId = 7;
+  const otherWindowTabs = Array.from({ length: 130 }, (_, index) => ({
+    id: index + 1,
+    windowId: 8,
+    url: `https://unrelated-${index}.example/page`,
+    incognito: false,
+    discarded: false
+  }));
+  const reviewedTabs = [
+    {
+      id: 901,
+      windowId: sourceWindowId,
+      url: 'https://example.com/first',
+      incognito: false,
+      discarded: false
+    },
+    {
+      id: 902,
+      windowId: sourceWindowId,
+      url: 'https://unrelated.example/second',
+      incognito: false,
+      discarded: false
+    }
+  ];
+  const liveTabs = new Map(reviewedTabs.map((tab) => [tab.id, tab]));
+  const calls = { get: [], executeScript: [], claimed: 0 };
+  globalThis.chrome = {
+    tabs: {
+      async get(tabId) {
+        calls.get.push(tabId);
+        const tab = liveTabs.get(tabId);
+        if (!tab) throw new Error(`Unexpected other-window tab read: ${tabId}`);
+        return structuredClone(tab);
+      },
+      async sendMessage() {
+        throw new Error('Synthetic receiver navigation.');
+      }
+    },
+    scripting: {
+      async executeScript(details) {
+        calls.executeScript.push(details.target.tabId);
+        return [];
+      }
+    }
+  };
+  t.after(() => {
+    globalThis.chrome = previousChrome;
+  });
+  const report = { summary: {}, sections: [] };
+  const overlay = createCleanupProgressOverlay(target, report, {
+    progressOverlay: true,
+    progressOverlayCancelButton: true,
+    overlayScope: 'current_window',
+    incognitoAccess: false,
+    sourceWindowId,
+    overlayTabsSnapshot: [...otherWindowTabs, ...reviewedTabs],
+    operationBudget: {
+      claimQuery() {
+        calls.claimed += 1;
+      }
+    }
+  });
+
+  for (let index = 0; index < MAX_PROGRESS_OVERLAY_SHOW_UPDATES; index += 1) {
+    await overlay.update(index, `Current-window update ${index}`, 'Synthetic current-window capacity parity');
+  }
+  await overlay.hide('complete');
+
+  const exactReviewedReadBound = reviewedTabs.length * MAX_PROGRESS_OVERLAY_SHOW_UPDATES * 2;
+  assert.equal(calls.get.length, exactReviewedReadBound);
+  assert.equal(calls.claimed, exactReviewedReadBound);
+  assert.deepEqual(new Set(calls.get), new Set(reviewedTabs.map((tab) => tab.id)));
+  assert.deepEqual(new Set(calls.executeScript), new Set(reviewedTabs.map((tab) => tab.id)));
+  assert.equal(
+    calls.get.some((tabId) => tabId <= otherWindowTabs.length),
+    false,
+    'other-window tabs must consume no reviewed overlay query capacity'
+  );
+  assert.equal(report.summary.progressOverlayTabsShown, reviewedTabs.length);
 });
 
 test('a repeated direct injection refreshes the reused isolated-world receiver channel', (t) => {

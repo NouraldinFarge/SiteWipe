@@ -46,6 +46,7 @@ test('DNR construction and removal stay inside SiteWipe owned rule IDs', async (
 test('request-shield recovery intent is persisted before the Chrome mutation', async () => {
   const { target, report } = targetAndReport();
   const events = [];
+  const diagnosticClaims = [];
   let activeRules = [];
   globalThis.chrome = {
     declarativeNetRequest: {
@@ -70,10 +71,16 @@ test('request-shield recovery intent is persisted before the Chrome mutation', a
   assert.deepEqual(events.slice(0, 3), ['persist-installing', 'chrome-mutation', 'persist-active']);
 
   await finalizeTemporaryDnrShield(shield, report, {
+    operationBudget: {
+      claimQuery(label) {
+        diagnosticClaims.push(label);
+      }
+    },
     onShieldCleared: async () => events.push('persist-cleared')
   });
   assert.equal(activeRules.length, 0);
   assert.equal(events.at(-1), 'persist-cleared');
+  assert.deepEqual(diagnosticClaims, ['request-shield diagnostics']);
 });
 
 test('final request-shield removal retains recovery when the DNR mutation API is unavailable', async () => {
@@ -136,6 +143,40 @@ test('final request-shield removal retains recovery when empty-range diagnostics
   assert.equal(cleared, false);
   assert.equal(uncertainPatch?.lifecycle, 'unknown');
   assert.equal(uncertainPatch?.pendingMutation, false);
+  assert.match(report.errors.at(-1).message, /could not prove/i);
+});
+
+test('malformed resolved DNR diagnostics cannot prove the owned rule range empty', async () => {
+  const { report } = targetAndReport();
+  let cleared = false;
+  let uncertainPatch = null;
+  globalThis.chrome = {
+    declarativeNetRequest: {
+      updateSessionRules: async () => {},
+      getSessionRules: async () => null
+    }
+  };
+
+  const diagnostics = await getSiteWipeDnrDiagnostics({ ruleIds: [730000], lifecycle: 'active' });
+  assert.equal(diagnostics.healthy, false);
+  assert.match(diagnostics.error, /non-array result/i);
+
+  await finalizeTemporaryDnrShield(
+    { installed: true, uncertain: false, ruleIds: [730000], keptAfterCleanup: false },
+    report,
+    {
+      onShieldCleared: async () => {
+        cleared = true;
+      },
+      onShieldUncertain: async (patch) => {
+        uncertainPatch = patch;
+      }
+    }
+  );
+
+  assert.equal(report.summary.temporaryDnrShieldRemoved, false);
+  assert.equal(cleared, false);
+  assert.equal(uncertainPatch?.lifecycle, 'unknown');
   assert.match(report.errors.at(-1).message, /could not prove/i);
 });
 

@@ -158,7 +158,9 @@
             <div class="setting-row">
               <div>
                 <strong>Block target requests during cleanup</strong>
-                <p>Temporarily stops the target from recreating storage while cleanup is running.</p>
+                <p id="temporaryDnrShieldHelp" role="status" aria-live="polite">
+                  Request-shield availability is being checked against current private-window access.
+                </p>
               </div>
               <label class="switch"><input id="temporaryDnrShield" type="checkbox" disabled /><span></span></label>
             </div>
@@ -244,7 +246,7 @@
                 <div class="setting-row">
                   <div>
                     <strong>Run browser cookie sweep</strong>
-                    <p>Follows direct cookie removal with Chrome's origin-scoped cookie cleanup.</p>
+                    <p>Follows direct cookie removal with the browser's origin-scoped cookie cleanup.</p>
                   </div>
                   <label class="switch"
                     ><input id="aggressiveCookieSweep" type="checkbox" disabled /><span></span
@@ -320,18 +322,50 @@
                   <div>
                     <strong>Discover embedded target frames</strong>
                     <p>
-                      Checks open-page frames for target data loaded inside iframes. Optional webNavigation access is
-                      requested.
+                      Checks open-page frames for target data loaded inside iframes. Grant optional webNavigation access
+                      below first, then enable this setting in a separate action.
                     </p>
                   </div>
                   <label class="switch"
                     ><input id="embeddedFrameDiscovery" type="checkbox" disabled /><span></span
                   ></label>
                 </div>
+                <div class="setting-row status-row">
+                  <div>
+                    <strong>Optional embedded-frame access</strong>
+                    <p id="webNavigationAccessStatus" role="status" aria-live="polite">
+                      Optional webNavigation access is being checked.
+                    </p>
+                  </div>
+                  <div class="button-row permission-actions">
+                    <button
+                      id="grantWebNavigationAccess"
+                      class="btn secondary"
+                      type="button"
+                      aria-describedby="webNavigationAccessStatus"
+                      disabled
+                    >
+                      Grant optional access
+                    </button>
+                    <button
+                      id="removeWebNavigationAccess"
+                      class="btn secondary"
+                      type="button"
+                      aria-describedby="webNavigationAccessStatus"
+                      disabled
+                    >
+                      Remove access
+                    </button>
+                  </div>
+                </div>
                 <div class="setting-row">
                   <div>
                     <strong>Probe partitioned cookies by embedding site</strong>
-                    <p>Uses discovered embedding pages as additional CHIPS partition-key probes.</p>
+                    <p>
+                      Uses discovered embedding pages as additional CHIPS partition-key probes. Optional combinations
+                      stay within a fixed per-store hard cap and the reviewed per-run query allocation; review and
+                      reports identify omissions from each limit separately.
+                    </p>
                   </div>
                   <label class="switch"
                     ><input id="probePartitionedCookiesWithEmbeddingSites" type="checkbox" disabled /><span></span
@@ -455,7 +489,7 @@
               <div class="setting-row status-row">
                 <div>
                   <strong>Autofill and payment methods are protected</strong>
-                  <p>SiteWipe never calls Chrome's profile-wide form-data removal API.</p>
+                  <p>SiteWipe never calls the browser's profile-wide form-data removal API.</p>
                 </div>
                 <span class="badge success">Protected</span>
               </div>
@@ -608,6 +642,7 @@
                 Reset SiteWipe local state
               </button>
             </div>
+            <p id="resetOutcome" class="help-text reset-outcome" role="status" aria-live="polite" hidden></p>
           </section>
 
           <section
@@ -786,7 +821,10 @@ Self-tests not run.</pre>
           </div>
         </section>
       </section>
-      <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+      <div id="toast" class="toast" hidden>
+        <span id="toastMessage" class="toast-message" role="status" aria-live="polite" aria-atomic="true"></span>
+        <button id="dismissToast" class="toast-dismiss" type="button" disabled>Dismiss</button>
+      </div>
     </main>
     <script type="module" src="options.js"></script>
   </body>

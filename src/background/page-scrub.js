@@ -5,8 +5,8 @@ import {
 } from '../shared/target-scope.js';
 import { readableMessage, throwIfCancellationRequested, withTimeoutReject, yieldEvery } from './operation-control.js';
 import { addSection, addUnavailable, createAdapterOutcome } from './report.js';
+import { MAX_PAGE_SCRIPT_TABS } from './cleanup-capacity.js';
 
-const MAX_PAGE_SCRIPT_TABS = 25;
 const PAGE_SCRIPT_TIMEOUT_MS = 2_000;
 const PAGE_INJECTION_TIMEOUT_MS = 10_000;
 const MAX_PAGE_SCRIPT_INDEXED_DBS = 20;
@@ -126,6 +126,7 @@ export async function scrubOpenPageData(target, report, context, options = {}) {
       options.operationBudget?.claimQuery('live-page scrub tab revalidation');
       liveTab = await chrome.tabs.get(item.tabId);
     } catch (error) {
+      if (error?.name === 'AbortError' || error?.name === 'OperationBudgetExceededError') throw error;
       totals.targetsSkippedAfterRevalidation += 1;
       totals.errors.push({
         tabId: item.tabId,
@@ -519,7 +520,9 @@ export async function pageVisibleStorageScrubber(targetScope, includeStorageBuck
   let timeoutId = null;
   const timeout = new Promise((resolve) => {
     timeoutId = setTimeout(() => {
-      errors.push(`Live scrub timed out after ${timeoutMs}ms; remaining async page cleanup may be skipped by Chrome.`);
+      errors.push(
+        `Live scrub timed out after ${timeoutMs}ms; remaining async page cleanup may be skipped by the browser.`
+      );
       result.timedOut = true;
       result.outcomeUnknown = true;
       result.lateOperationsMayContinue = true;

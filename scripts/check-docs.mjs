@@ -2,7 +2,17 @@ import { lstat, readFile, readdir } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  findCurrentChangelogStageClaims,
+  findCurrentStatusSurfaceFindings,
+  findDeferredCurrentCandidateFindings,
+  findReleaseReadinessForwardCandidateFindings,
+  findReleaseGuideChronologyClaims
+} from './documentation-truth-contract.mjs';
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const pkg = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
+const currentVersion = pkg.version;
 const markdown = [...(await filesBelow(root, (path) => path.endsWith('.md')))].filter((path) => !ignored(path));
 const failures = [];
 const exactStatus =
@@ -33,6 +43,29 @@ for (const path of markdown) {
   const text = await readFile(path, 'utf8');
   if (statusRequired.has(repoPath) && !text.includes(exactStatus))
     failures.push(`${repoPath}: exact release status missing`);
+  for (const finding of findCurrentStatusSurfaceFindings(repoPath, text)) {
+    failures.push(`${repoPath}: ${finding}`);
+  }
+  if (repoPath === 'CHANGELOG.md') {
+    for (const finding of findCurrentChangelogStageClaims(text, currentVersion)) {
+      failures.push(`${repoPath}: ${finding}`);
+    }
+  }
+  if (repoPath === 'docs/releasing.md') {
+    for (const finding of findReleaseGuideChronologyClaims(text)) {
+      failures.push(`${repoPath}: transient release chronology is not historical or transaction-bound: ${finding}`);
+    }
+  }
+  if (repoPath === 'docs/release-readiness.md') {
+    for (const finding of findReleaseReadinessForwardCandidateFindings(text, currentVersion)) {
+      failures.push(`${repoPath}: ${finding}`);
+    }
+  }
+  if (repoPath === 'docs/evidence/deferred-source-candidate-issues.md') {
+    for (const finding of findDeferredCurrentCandidateFindings(text)) {
+      failures.push(`${repoPath}: ${finding}`);
+    }
+  }
   for (const match of text.matchAll(/!?(?:\[[^\]]*\])\(([^)]+)\)/g)) {
     let target = match[1].trim().replace(/^<|>$/g, '');
     if (!target || /^(?:https?:|mailto:|#)/i.test(target)) continue;

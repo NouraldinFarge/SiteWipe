@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "status": "superseded_before_complete_validation",
+  "validatedAt": null,
+  "releaseState": "Superseded local-only source candidate; clean installation, complete validation, coverage, build, commit, push, and publication did not occur.",
+  "environment": {},
+  "baseline": {
+    "beforeState": "The 1.11.86 record remains unchanged in automated-validation-2026-08-25-v1.11.86.json.",
+    "baselineVersion": "1.11.86",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-25-v1.11.86.json"
+  },
+  "supersession": {
+    "status": "superseded_before_complete_validation",
+    "issue": "SW-076",
+    "reason": "A post-bump audit found that the staged release prose falsely claimed the required 1.11.87 version transaction changed no runtime file or byte, even though version-bearing runtime metadata changed. The same audit also found the compatible Node 24.18.1 security release, which retains npm 11.16.0 and is preferable to the initially staged Node 24.18.0 public-release toolchain pin.",
+    "nextAction": "Preserve this 1.11.87 record as superseded history, correct the source-truth and security-aware toolchain wording, and perform those stable-input changes only in a forward version transaction.",
+    "preBumpEvidenceLimitation": "Documentation, action-pin, version-contract, and focused publication-contract checks do not certify a complete exact 1.11.87 candidate."
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "not_run",
+    "versionContract": {
+      "command": "npm run check:version",
+      "status": "passed",
+      "version": "1.11.87",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "3D723124D567EFA1117F35BF4714AEAF12CA35F507FFBD8DF21D5CD136E0E900",
+      "stableReleaseInputFingerprintSha256": "9A6B1EF8519FE997432971523FCFBD101B80F1B7A5F8A1BF62E24D678F6533C1"
+    },
+    "manifest": {
+      "status": "not_run",
+      "version": "1.11.87"
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "status": "not_run",
+      "reason": "The candidate was superseded after the post-bump audit and before the complete check began."
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "not_run",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    }
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "not_run",
+    "installedPackages": null,
+    "auditedPackagesIncludingRoot": null,
+    "lifecycleScriptsDisabled": null,
+    "deprecationWarnings": []
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=low --json",
+    "status": "not_run",
+    "auditedAt": null,
+    "knownVulnerabilities": null,
+    "runtimeDependencies": null,
+    "lockedDevelopmentGraph": null,
+    "lockfileSha256": null
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "not_run",
+    "redactionCanaries": "not_run",
+    "privateContextPersistenceRefusal": "not_run",
+    "deterministicThirtyMinuteExpiry": "not_run"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "not_run",
+    "installedChromeRun": "not_run",
+    "installedBraveRun": "not_run"
+  },
+  "gitInitialization": {
+    "status": "not_run",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "No candidate commit, clean-checkout validation, push, remote check, or publication action was performed for superseded 1.11.87."
+  },
+  "artifacts": {
+    "status": "not_run",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.87.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.87-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "pending",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.87.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.87.unsigned-provenance-input.json",
+    "remoteAttestation": "pending",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated_superseded",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "Exact 1.11.87 was superseded before complete validation after its post-bump source-truth and toolchain-security audit.",
+      "No clean dependency install, dependency audit, complete check, property suite, coverage run, artifact build, browser validation, accessibility review, performance measurement, media capture, commit, push, remote validation, or publication action was completed for this version."
+    ]
+  },
+  "limitations": [
+    "No automated, installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior.",
+    "The passing version contract records only the exact 1.11.87 runtime and stable-input fingerprints shown above; it is not a passing complete check.",
+    "Focused post-bump publication-contract tests passed 243/243, but they do not replace the complete check, property suite, coverage command, clean install, dependency audit, or exact artifact validation.",
+    "No browser run, build, artifact, commit, push, remote-publication action, or public-release action is claimed for superseded 1.11.87."
+  ]
+}

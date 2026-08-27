@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "status": "local_automated_validation_failed",
+  "validatedAt": "2026-08-25T12:52:28.6507782-05:00",
+  "releaseState": "Public-source prerelease candidate undergoing safety, privacy, accessibility, and binary-release validation.",
+  "environment": {
+    "node": "v24.18.0",
+    "npm": "11.16.0",
+    "scope": "Exact local 1.11.90 first complete-check attempt and the required direct version-contract recheck after canonical formatting. Downstream safeguards, coverage, artifacts, browsers, commit, push, and remote validation did not run."
+  },
+  "baseline": {
+    "beforeState": "The 1.11.89 record remains unchanged in automated-validation-2026-08-25-v1.11.89.json.",
+    "baselineVersion": "1.11.89",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-25-v1.11.89.json"
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "failed",
+    "format": "failed_first_attempt_passed_after_mechanical_correction",
+    "versionContract": {
+      "status": "failed_after_format_correction",
+      "version": "1.11.90",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "9C13E705B4A512C8AEE33187263A10A619567586D603EF58E25C59F2C220CEB1",
+      "sealedStableReleaseInputFingerprintSha256": "00F71615D2107AD9528E31AF92794BE4FA9CEFE2BECAF316A4D1CC6E79414650",
+      "observedFormattedStableReleaseInputFingerprintSha256": "C8142B21B7BACA622C0C79BBDCB82AF7544CEE579E24043AE6C06A6088C20832",
+      "reason": "Canonical formatting changed six stable validation/tooling files after the 1.11.90 transaction, so the formatted tree no longer matched the sealed stable-input fingerprint."
+    },
+    "manifest": {
+      "status": "not_run",
+      "version": "1.11.90"
+    },
+    "failure": {
+      "firstAttempt": "npm run check stopped at check:format because six newly added or modified validation/tooling files were not in canonical Prettier form.",
+      "secondAttempt": "After mechanically formatting exactly those six files, npm run check passed check:format and stopped at check:version because the stable-input fingerprint correctly differed from the sealed 1.11.90 value.",
+      "interpretation": "This is a release-blocking post-transaction stable-input failure. The formatted bytes must advance to a new version; neither result can be converted into a 1.11.90 pass."
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "status": "not_run",
+      "reason": "Both complete-check command chains stopped before the property-test stage."
+    }
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "not_run",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    }
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "not_run",
+    "installedPackages": null,
+    "auditedPackagesIncludingRoot": null,
+    "lifecycleScriptsDisabled": null,
+    "deprecationWarnings": []
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=low --json",
+    "status": "not_run",
+    "auditedAt": null,
+    "knownVulnerabilities": null,
+    "runtimeDependencies": null,
+    "lockedDevelopmentGraph": null,
+    "lockfileSha256": null
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "not_run",
+    "redactionCanaries": "not_run",
+    "privateContextPersistenceRefusal": "not_run",
+    "deterministicThirtyMinuteExpiry": "not_run"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "not_run",
+    "installedChromeRun": "not_run",
+    "installedBraveRun": "not_run"
+  },
+  "gitInitialization": {
+    "status": "not_run",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "No exact 1.11.90 candidate commit, clean-checkout validation, push, or remote check was performed."
+  },
+  "artifacts": {
+    "status": "not_run",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.11.90.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.11.90-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "not_run",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.11.90.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.11.90.unsigned-provenance-input.json",
+    "remoteAttestation": "not_run",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "Exact 1.11.90 failed at canonical formatting and then at the required post-format stable-input fingerprint check.",
+      "Property tests, coverage, artifacts, installed browsers, accessibility, performance, media, independent review, commit, push, and remote validation did not run."
+    ]
+  },
+  "limitations": [
+    "No automated, installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior.",
+    "Exact 1.11.90 has no complete local safeguard result and cannot be reused after the stable-input formatting change.",
+    "No coverage, artifact, browser, accessibility, performance, media, Git publication, or remote result is claimed for 1.11.90."
+  ]
+}

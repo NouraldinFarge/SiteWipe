@@ -21,9 +21,36 @@ import {
   recordCleanupPermissionGrantOutcome,
   recordCleanupPermissionPromptIntent,
   recordCleanupPermissionPromptInvocation,
+  resolveCleanupReviewScope,
+  retireAbandonedDirectReviewForPopupContext,
   stageCleanupReviewApprovalRequest,
   prepareCleanupReviewRequest as prepareCleanupReviewRequestImpl
 } from '../../src/background/cleanup-preflight.js';
+
+test('associated-domain error gate blocks malformed input unless explicitly disabled', () => {
+  const associatedDomainGroups = 'example.com => examplecdn.com\nbroken line';
+  assert.throws(
+    () =>
+      resolveCleanupReviewScope('example.com', {
+        cleanupMode: 'expert',
+        associatedDomainGroups,
+        blockOnAssociatedGroupErrors: true
+      }),
+    /contain 1 error.*disable the associated-group error gate/i
+  );
+
+  const partial = resolveCleanupReviewScope('example.com', {
+    cleanupMode: 'expert',
+    associatedDomainGroups,
+    blockOnAssociatedGroupErrors: false
+  });
+  assert.deepEqual(partial.associated.applied, [
+    { input: 'examplecdn.com', matchMode: 'registrable_domain', exactOrigin: null }
+  ]);
+  assert.equal(partial.associated.errors.length, 1);
+  assert.equal(partial.associated.errors[0].line, 2);
+  assert.deepEqual(partial.target.associatedDisplayNames, ['examplecdn.com']);
+});
 
 function withVerifiedSourceWindow(payload, dependencies = {}) {
   return {
@@ -38,7 +65,18 @@ function withVerifiedSourceWindow(payload, dependencies = {}) {
 }
 
 function prepareCleanupReviewRequest(payload, dependencies) {
-  return prepareCleanupReviewRequestImpl(payload, withVerifiedSourceWindow(payload, dependencies));
+  const inspectImpact = dependencies?.inspectImpact;
+  return prepareCleanupReviewRequestImpl(
+    payload,
+    withVerifiedSourceWindow(payload, {
+      ...dependencies,
+      ...(typeof inspectImpact === 'function'
+        ? {
+            inspectImpact: async (...args) => completeCapacityImpactFixture(await inspectImpact(...args))
+          }
+        : {})
+    })
+  );
 }
 
 function consumeCleanupReviewRequest(payload, dependencies) {
@@ -83,6 +121,48 @@ function detailedApproval(overrides = {}) {
     protectedWebOrigins: false,
     fileConfirmationText: '',
     ...overrides
+  };
+}
+
+function completeCapacityImpactFixture(value = {}) {
+  const matchingTabs = Number.isSafeInteger(value.matchingTabs) ? value.matchingTabs : 0;
+  const matchingHistoryEntries = Number.isSafeInteger(value.matchingHistoryEntries) ? value.matchingHistoryEntries : 0;
+  const matchingDownloadRecords = Math.max(
+    Number.isSafeInteger(value.matchingDownloadRecords) ? value.matchingDownloadRecords : 0,
+    Array.isArray(value.matchedCompletedFileIds) ? value.matchedCompletedFileIds.length : 0
+  );
+  return {
+    ...value,
+    matchingTabs,
+    tabEnumerationComplete: value.tabEnumerationComplete ?? true,
+    matchingHistoryEntries,
+    matchingHistoryEntriesLowerBound: value.matchingHistoryEntriesLowerBound ?? matchingHistoryEntries,
+    matchingDownloadRecords,
+    matchingDownloadRecordsLowerBound: value.matchingDownloadRecordsLowerBound ?? matchingDownloadRecords,
+    cookieStoreCount: value.cookieStoreCount ?? 1,
+    cookieStoreEnumerationComplete: value.cookieStoreEnumerationComplete ?? true,
+    overlayEligibleTabs: value.overlayEligibleTabs ?? matchingTabs,
+    discoveryEvidence: value.discoveryEvidence || {
+      history: completeDiscoveryEvidence('history', matchingHistoryEntries),
+      downloads: completeDiscoveryEvidence('downloads', matchingDownloadRecords)
+    }
+  };
+}
+
+function completeDiscoveryEvidence(kind, matches) {
+  return {
+    kind,
+    queriesPlanned: 1,
+    queriesRun: 1,
+    recordsObserved: matches,
+    matches,
+    cappedQueries: 0,
+    queryResultCapReached: false,
+    matchCapReached: false,
+    queryFailures: 0,
+    complete: true,
+    truncated: false,
+    limitations: []
   };
 }
 
@@ -151,6 +231,30 @@ test('impact inspection uses only read APIs before approval', async () => {
     assert.equal(impactWithPrivateAccess.matchingDownloadRecords, 2);
     assert.deepEqual(impactWithPrivateAccess.matchedCompletedFileIds.sort(), ['7', '8']);
     assert.deepEqual(mutations, []);
+  } finally {
+    globalThis.chrome = originalChrome;
+  }
+});
+
+test('preflight tab observations stay incomplete after failed or malformed enumeration', async () => {
+  const originalChrome = globalThis.chrome;
+  try {
+    for (const query of [
+      async () => Promise.reject(new Error('Synthetic tab enumeration failure.')),
+      async () => ({ 0: { id: 1, url: 'https://example.com/' } })
+    ]) {
+      globalThis.chrome = {
+        tabs: { query },
+        history: { search: async () => [] },
+        downloads: { search: async () => [] }
+      };
+      const normalized = normalizeSiteInput('example.com');
+      const impact = await inspectCleanupImpact(normalized.target, {});
+      assert.equal(impact.tabEnumerationComplete, false);
+      assert.equal(impact.matchingTabs, null);
+      assert.equal(impact.overlayEligibleTabs, null);
+      assert.ok(impact.limitations.some((item) => /tab impact could not be counted/i.test(item)));
+    }
   } finally {
     globalThis.chrome = originalChrome;
   }
@@ -391,10 +495,315 @@ test('a live review cannot be overwritten by another popup window', async () => 
       { input: 'bob.blogspot.com', sourceWindowId: 6, sourceIncognito: false },
       { ...dependencies, createToken: async () => 'second-window-review-token' }
     ),
-    /Another cleanup review is active/
+    (error) => {
+      assert.match(error.message, /Another cleanup review is active/);
+      assert.match(error.message, /browser site-access prompt/);
+      assert.doesNotMatch(error.message, /Chrome site-access prompt/);
+      return true;
+    }
   );
   assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY].token, 'first-window-review-token');
   assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY].target.domain, 'alice.blogspot.com');
+});
+
+test('a closed YouTube direct preflight cannot lock a fresh Reddit target in the same window', async () => {
+  const session = createSessionStorage();
+  const activePopupContexts = new Set(['popup-context-youtube-direct']);
+  let currentSettings = {
+    cleanupMode: 'expert',
+    skipCleanupReview: true,
+    reducedMotion: false,
+    redactReports: true
+  };
+  let impactInspections = 0;
+  let hostPermissionReleaseCalls = 0;
+  const removedStorageKeys = [];
+  const removeFromSession = session.remove.bind(session);
+  session.remove = async (key) => {
+    removedStorageKeys.push(key);
+    await removeFromSession(key);
+  };
+  const commonDependencies = {
+    getSettings: async () => currentSettings,
+    isIncognitoAllowed: async () => false,
+    hasHostPermissions: async () => true,
+    releaseHostPermissions: async () => {
+      hostPermissionReleaseCalls += 1;
+      return true;
+    },
+    inspectImpact: async () => {
+      impactInspections += 1;
+      return { matchingTabs: 1, matchedCompletedFileIds: [] };
+    },
+    storageSession: session,
+    storageLocal: session,
+    now: () => 1_000,
+    isPreparationContextActive: async (contextId) => activePopupContexts.has(contextId),
+    getPendingPromptContextId: () => null
+  };
+  const youtube = await prepareCleanupReviewRequest(
+    { input: 'youtube.com', sourceWindowId: 5, sourceIncognito: false },
+    {
+      ...commonDependencies,
+      preparationContextId: 'popup-context-youtube-direct',
+      createToken: async () => 'youtube-abandoned-direct-review'
+    }
+  );
+  assert.equal(youtube.review.normalizedTarget, 'youtube.com');
+  assert.equal(youtube.review.approvalMode, 'settings_direct');
+  assert.equal(youtube.review.permissionLeaseId, null);
+
+  activePopupContexts.clear();
+  activePopupContexts.add('popup-context-reddit-direct');
+  currentSettings = { ...currentSettings, reducedMotion: true };
+  const reddit = await prepareCleanupReviewRequest(
+    { input: 'reddit.com', sourceWindowId: 5, sourceIncognito: false },
+    {
+      ...commonDependencies,
+      preparationContextId: 'popup-context-reddit-direct',
+      createToken: async () => 'reddit-fresh-direct-review'
+    }
+  );
+
+  assert.equal(reddit.review.normalizedTarget, 'reddit.com');
+  assert.equal(reddit.review.approvalToken, 'reddit-fresh-direct-review');
+  assert.equal(reddit.resumed, undefined);
+  assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY].token, 'reddit-fresh-direct-review');
+  assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY].preparationContextId, 'popup-context-reddit-direct');
+  assert.equal(
+    session.values[CLEANUP_REVIEW_STORAGE_KEY].settings.reducedMotion,
+    true,
+    'fresh authority is independently bound to the changed safe setting'
+  );
+  assert.equal(impactInspections, 2);
+  assert.deepEqual(
+    removedStorageKeys,
+    [CLEANUP_REVIEW_STORAGE_KEY],
+    'the live abandoned-review path retires its old token once and must not run expired-review cleanup afterward'
+  );
+  assert.equal(hostPermissionReleaseCalls, 0, 'pre-existing browser access is preserved');
+  assert.equal(
+    session.values['sitewipe.permissionLease.v1'],
+    undefined,
+    'the pre-granted path has no lease to recover'
+  );
+});
+
+test('a closed uninvoked YouTube lease is replaced by a fresh exact-bound Reddit lease without access removal', async () => {
+  const session = createSessionStorage();
+  let hostPermissionReleaseCalls = 0;
+  const commonDependencies = {
+    getSettings: async () => ({ cleanupMode: 'expert', skipCleanupReview: true, redactReports: true }),
+    isIncognitoAllowed: async () => false,
+    hasHostPermissions: async () => false,
+    inspectImpact: async () => ({ matchingTabs: 1, matchedCompletedFileIds: [] }),
+    storageSession: session,
+    storageLocal: session,
+    now: () => 1_000,
+    isPreparationContextActive: async () => false,
+    getPendingPromptContextId: () => null,
+    releaseHostPermissions: async () => {
+      hostPermissionReleaseCalls += 1;
+      return true;
+    }
+  };
+  const youtube = await prepareCleanupReviewRequest(
+    { input: 'youtube.com', sourceWindowId: 5, sourceIncognito: false },
+    {
+      ...commonDependencies,
+      preparationContextId: 'popup-context-youtube-lease',
+      createToken: async () => 'youtube-proofless-lease-review'
+    }
+  );
+  const youtubeLease = structuredClone(session.values['sitewipe.permissionLease.v1']);
+  assert.equal(youtubeLease.id, youtube.review.permissionLeaseId);
+  assert.equal(youtubeLease.status, 'prompt_pending');
+  assert.equal(youtubeLease.ownershipProof, null);
+
+  const reddit = await prepareCleanupReviewRequest(
+    { input: 'reddit.com', sourceWindowId: 5, sourceIncognito: false },
+    {
+      ...commonDependencies,
+      preparationContextId: 'popup-context-reddit-lease',
+      createToken: async () => 'reddit-fresh-lease-review'
+    }
+  );
+  const redditLease = session.values['sitewipe.permissionLease.v1'];
+  assert.equal(reddit.review.normalizedTarget, 'reddit.com');
+  assert.equal(session.values[CLEANUP_REVIEW_STORAGE_KEY].token, 'reddit-fresh-lease-review');
+  assert.notEqual(redditLease.id, youtubeLease.id);
+  assert.equal(redditLease.id, reddit.review.permissionLeaseId);
+  assert.equal(redditLease.status, 'prompt_pending');
+  assert.equal(redditLease.ownershipProof, null);
+  assert.deepEqual(redditLease.requestedOrigins, reddit.review.requiredHostPermissionOrigins);
+  assert.equal(hostPermissionReleaseCalls, 0, 'proofless lease replacement preserves all browser-controlled access');
+});
+
+test('a final pending arm reservation beats closed-context retirement and preserves the YouTube review', async () => {
+  const session = createSessionStorage();
+  let pendingArmReads = 0;
+  let contextInspections = 0;
+  const dependencies = {
+    getSettings: async () => ({ cleanupMode: 'expert', skipCleanupReview: true, redactReports: true }),
+    isIncognitoAllowed: async () => false,
+    hasHostPermissions: async () => false,
+    inspectImpact: async () => ({ matchingTabs: 1, matchedCompletedFileIds: [] }),
+    storageSession: session,
+    storageLocal: session,
+    now: () => 1_000,
+    preparationContextId: 'popup-context-youtube-arm-race',
+    createToken: async () => 'youtube-pending-arm-race-review',
+    isPreparationContextActive: async () => {
+      contextInspections += 1;
+      return false;
+    },
+    getPendingPromptContextId: () => {
+      pendingArmReads += 1;
+      return pendingArmReads >= 2 ? 'popup-context-youtube-arm-race' : null;
+    }
+  };
+  await prepareCleanupReviewRequest({ input: 'youtube.com', sourceWindowId: 5, sourceIncognito: false }, dependencies);
+  const originalReview = structuredClone(session.values[CLEANUP_REVIEW_STORAGE_KEY]);
+  const originalLease = structuredClone(session.values['sitewipe.permissionLease.v1']);
+
+  await assert.rejects(
+    prepareCleanupReviewRequest(
+      { input: 'reddit.com', sourceWindowId: 5, sourceIncognito: false },
+      {
+        ...dependencies,
+        preparationContextId: 'popup-context-reddit-arm-race',
+        createToken: async () => 'reddit-lost-arm-race-review'
+      }
+    ),
+    /Another cleanup review is active/i
+  );
+
+  assert.equal(contextInspections, 1);
+  assert.equal(pendingArmReads, 2, 'the arm reservation arrives after the first check and before retirement');
+  assert.deepEqual(session.values[CLEANUP_REVIEW_STORAGE_KEY], originalReview);
+  assert.deepEqual(session.values['sitewipe.permissionLease.v1'], originalLease);
+});
+
+test('fresh-popup hydration fails closed for a live context or uncertain uninvoked lease ownership', async () => {
+  for (const scenario of ['live-popup', 'owned-lease', 'uncertain-context']) {
+    const session = createSessionStorage();
+    const activePopupContexts = new Set(['popup-context-youtube-direct']);
+    const dependencies = {
+      getSettings: async () => ({ cleanupMode: 'expert', skipCleanupReview: true, redactReports: true }),
+      isIncognitoAllowed: async () => false,
+      hasHostPermissions: async () => false,
+      inspectImpact: async () => ({ matchingTabs: 1, matchedCompletedFileIds: [] }),
+      storageSession: session,
+      storageLocal: session,
+      now: () => 1_000,
+      preparationContextId: 'popup-context-youtube-direct',
+      createToken: async () => `youtube-${scenario}-review-token`,
+      isPreparationContextActive: async (contextId) => {
+        if (scenario === 'uncertain-context') throw new Error('Synthetic popup context inspection unavailable.');
+        return activePopupContexts.has(contextId);
+      },
+      getPendingPromptContextId: () => null
+    };
+    await prepareCleanupReviewRequest(
+      { input: 'youtube.com', sourceWindowId: 5, sourceIncognito: false },
+      dependencies
+    );
+    const originalReview = structuredClone(session.values[CLEANUP_REVIEW_STORAGE_KEY]);
+    const originalLease = structuredClone(session.values['sitewipe.permissionLease.v1']);
+    if (scenario !== 'live-popup') activePopupContexts.clear();
+    if (scenario === 'owned-lease') {
+      session.values['sitewipe.permissionLease.v1'].ownershipProof = 'reviewed_prompt_grant';
+    }
+
+    const retirement = retireAbandonedDirectReviewForPopupContext({
+      ...dependencies,
+      preparationContextId: 'popup-context-reddit-direct'
+    });
+    if (scenario === 'uncertain-context') {
+      await assert.rejects(retirement, /popup context inspection unavailable/i);
+    } else {
+      assert.deepEqual(await retirement, {
+        retired: false,
+        reason: scenario === 'live-popup' ? 'old_popup_context_active' : 'lease_not_exact_proofless_prompt_pending'
+      });
+    }
+    assert.deepEqual(session.values[CLEANUP_REVIEW_STORAGE_KEY], originalReview);
+    assert.deepEqual(session.values['sitewipe.permissionLease.v1'], {
+      ...originalLease,
+      ...(scenario === 'owned-lease' ? { ownershipProof: 'reviewed_prompt_grant' } : {})
+    });
+  }
+});
+
+test('fresh-popup hydration preserves armed, invoked, and tombstoned direct permission states', async () => {
+  for (const scenario of ['armed', 'invoked', 'tombstone']) {
+    const session = createSessionStorage();
+    const oldContextId = `popup-context-youtube-${scenario}`;
+    const payload = { input: 'youtube.com', sourceWindowId: 5, sourceIncognito: false };
+    const dependencies = {
+      getSettings: async () => ({ cleanupMode: 'expert', skipCleanupReview: true, redactReports: true }),
+      isIncognitoAllowed: async () => false,
+      hasHostPermissions: async () => false,
+      inspectImpact: async () => ({ matchingTabs: 1, matchedCompletedFileIds: [] }),
+      storageSession: session,
+      storageLocal: session,
+      now: () => 1_000,
+      preparationContextId: oldContextId,
+      promptContextId: oldContextId,
+      createToken: async () => `youtube-${scenario}-direct-token`,
+      isPreparationContextActive: async () => false,
+      getPendingPromptContextId: () => null
+    };
+    const prepared = await prepareCleanupReviewRequest(payload, dependencies);
+    await armCleanupReviewApprovalRequest(
+      {
+        approvalToken: prepared.review.approvalToken,
+        handoffNonce: prepared.review.approvalHandoffNonce,
+        sourceWindowId: 5,
+        sourceIncognito: false,
+        popupContextId: oldContextId,
+        approval: {
+          approvalMode: 'settings_direct',
+          reviewedScope: false,
+          associatedTargets: false,
+          localOrIpTarget: false,
+          protectedWebOrigins: false,
+          fileConfirmationText: ''
+        }
+      },
+      withVerifiedSourceWindow(payload, dependencies)
+    );
+    if (scenario !== 'armed') {
+      await recordCleanupPermissionPromptIntent(
+        { handoffNonce: prepared.review.approvalHandoffNonce, popupContextId: oldContextId },
+        dependencies
+      );
+      await recordCleanupPermissionPromptInvocation(
+        { handoffNonce: prepared.review.approvalHandoffNonce, popupContextId: oldContextId },
+        dependencies
+      );
+    }
+    if (scenario === 'tombstone') {
+      const canceled = await cancelCleanupReviewRequest(
+        { approvalToken: prepared.review.approvalToken },
+        { ...dependencies, tombstoneReason: 'synthetic_popup_hydration_tombstone' }
+      );
+      assert.equal(canceled.promptTombstoneRetained, true);
+    }
+    const originalReview = structuredClone(session.values[CLEANUP_REVIEW_STORAGE_KEY]);
+    const originalLease = structuredClone(session.values['sitewipe.permissionLease.v1']);
+
+    const result = await retireAbandonedDirectReviewForPopupContext({
+      ...dependencies,
+      preparationContextId: `popup-context-reddit-after-${scenario}`
+    });
+
+    assert.deepEqual(result, { retired: false, reason: 'review_not_direct_unarmed' });
+    assert.equal(originalReview.approvalHandoff.status, scenario === 'tombstone' ? 'prompt_tombstone' : 'armed');
+    assert.equal(Boolean(originalReview.approvalHandoff.promptInvocation), scenario !== 'armed');
+    assert.deepEqual(session.values[CLEANUP_REVIEW_STORAGE_KEY], originalReview);
+    assert.deepEqual(session.values['sitewipe.permissionLease.v1'], originalLease);
+  }
 });
 
 test('an equivalent same-context retry rotates popup authority without extending the direct review', async () => {
@@ -1821,7 +2230,7 @@ test('popup keeps default review preparation and uses only the prepared direct c
   assert.match(source, /async function prepareDirectCleanup\(input\)/);
   assert.match(
     source,
-    /cleanupApprovalHandoffIsArmed\(directCleanupReview\)[\s\S]*?'Grant access and clean'[\s\S]*?: 'Clean now'/
+    /cleanupApprovalHandoffIsArmed\(directCleanupReview\)[\s\S]*?'Open reviewed access tab'[\s\S]*?: 'Clean now'/
   );
   assert.doesNotMatch(source, /approvalMode: 'quick'/);
 });

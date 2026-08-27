@@ -11,6 +11,7 @@ import {
   cookieHost,
   cookieKey,
   cookieMatchesTarget,
+  describeCookieDiscoveryQueryDemand,
   MAX_COOKIE_DISCOVERY_QUERIES,
   safeGetCookies,
   safeGetCookieStores,
@@ -24,12 +25,17 @@ import {
   throwIfCancellationRequested,
   yieldEvery
 } from './operation-control.js';
-import { discoverMatchingDownloads, discoverMatchingHistory } from './record-discovery.js';
+import { discoverMatchingDownloadsWithEvidence, discoverMatchingHistoryWithEvidence } from './record-discovery.js';
+import {
+  MAX_EMBEDDED_FRAME_DISCOVERY_QUERIES,
+  MAX_SUPPORTED_COOKIE_STORES,
+  PREFLIGHT_OPERATION_MAX_QUERIES
+} from './cleanup-capacity.js';
 import { addError, addSection, addUnavailable } from './report.js';
 
 const MAX_ADDITIONAL_DISCOVERED_ORIGINS = 300;
 const MAX_PARTITION_TOP_LEVEL_SITES = 50;
-const MAX_FRAME_DISCOVERY_TABS = 60;
+const MAX_FRAME_DISCOVERY_TABS = MAX_EMBEDDED_FRAME_DISCOVERY_QUERIES;
 const MAX_MATCHING_FRAMES = 100;
 const COOKIE_DISCOVERY_CONCURRENCY = 6;
 const FRAME_DISCOVERY_CONCURRENCY = 4;
@@ -42,17 +48,26 @@ export async function inspectCleanupImpact(target, options = {}) {
     createOperationBudget({
       label: 'cleanup preflight',
       maxDurationMs: 45_000,
-      maxQueries: 750,
+      maxQueries: PREFLIGHT_OPERATION_MAX_QUERIES,
       maxRecords: 100_000
     });
   options = { ...options, operationBudget };
+  const discoveryEvidence = { history: null, downloads: null };
+  options = { ...options, discoveryEvidence };
   const impact = {
     matchingTabs: null,
     matchingPrivateTabs: null,
+    tabEnumerationComplete: false,
     matchingHistoryEntries: null,
+    matchingHistoryEntriesLowerBound: null,
     matchingDownloadRecords: null,
+    matchingDownloadRecordsLowerBound: null,
     matchedCompletedFileCount: null,
     matchedCompletedFileIds: null,
+    cookieStoreCount: null,
+    cookieStoreEnumerationComplete: false,
+    overlayEligibleTabs: null,
+    discoveryEvidence,
     limitations: []
   };
 
@@ -63,14 +78,20 @@ export async function inspectCleanupImpact(target, options = {}) {
         try {
           operationBudget.claimQuery('preflight tab discovery');
           const tabs = await chrome.tabs.query({});
+          if (!Array.isArray(tabs)) throw new Error('chrome.tabs.query returned a malformed tab list.');
           operationBudget.observeRecords(tabs?.length || 0, 'preflight tab discovery results');
-          const matching = (tabs || []).filter(
+          const reviewedTabs = (tabs || []).filter((tab) =>
+            tabIsWithinReviewedPrivateScope(tab, options.incognitoAccess === true)
+          );
+          const matching = reviewedTabs.filter(
             (tab) =>
               Number.isInteger(tab?.id) &&
               tabMatchesReviewedCleanupTarget(tab, target, options.incognitoAccess === true)
           );
           impact.matchingTabs = matching.length;
           impact.matchingPrivateTabs = matching.filter((tab) => tab.incognito).length;
+          impact.overlayEligibleTabs = countOverlayEligibleTabs(reviewedTabs, matching, options);
+          impact.tabEnumerationComplete = true;
         } catch (error) {
           impact.limitations.push(`Open-tab impact could not be counted: ${readableMessage(error)}`);
         }
@@ -80,12 +101,38 @@ export async function inspectCleanupImpact(target, options = {}) {
     impact.limitations.push('Open-tab impact could not be counted because chrome.tabs.query is unavailable.');
   }
 
+  if (chrome.cookies?.getAllCookieStores) {
+    tasks.push(
+      (async () => {
+        try {
+          operationBudget.claimQuery('preflight cookie-store discovery');
+          const result = await safeGetCookieStores();
+          operationBudget.observeRecords(result.stores.length, 'preflight cookie-store discovery results');
+          if (!result.ok) throw new Error(result.error || 'Cookie stores could not be enumerated.');
+          impact.cookieStoreCount = result.stores.length;
+          impact.cookieStoreEnumerationComplete = true;
+        } catch (error) {
+          impact.limitations.push(`Cookie-store impact could not be counted: ${readableMessage(error)}`);
+        }
+      })()
+    );
+  } else {
+    impact.cookieStoreCount = 0;
+    impact.cookieStoreEnumerationComplete = true;
+    impact.limitations.push('Cookie-store impact is zero because chrome.cookies.getAllCookieStores is unavailable.');
+  }
+
   if (chrome.history?.search) {
     tasks.push(
       (async () => {
         try {
-          impact.matchingHistoryEntries = (await discoverMatchingHistory(target, options)).length;
+          const result = await discoverMatchingHistoryWithEvidence(target, options);
+          impact.discoveryEvidence.history = result.evidence;
+          impact.matchingHistoryEntriesLowerBound = result.items.length;
+          impact.matchingHistoryEntries = result.evidence.complete ? result.items.length : null;
+          if (!result.evidence.complete) impact.limitations.push(...result.evidence.limitations);
         } catch (error) {
+          if (error?.discoveryEvidence) impact.discoveryEvidence.history = error.discoveryEvidence;
           impact.limitations.push(`History impact could not be counted: ${readableMessage(error)}`);
         }
       })()
@@ -98,12 +145,19 @@ export async function inspectCleanupImpact(target, options = {}) {
     tasks.push(
       (async () => {
         try {
-          const downloads = await discoverMatchingDownloads(target, options);
-          const fileIds = reviewedFileIds(downloads);
-          impact.matchingDownloadRecords = downloads.length;
-          impact.matchedCompletedFileIds = fileIds;
-          impact.matchedCompletedFileCount = fileIds.length;
+          const result = await discoverMatchingDownloadsWithEvidence(target, options);
+          const fileIds = reviewedFileIds(result.items);
+          impact.discoveryEvidence.downloads = result.evidence;
+          impact.matchingDownloadRecordsLowerBound = result.items.length;
+          impact.matchingDownloadRecords = result.evidence.complete ? result.items.length : null;
+          // An incomplete download search cannot bind a complete candidate set
+          // for irreversible on-disk deletion. Record cleanup remains limited
+          // to the positively discovered matches at execution time.
+          impact.matchedCompletedFileIds = result.evidence.complete ? fileIds : null;
+          impact.matchedCompletedFileCount = result.evidence.complete ? fileIds.length : null;
+          if (!result.evidence.complete) impact.limitations.push(...result.evidence.limitations);
         } catch (error) {
+          if (error?.discoveryEvidence) impact.discoveryEvidence.downloads = error.discoveryEvidence;
           impact.limitations.push(`Download impact could not be counted: ${readableMessage(error)}`);
         }
       })()
@@ -154,31 +208,54 @@ export async function discoverCleanupScope(target, report, options = {}) {
       failures: 0
     },
     cookies: {
+      queriesUncappedRequested: 0,
+      queryHardCapPerStore: MAX_COOKIE_DISCOVERY_QUERIES,
+      hardCapOmittedQueries: 0,
+      queriesRequested: 0,
+      queriesAllocated: 0,
+      allocationOmittedQueries: 0,
+      totalOmittedQueries: 0,
+      requiredQueriesUncapped: 0,
+      requiredQueriesPlanned: 0,
       queriesPlanned: 0,
       queriesRun: 0,
+      queriesOmitted: 0,
       recordsObserved: 0,
-      queryCapReached: false
+      queryCapReached: false,
+      hardCapTruncated: false,
+      allocationTruncated: false
     }
   };
   options = { ...options, discoveryEvidence };
   const origins = new Set(target.baseOrigins);
   const cookieHosts = new Set();
   const partitionTopLevelSites = new Set(target.partitionTopLevelSites || []);
+  const probedPartitionTopLevelSites = new Set();
   const cookieCandidates = [];
   const cookieQueryFailures = [];
   const storeStats = [];
   let cookieStores = [];
+  let cookieStoreEnumerationComplete = !chrome.cookies;
   let allTabs = [];
+  let tabEnumerationComplete = false;
+  let tabPrivateScopeById = new Map();
   let matchingTabs = [];
   let matchingFrames = [];
   let matchingHistory = [];
   let matchingDownloads = [];
+  let queryCapacityPlan = null;
+  let capacityObservationEmitted = false;
 
   try {
     await throwIfCancellationRequested(options.shouldCancel, 'tab discovery');
     options.operationBudget?.claimQuery('tab discovery');
     const queriedTabs = await chrome.tabs.query({});
+    if (!Array.isArray(queriedTabs)) throw new Error('chrome.tabs.query returned a malformed tab list.');
     options.operationBudget?.observeRecords(queriedTabs?.length || 0, 'tab discovery results');
+    tabEnumerationComplete = true;
+    tabPrivateScopeById = new Map(
+      (queriedTabs || []).filter((tab) => Number.isInteger(tab?.id)).map((tab) => [tab.id, tab.incognito === true])
+    );
     allTabs = (queriedTabs || []).filter((tab) =>
       tabIsWithinReviewedPrivateScope(tab, options.incognitoAccess === true)
     );
@@ -215,9 +292,12 @@ export async function discoverCleanupScope(target, report, options = {}) {
 
   if (chrome.history) {
     try {
-      matchingHistory = await discoverMatchingHistory(target, options);
+      const result = await discoverMatchingHistoryWithEvidence(target, options);
+      matchingHistory = result.items;
+      discoveryEvidence.history = result.evidence;
       for (const item of matchingHistory) addOriginFromUrl(origins, item.url, target);
     } catch (error) {
+      if (error?.discoveryEvidence) discoveryEvidence.history = error.discoveryEvidence;
       rethrowControlError(error);
       addError(report, 'Discover matching history URLs', error);
     }
@@ -225,7 +305,9 @@ export async function discoverCleanupScope(target, report, options = {}) {
 
   if (chrome.downloads) {
     try {
-      matchingDownloads = await discoverMatchingDownloads(target, options);
+      const result = await discoverMatchingDownloadsWithEvidence(target, options);
+      matchingDownloads = result.items;
+      discoveryEvidence.downloads = result.evidence;
       for (const item of matchingDownloads) {
         addOriginFromUrl(origins, item.url, target);
         addOriginFromUrl(origins, item.finalUrl, target);
@@ -233,6 +315,7 @@ export async function discoverCleanupScope(target, report, options = {}) {
         addPartitionTopLevelSiteFromUrl(partitionTopLevelSites, item.referrer);
       }
     } catch (error) {
+      if (error?.discoveryEvidence) discoveryEvidence.downloads = error.discoveryEvidence;
       rethrowControlError(error);
       addError(report, 'Discover matching download URLs', error);
     }
@@ -256,10 +339,22 @@ export async function discoverCleanupScope(target, report, options = {}) {
         });
       }
       cookieStores = storesResult.stores;
-      for (const store of cookieStores) {
+      cookieStoreEnumerationComplete = storesResult.ok;
+      queryCapacityPlan = await emitCapacityObservation();
+      if (cookieStores.length > MAX_SUPPORTED_COOKIE_STORES) {
+        cookieQueryFailures.push({
+          source: 'cookie-stores-capacity',
+          storeId: null,
+          message: `The browser exposed ${cookieStores.length} cookie stores, exceeding SiteWipe's reviewed bound of ${MAX_SUPPORTED_COOKIE_STORES}. Cookie discovery was not started.`
+        });
+      }
+      for (const store of cookieStores.slice(0, MAX_SUPPORTED_COOKIE_STORES)) {
         await throwIfCancellationRequested(options.shouldCancel, 'the next cookie store');
         options.operationBudget?.check('the next cookie store');
-        const privateScope = await classifyCookieStorePrivateScope(store, options);
+        const privateScope = await classifyCookieStorePrivateScope(store, {
+          ...options,
+          tabPrivateScopeById
+        });
         const isIncognitoStore = privateScope === 'incognito';
         const storeInfo = {
           storeId: store.id,
@@ -280,14 +375,70 @@ export async function discoverCleanupScope(target, report, options = {}) {
           continue;
         }
 
-        const queries = buildCookieDiscoveryQueries(target, store.id, origins, partitionTopLevelSites, options);
+        const queryDemand = describeCookieDiscoveryQueryDemand(target, origins, partitionTopLevelSites, options);
+        const requestedQueries = buildCookieDiscoveryQueries(
+          target,
+          store.id,
+          origins,
+          partitionTopLevelSites,
+          options
+        );
+        const requiredDemand = describeCookieDiscoveryQueryDemand(target, origins, partitionTopLevelSites, {
+          ...options,
+          probePartitionedCookiesWithEmbeddingSites: false
+        });
+        const requiredQueries = buildCookieDiscoveryQueries(target, store.id, origins, partitionTopLevelSites, {
+          ...options,
+          probePartitionedCookiesWithEmbeddingSites: false
+        });
+        if (
+          requestedQueries.length !== queryDemand.hardCappedRequestedQueries ||
+          requiredQueries.length !== requiredDemand.hardCappedRequestedQueries
+        ) {
+          throw new Error('Cookie-query demand metadata no longer matches the bounded executable query list.');
+        }
+        const admittedPerStore = queryCapacityPlan?.scopeCookieQueriesAllocatedPerStore;
+        if (admittedPerStore != null && (!Number.isSafeInteger(admittedPerStore) || admittedPerStore < 0)) {
+          throw new Error('Cleanup-start capacity returned a malformed cookie-query allocation.');
+        }
+        if (
+          requestedQueries.length > requiredQueries.length &&
+          admittedPerStore != null &&
+          admittedPerStore < requiredQueries.length
+        ) {
+          throw new Error('Cleanup-start capacity would truncate required origin/domain cookie discovery.');
+        }
+        const queryLimit =
+          admittedPerStore == null ? requestedQueries.length : Math.min(requestedQueries.length, admittedPerStore);
+        const queries = requestedQueries.slice(0, queryLimit);
+        const allocationOmittedQueries = requestedQueries.length - queries.length;
+        const totalOmittedQueries = queryDemand.hardCapOmittedQueries + allocationOmittedQueries;
+        discoveryEvidence.cookies.queriesUncappedRequested += queryDemand.uncappedRequestedQueries;
+        discoveryEvidence.cookies.hardCapOmittedQueries += queryDemand.hardCapOmittedQueries;
+        discoveryEvidence.cookies.queriesRequested += requestedQueries.length;
+        discoveryEvidence.cookies.queriesAllocated += queries.length;
+        discoveryEvidence.cookies.allocationOmittedQueries += allocationOmittedQueries;
+        discoveryEvidence.cookies.totalOmittedQueries += totalOmittedQueries;
+        discoveryEvidence.cookies.requiredQueriesUncapped += requiredDemand.requiredQueries;
+        discoveryEvidence.cookies.requiredQueriesPlanned += requiredQueries.length;
         discoveryEvidence.cookies.queriesPlanned += queries.length;
-        if (queries.length >= MAX_COOKIE_DISCOVERY_QUERIES) discoveryEvidence.cookies.queryCapReached = true;
+        // Legacy alias retained for existing report consumers; unlike
+        // totalOmittedQueries, this is only the operation-allocation omission.
+        discoveryEvidence.cookies.queriesOmitted += allocationOmittedQueries;
+        if (queryDemand.hardCapOmittedQueries > 0) discoveryEvidence.cookies.hardCapTruncated = true;
+        if (allocationOmittedQueries > 0) discoveryEvidence.cookies.allocationTruncated = true;
+        if (queryDemand.hardCapOmittedQueries > 0 || allocationOmittedQueries > 0) {
+          discoveryEvidence.cookies.queryCapReached = true;
+        }
         const seen = new Set();
         await mapWithConcurrency(queries, COOKIE_DISCOVERY_CONCURRENCY, async (query, queryIndex) => {
           await yieldEvery(queryIndex, OPERATION_YIELD_EVERY);
           await throwIfCancellationRequested(options.shouldCancel, 'the next cookie discovery query');
           options.operationBudget?.claimQuery('cookie discovery');
+          const probedTopLevelSite = query.details?.partitionKey?.topLevelSite;
+          if (typeof probedTopLevelSite === 'string' && probedTopLevelSite) {
+            probedPartitionTopLevelSites.add(probedTopLevelSite);
+          }
           const result = await safeGetCookies(query.details);
           discoveryEvidence.cookies.queriesRun += 1;
           if (!result.ok) {
@@ -329,6 +480,8 @@ export async function discoverCleanupScope(target, report, options = {}) {
     }
   }
 
+  if (!capacityObservationEmitted) queryCapacityPlan = await emitCapacityObservation();
+
   // Explicit origins come from the primary and every configured, preflight-bound
   // associated target. The cap applies only to browser-discovered additions.
   const boundedOrigins = boundCleanupOrigins(target.baseOrigins, [...origins], MAX_ADDITIONAL_DISCOVERED_ORIGINS);
@@ -336,10 +489,18 @@ export async function discoverCleanupScope(target, report, options = {}) {
   const cappedAdditionalOrigins = boundedOrigins.additionalOrigins;
   const cappedOrigins = boundedOrigins.origins;
   const wasCapped = boundedOrigins.omittedAdditionalOriginCount > 0;
+  const exactProbedPartitionTopLevelSites = [...probedPartitionTopLevelSites].sort();
+  discoveryEvidence.cookies.partitionTopLevelSitesProbed = exactProbedPartitionTopLevelSites;
   report.summary.discoveredOrigins = cappedOrigins.length;
   report.summary.discoveredCookieHosts = cookieHosts.size;
   report.summary.matchingFramesDiscovered = matchingFrames.length;
-  report.summary.partitionTopLevelSitesProbed = Math.min(partitionTopLevelSites.size, MAX_PARTITION_TOP_LEVEL_SITES);
+  report.summary.partitionTopLevelSitesProbed = exactProbedPartitionTopLevelSites.length;
+  report.summary.cookieQueriesUncappedRequested = discoveryEvidence.cookies.queriesUncappedRequested;
+  report.summary.cookieQueriesHardCapOmitted = discoveryEvidence.cookies.hardCapOmittedQueries;
+  report.summary.cookieQueriesAllocated = discoveryEvidence.cookies.queriesAllocated;
+  report.summary.cookieQueriesAllocationOmitted = discoveryEvidence.cookies.allocationOmittedQueries;
+  report.summary.cookieQueriesTotalOmitted = discoveryEvidence.cookies.totalOmittedQueries;
+  report.summary.cookieQueriesRun = discoveryEvidence.cookies.queriesRun;
   report.summary.incognitoScopeObserved = Boolean(
     matchingTabs.some((tab) => tab.incognito) ||
     matchingFrames.some((frame) => frame.tabIncognito) ||
@@ -349,10 +510,10 @@ export async function discoverCleanupScope(target, report, options = {}) {
   const discoveryPartial = Boolean(
     wasCapped ||
     cookieQueryFailures.length ||
-    discoveryEvidence.history?.queryResultCapReached ||
-    discoveryEvidence.history?.matchCapReached ||
-    discoveryEvidence.downloads?.queryResultCapReached ||
-    discoveryEvidence.downloads?.matchCapReached ||
+    discoveryEvidence.cookies.hardCapTruncated ||
+    discoveryEvidence.cookies.allocationTruncated ||
+    discoveryEvidence.history?.complete !== true ||
+    discoveryEvidence.downloads?.complete !== true ||
     discoveryEvidence.frames.capReached ||
     discoveryEvidence.frames.failures
   );
@@ -370,17 +531,59 @@ export async function discoverCleanupScope(target, report, options = {}) {
     matchingTabs: matchingTabs.length,
     matchingFrames: matchingFrames.length,
     matchingHistoryUrls: matchingHistory.length,
+    matchingHistoryCountComplete: discoveryEvidence.history?.complete === true,
     matchingDownloadRecords: matchingDownloads.length,
+    matchingDownloadCountComplete: discoveryEvidence.downloads?.complete === true,
     matchingRecentlyClosedSessions: matchingRecentlyClosed.length,
     matchingCookieCandidates: cookieCandidates.length,
+    cookieQueriesUncappedRequested: discoveryEvidence.cookies.queriesUncappedRequested,
+    cookieQueryHardCapPerStore: discoveryEvidence.cookies.queryHardCapPerStore,
+    cookieQueriesHardCapOmitted: discoveryEvidence.cookies.hardCapOmittedQueries,
+    cookieQueriesRequested: discoveryEvidence.cookies.queriesRequested,
+    cookieQueriesAllocated: discoveryEvidence.cookies.queriesAllocated,
+    cookieQueriesAllocationOmitted: discoveryEvidence.cookies.allocationOmittedQueries,
+    cookieQueriesTotalOmitted: discoveryEvidence.cookies.totalOmittedQueries,
+    cookieRequiredQueriesUncapped: discoveryEvidence.cookies.requiredQueriesUncapped,
+    cookieRequiredQueriesPlanned: discoveryEvidence.cookies.requiredQueriesPlanned,
+    cookieQueriesPlanned: discoveryEvidence.cookies.queriesPlanned,
+    cookieQueriesRun: discoveryEvidence.cookies.queriesRun,
+    cookieQueriesOmitted: discoveryEvidence.cookies.queriesOmitted,
+    cookieQueryHardCapTruncated: discoveryEvidence.cookies.hardCapTruncated,
+    cookieQueryAllocationTruncated: discoveryEvidence.cookies.allocationTruncated,
     matchingCookieHosts: sampleArray([...cookieHosts].sort()),
     matchingCookieHostsTruncated: cookieHosts.size > REPORT_SAMPLE_LIMIT,
-    partitionTopLevelSites: sampleArray([...partitionTopLevelSites].sort().slice(0, MAX_PARTITION_TOP_LEVEL_SITES)),
-    partitionTopLevelSiteCount: partitionTopLevelSites.size,
+    partitionTopLevelSites: sampleArray(exactProbedPartitionTopLevelSites),
+    partitionTopLevelSiteCount: exactProbedPartitionTopLevelSites.length,
+    partitionTopLevelSitesObserved: sampleArray(
+      [...partitionTopLevelSites].sort().slice(0, MAX_PARTITION_TOP_LEVEL_SITES)
+    ),
+    partitionTopLevelSitesObservedCount: partitionTopLevelSites.size,
     cookieQueryFailures: cookieQueryFailures.slice(0, 20),
     discoveryEvidence,
-    note: 'Every explicit origin from the primary and configured, preflight-bound associated targets is retained. Additional discovery from matching tabs, optional embedded frames, history URLs, download URLs, cookie-host URL probes, cookie hosts, and optional embedding top-level sites is bounded to keep Chrome responsive. Recently closed metadata is not read because the sessions permission is not requested.'
+    note: 'Every explicit origin from the primary and configured, preflight-bound associated targets is retained. Required origin/domain cookie discovery is retained. Optional partitioned-cookie embedding-site probes first use the independent 1,500-query per-store hard cap and then only their pre-mutation operation allocation; uncapped demand, hard-cap omissions, allocation omissions, total omissions, and executed allocation are reported separately. Additional discovery from matching tabs, optional embedded frames, history URLs, download URLs, cookie-host URL probes, cookie hosts, and optional embedding top-level sites is bounded to keep the browser responsive. Recently closed metadata is not read because the sessions permission is not requested.'
   });
+
+  if (discoveryEvidence.cookies.hardCapTruncated) {
+    addUnavailable(
+      report,
+      'Optional partitioned-cookie probe hard cap',
+      `${discoveryEvidence.cookies.hardCapOmittedQueries} optional cookie probe quer${
+        discoveryEvidence.cookies.hardCapOmittedQueries === 1 ? 'y was' : 'ies were'
+      } omitted by the independent ${MAX_COOKIE_DISCOVERY_QUERIES}-query per-store hard cap before operation-budget allocation. The uncapped bounded-input demand was ${discoveryEvidence.cookies.queriesUncappedRequested}; ${discoveryEvidence.cookies.queriesRequested} hard-capped queries remained eligible for allocation.`
+    );
+  }
+
+  if (discoveryEvidence.cookies.allocationTruncated) {
+    addUnavailable(
+      report,
+      'Optional partitioned-cookie embedding-site probes',
+      `${discoveryEvidence.cookies.allocationOmittedQueries} optional cookie probe quer${
+        discoveryEvidence.cookies.allocationOmittedQueries === 1 ? 'y was' : 'ies were'
+      } omitted by the reviewed pre-mutation allocation. All ${
+        discoveryEvidence.cookies.requiredQueriesPlanned
+      } required origin/domain cookie queries remained included. Across the independent per-store hard cap and operation allocation, ${discoveryEvidence.cookies.totalOmittedQueries} worst-case query combinations were omitted.`
+    );
+  }
 
   if (wasCapped) {
     addUnavailable(
@@ -399,9 +602,45 @@ export async function discoverCleanupScope(target, report, options = {}) {
     matchingRecentlyClosed,
     cookieCandidates,
     cookieStores,
+    cookieStoreEnumerationComplete,
+    tabEnumerationComplete,
+    allTabs,
+    tabPrivateScopeById,
     partitionTopLevelSites: [...partitionTopLevelSites].sort().slice(0, MAX_PARTITION_TOP_LEVEL_SITES),
-    storeStats
+    probedPartitionTopLevelSites: exactProbedPartitionTopLevelSites,
+    storeStats,
+    discoveryEvidence,
+    queryCapacityPlan
   };
+
+  async function emitCapacityObservation() {
+    if (capacityObservationEmitted) return queryCapacityPlan;
+    capacityObservationEmitted = true;
+    if (typeof options.onCapacityObservation !== 'function') return null;
+    return options.onCapacityObservation({
+      matchingTabs,
+      matchingDownloads,
+      cookieStores,
+      cookieStoreEnumerationComplete,
+      tabEnumerationComplete,
+      allTabs,
+      discoveryEvidence
+    });
+  }
+}
+
+function countOverlayEligibleTabs(allTabs, matchingTabs, options) {
+  if (options.progressOverlay !== true) return 0;
+  const matchingIds = new Set((matchingTabs || []).map((tab) => tab?.id).filter((id) => Number.isInteger(id)));
+  return (allTabs || []).filter((tab) => {
+    if (!Number.isInteger(tab?.id) || tab.discarded) return false;
+    if (!/^https?:\/\//.test(String(tab.url || ''))) return false;
+    if (options.overlayScope === 'all_tabs') return true;
+    if (options.overlayScope === 'current_window' && Number.isInteger(options.sourceWindowId)) {
+      return tab.windowId === options.sourceWindowId;
+    }
+    return matchingIds.has(tab.id);
+  }).length;
 }
 
 async function discoverMatchingFrames(target, tabs, incognitoAccess, evidence, options = {}) {
@@ -452,7 +691,13 @@ async function discoverMatchingFrames(target, tabs, incognitoAccess, evidence, o
 }
 
 function rethrowControlError(error) {
-  if (error?.name === 'OperationBudgetExceededError' || error?.name === 'AbortError') throw error;
+  if (
+    error?.name === 'OperationBudgetExceededError' ||
+    error?.name === 'OperationCapacityExceededError' ||
+    error?.name === 'AbortError'
+  ) {
+    throw error;
+  }
 }
 
 function addOriginFromUrl(origins, urlValue, target) {

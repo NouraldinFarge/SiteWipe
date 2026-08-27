@@ -102,6 +102,16 @@ async function openAndClaimPersistentPermissionHandoff(chrome, prepared, popupSe
   );
   assert.equal(claimed.ok, true, claimed.error);
   assert.equal(claimed.handoffClaimed, true);
+  assert.ok(claimed.reviewedEffects && typeof claimed.reviewedEffects === 'object');
+  assert.match(claimed.reviewedEffects.approvalPath, /review|direct/i);
+  assert.equal(Number.isInteger(claimed.reviewedEffects.associatedTargetCount), true);
+  assert.equal(typeof claimed.reviewedEffects.downloadedFileSummary, 'string');
+  assert.equal(typeof claimed.reviewedEffects.categorySummary, 'string');
+  assert.equal(typeof claimed.reviewedEffects.browserRecordSummary, 'string');
+  assert.equal(typeof claimed.reviewedEffects.requestShieldSummary, 'string');
+  assert.equal(typeof claimed.reviewedEffects.progressOverlaySummary, 'string');
+  assert.equal(typeof claimed.reviewedEffects.protectedOriginSummary, 'string');
+  assert.equal(typeof claimed.reviewedEffects.evidenceSummary, 'string');
   return {
     opened,
     claimed,
@@ -179,6 +189,50 @@ test('stale request-shield callbacks cannot clear a newer job shield', async () 
   assert.match(uncertainHandler, /:\s*undefined/);
   assert.doesNotMatch(uncertainHandler, /:\s*null/);
   assert.match(source.slice(uncertainEnd, source.indexOf('onShieldMutationSettled:', uncertainEnd)), /:\s*undefined/);
+});
+
+test('malformed host-permission inventories cannot settle removal poison', async () => {
+  const source = await readFile(new URL('../../src/background/service-worker.js', import.meta.url), 'utf8');
+  const functionStart = source.indexOf('async function getAllHostPermissionsStrict()');
+  const functionEnd = source.indexOf('\nasync function hasNamedPermission(', functionStart);
+  const implementation = source.slice(functionStart, functionEnd);
+  const validityCheck = implementation.indexOf(
+    "throw new Error('Host-permission inventory returned an invalid response.');"
+  );
+  const settlement = implementation.indexOf('settleSelfRemovalReservationsFromInventory(snapshot);');
+  assert.ok(functionStart >= 0 && functionEnd > functionStart);
+  assert.ok(validityCheck >= 0, 'the permission inventory must be structurally validated');
+  assert.ok(settlement > validityCheck, 'removal poison may settle only after a valid permission inventory');
+});
+
+test('permission contains and removal adapters require literal browser booleans', async () => {
+  const source = await readFile(new URL('../../src/background/service-worker.js', import.meta.url), 'utf8');
+  const hostContains = source.slice(
+    source.indexOf('async function containsHostPermissionsStrict('),
+    source.indexOf('async function getAllHostPermissionsStrict(')
+  );
+  const namedContains = source.slice(
+    source.indexOf('async function containsNamedPermissionStrict('),
+    source.indexOf('async function removeNamedPermissionStrict(')
+  );
+  const namedRemove = source.slice(
+    source.indexOf('async function removeNamedPermissionStrict('),
+    source.indexOf('async function removeNamedPermission(')
+  );
+  const hostRemove = source.slice(
+    source.indexOf('async function releaseTemporaryHostPermissions('),
+    source.indexOf('async function getActiveTabTarget(')
+  );
+  for (const implementation of [hostContains, namedContains, namedRemove, hostRemove]) {
+    assert.match(implementation, /!== true && [a-zA-Z]+ !== false/);
+    assert.match(implementation, /invalid response/);
+  }
+  const privateInspection = source.slice(
+    source.indexOf('async function isIncognitoAllowed('),
+    source.indexOf('async function inspectSourceWindow(')
+  );
+  assert.match(privateInspection, /allowed !== true && allowed !== false/);
+  assert.match(privateInspection, /non-boolean result/);
 });
 
 test('central Chrome mock covers every audited API namespace', async () => {
@@ -801,6 +855,7 @@ test('Standard mode persists frame discovery off and releases webNavigation unti
     assert.equal(chrome.__state.local[STORAGE_KEYS.settings].embeddedFrameDiscovery, false);
     assert.equal(chrome.__state.namedPermissions.has('webNavigation'), false);
 
+    await chrome.permissions.request({ permissions: ['webNavigation'] });
     const enteringExpert = await dispatchRuntimeMessage(
       chrome,
       {
@@ -812,8 +867,12 @@ test('Standard mode persists frame discovery off and releases webNavigation unti
     assert.equal(enteringExpert.ok, true, enteringExpert.error);
     assert.equal(enteringExpert.settings.cleanupMode, 'expert');
     assert.equal(enteringExpert.settings.embeddedFrameDiscovery, false);
+    assert.equal(
+      chrome.__state.namedPermissions.has('webNavigation'),
+      true,
+      'an unrelated mode save while frame discovery was already off must preserve optional access'
+    );
 
-    await chrome.permissions.request({ permissions: ['webNavigation'] });
     const explicitlyEnabled = await dispatchRuntimeMessage(
       chrome,
       {
@@ -824,6 +883,7 @@ test('Standard mode persists frame discovery off and releases webNavigation unti
     );
     assert.equal(explicitlyEnabled.ok, true, explicitlyEnabled.error);
     assert.equal(explicitlyEnabled.settings.embeddedFrameDiscovery, true);
+    assert.equal(chrome.__state.local[STORAGE_KEYS.settings].embeddedFrameDiscovery, true);
     assert.equal(chrome.__state.namedPermissions.has('webNavigation'), true);
   } finally {
     delete globalThis.chrome;
@@ -879,6 +939,10 @@ test('settings, shield, maintenance, and local reset routes reject a live cleanu
       documentUrl: chrome.runtime.getURL('popup/popup.html'),
       documentId: 'popup-document-live-job-guard'
     };
+    await chrome.permissions.request({ permissions: ['webNavigation'] });
+    const namedPermissionRemovalsBefore = chrome.__calls.filter(
+      (call) => call.api === 'permissions.remove' && call.args?.[0]?.permissions?.includes('webNavigation')
+    ).length;
     const guardedMessages = [
       {
         type: MESSAGE_TYPES.cancelCleanupReview,
@@ -895,6 +959,7 @@ test('settings, shield, maintenance, and local reset routes reject a live cleanu
         }
       },
       { type: MESSAGE_TYPES.clearHistory, payload: {} },
+      { type: MESSAGE_TYPES.clearReports, payload: {} },
       { type: MESSAGE_TYPES.clearDebugLog, payload: {} },
       { type: MESSAGE_TYPES.saveSettings, payload: { settings: { reducedMotion: true } } },
       { type: MESSAGE_TYPES.resetSettings, payload: {} },
@@ -916,6 +981,14 @@ test('settings, shield, maintenance, and local reset routes reject a live cleanu
           : /cleanup is still running/i
       );
     }
+    assert.equal(
+      chrome.__calls.filter(
+        (call) => call.api === 'permissions.remove' && call.args?.[0]?.permissions?.includes('webNavigation')
+      ).length,
+      namedPermissionRemovalsBefore,
+      'a rejected settings save must preserve ambiguous optional access'
+    );
+    assert.equal(chrome.__state.namedPermissions.has('webNavigation'), true);
   } finally {
     delete globalThis.chrome;
   }
@@ -1125,6 +1198,7 @@ test('a cleanup reservation rejects every administrative route and defers alarm 
         }
       },
       { type: MESSAGE_TYPES.clearHistory, payload: {} },
+      { type: MESSAGE_TYPES.clearReports, payload: {} },
       { type: MESSAGE_TYPES.clearDebugLog, payload: {} },
       { type: MESSAGE_TYPES.saveSettings, payload: { settings: { reducedMotion: true } } },
       { type: MESSAGE_TYPES.resetSettings, payload: {} },
@@ -1814,7 +1888,7 @@ test('a durable Standard approval preserves a preexisting manual grant instead o
       handoff.sender
     );
     assert.equal(rawResume.ok, false);
-    assert.match(rawResume.error, /has not initiated Chrome access/i);
+    assert.match(rawResume.error, /has not initiated browser access/i);
     const retiredPopupResume = await dispatchTerminalResume(
       chrome,
       prepared.review.approvalHandoffNonce,
@@ -2597,6 +2671,228 @@ test('same-context retry rotates popup authority and a missing-access review nev
       chrome.__calls.some((call) => call.api === 'browsingData.remove' || call.api === 'downloads.removeFile'),
       false
     );
+  } finally {
+    delete globalThis.chrome;
+  }
+});
+
+test('closed YouTube direct popup context is retired once before a fresh Reddit direct preflight', async () => {
+  const now = new Date().toISOString();
+  const chrome = await createChromeMock({
+    originPermissions: ['<all_urls>'],
+    runtimeContexts: [createChromeActionPopupContext({ contextId: 'popup-context-youtube-abandoned' })],
+    localState: {
+      [STORAGE_KEYS.settings]: {
+        ...DEFAULT_SETTINGS,
+        cleanupMode: 'expert',
+        skipCleanupReview: true,
+        progressOverlay: false,
+        pageScriptScrub: false,
+        temporaryDnrShield: false,
+        verificationPass: false,
+        deleteDownloadedFiles: false,
+        createdAt: now,
+        updatedAt: now,
+        stabilityDefaultsAppliedAt: now,
+        performanceDefaultsAppliedAt: now,
+        privacyDefaultsAppliedAt: now,
+        storagePartitionDisclosureAppliedAt: now
+      }
+    }
+  });
+  globalThis.chrome = chrome;
+  try {
+    await import(`../../src/background/service-worker.js?closed-direct-retarget=${Date.now()}`);
+    await waitFor(() => chrome.__state.alarms.has('sitewipe.maintenance'));
+    const popupSender = {
+      id: chrome.runtime.id,
+      documentUrl: chrome.runtime.getURL('popup/popup.html')
+    };
+    const prepare = (input) =>
+      dispatchRuntimeMessage(
+        chrome,
+        {
+          type: MESSAGE_TYPES.prepareCleanupReview,
+          payload: { input, sourceWindowId: 1, sourceIncognito: false }
+        },
+        popupSender
+      );
+
+    const youtube = await prepare('youtube.com');
+    assert.equal(youtube.ok, true, youtube.error);
+    assert.equal(youtube.review.approvalMode, 'settings_direct');
+    assert.equal(youtube.review.normalizedTarget, 'youtube.com');
+    assert.equal(youtube.review.permissionLeaseId, null);
+    const removeCallsBeforeRetarget = chrome.__calls.length;
+
+    chrome.__state.runtimeContexts.splice(
+      0,
+      1,
+      createChromeActionPopupContext({ contextId: 'popup-context-reddit-fresh' })
+    );
+    const hydratedRedditPopup = await dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.getPopupState, payload: {} },
+      popupSender
+    );
+    assert.equal(hydratedRedditPopup.ok, true, hydratedRedditPopup.error);
+    assert.equal(hydratedRedditPopup.temporaryHostAccess.state, 'none');
+    assert.equal(
+      chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY],
+      undefined,
+      'fresh-popup hydration retires the abandoned pregranted YouTube authority before selecting Reddit'
+    );
+    const reddit = await prepare('reddit.com');
+    assert.equal(reddit.ok, true, reddit.error);
+    assert.equal(reddit.resumed, undefined);
+    assert.equal(reddit.review.approvalMode, 'settings_direct');
+    assert.equal(reddit.review.normalizedTarget, 'reddit.com');
+    assert.notEqual(reddit.review.approvalToken, youtube.review.approvalToken);
+    assert.equal(reddit.popupContextId, 'popup-context-reddit-fresh');
+    assert.ok(
+      chrome.__calls.some(
+        (call) =>
+          call.api === 'runtime.getContexts' &&
+          JSON.stringify(call.args[0]) === JSON.stringify({ contextIds: ['popup-context-youtube-abandoned'] })
+      ),
+      'hydration must authoritatively prove the exact old popup context absent'
+    );
+
+    const retirementRemovals = chrome.__calls
+      .slice(removeCallsBeforeRetarget)
+      .filter(
+        (call) =>
+          call.api === 'storage.session.remove' &&
+          (call.args[0] === CLEANUP_REVIEW_STORAGE_KEY || call.args[0]?.includes?.(CLEANUP_REVIEW_STORAGE_KEY))
+      );
+    assert.equal(
+      retirementRemovals.length,
+      1,
+      'the live abandoned token is retired once and never processed again as an expired review'
+    );
+    assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
+    assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY].token, reddit.review.approvalToken);
+    assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.equal(cleanupMutationCallCount(chrome), 0);
+
+    const staleRun = await dispatchRuntimeMessage(
+      chrome,
+      {
+        type: MESSAGE_TYPES.runDeepClean,
+        payload: {
+          approvalToken: youtube.review.approvalToken,
+          sourceWindowId: 1,
+          sourceIncognito: false,
+          approval: {
+            approvalMode: 'settings_direct',
+            reviewedScope: false,
+            associatedTargets: false,
+            localOrIpTarget: false,
+            protectedWebOrigins: false,
+            fileConfirmationText: ''
+          },
+          ...popupPreparationBinding(youtube)
+        }
+      },
+      popupSender
+    );
+    assert.equal(staleRun.ok, false);
+    assert.match(staleRun.error, /missing, expired, or has already been used/i);
+    assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY].token, reddit.review.approvalToken);
+    assert.equal(cleanupMutationCallCount(chrome), 0);
+  } finally {
+    delete globalThis.chrome;
+  }
+});
+
+test('fresh popup hydration retires only an exact proofless YouTube lease before preparing Reddit', async () => {
+  const now = new Date().toISOString();
+  const chrome = await createChromeMock({
+    runtimeContexts: [createChromeActionPopupContext({ contextId: 'popup-context-youtube-proofless' })],
+    localState: {
+      [STORAGE_KEYS.settings]: {
+        ...DEFAULT_SETTINGS,
+        cleanupMode: 'expert',
+        skipCleanupReview: true,
+        progressOverlay: false,
+        pageScriptScrub: false,
+        temporaryDnrShield: false,
+        verificationPass: false,
+        deleteDownloadedFiles: false,
+        createdAt: now,
+        updatedAt: now,
+        stabilityDefaultsAppliedAt: now,
+        performanceDefaultsAppliedAt: now,
+        privacyDefaultsAppliedAt: now,
+        storagePartitionDisclosureAppliedAt: now
+      }
+    }
+  });
+  globalThis.chrome = chrome;
+  try {
+    await import(`../../src/background/service-worker.js?proofless-popup-hydration=${Date.now()}`);
+    await waitFor(() => chrome.__state.alarms.has('sitewipe.maintenance'));
+    const popupSender = {
+      id: chrome.runtime.id,
+      documentUrl: chrome.runtime.getURL('popup/popup.html')
+    };
+    const prepare = (input) =>
+      dispatchRuntimeMessage(
+        chrome,
+        {
+          type: MESSAGE_TYPES.prepareCleanupReview,
+          payload: { input, sourceWindowId: 1, sourceIncognito: false }
+        },
+        popupSender
+      );
+
+    const youtube = await prepare('youtube.com');
+    assert.equal(youtube.ok, true, youtube.error);
+    const youtubeLease = structuredClone(chrome.__state.local[STORAGE_KEYS.permissionLease]);
+    assert.equal(youtubeLease.id, youtube.review.permissionLeaseId);
+    assert.equal(youtubeLease.status, 'prompt_pending');
+    assert.equal(youtubeLease.ownershipProof, null);
+    const callsBeforeHydration = chrome.__calls.length;
+
+    chrome.__state.runtimeContexts.splice(
+      0,
+      1,
+      createChromeActionPopupContext({ contextId: 'popup-context-reddit-after-proofless' })
+    );
+    const hydrated = await dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.getPopupState, payload: {} },
+      popupSender
+    );
+    assert.equal(hydrated.ok, true, hydrated.error);
+    assert.equal(hydrated.temporaryHostAccess.state, 'none');
+    assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY], undefined);
+    assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
+    assert.ok(
+      chrome.__calls.some(
+        (call) =>
+          call.api === 'runtime.getContexts' &&
+          JSON.stringify(call.args[0]) === JSON.stringify({ contextIds: ['popup-context-youtube-proofless'] })
+      )
+    );
+    assert.equal(
+      chrome.__calls
+        .slice(callsBeforeHydration)
+        .some((call) => call.api === 'permissions.remove' || call.api === 'permissions.request'),
+      false,
+      'hydration only removes proofless SiteWipe bookkeeping and never mutates browser access'
+    );
+
+    const reddit = await prepare('reddit.com');
+    assert.equal(reddit.ok, true, reddit.error);
+    const redditLease = chrome.__state.local[STORAGE_KEYS.permissionLease];
+    assert.notEqual(redditLease.id, youtubeLease.id);
+    assert.equal(redditLease.id, reddit.review.permissionLeaseId);
+    assert.equal(redditLease.status, 'prompt_pending');
+    assert.equal(redditLease.ownershipProof, null);
+    assert.equal(chrome.__state.session[CLEANUP_REVIEW_STORAGE_KEY].token, reddit.review.approvalToken);
+    assert.equal(chrome.__state.local[STORAGE_KEYS.activeJob], undefined);
+    assert.equal(cleanupMutationCallCount(chrome), 0);
   } finally {
     delete globalThis.chrome;
   }
@@ -4352,6 +4648,141 @@ test('retained persistent handoff continuation replays every nonce-bound termina
     } finally {
       delete globalThis.chrome;
     }
+  }
+});
+
+test('Options report deletion and reset routes return truthful complete, partial, and failed outcomes', async () => {
+  const chrome = await createChromeMock();
+  globalThis.chrome = chrome;
+  try {
+    await import(`../../src/background/service-worker.js?truthful-options-maintenance=${Date.now()}`);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const sender = {
+      id: chrome.runtime.id,
+      documentUrl: chrome.runtime.getURL('options/options.html'),
+      documentId: 'options-truthful-maintenance'
+    };
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.activeReport]: { id: 'synthetic-latest-report' },
+      [STORAGE_KEYS.reports]: [{ id: 'synthetic-history-report' }]
+    });
+
+    const cleared = await dispatchRuntimeMessage(chrome, { type: MESSAGE_TYPES.clearReports, payload: {} }, sender);
+    assert.equal(cleared.ok, true, cleared.error);
+    assert.equal(cleared.report, null);
+    assert.deepEqual(cleared.reports, []);
+    assert.equal(chrome.__state.local[STORAGE_KEYS.activeReport], null);
+    assert.deepEqual(chrome.__state.local[STORAGE_KEYS.reports], []);
+
+    chrome.__state.namedPermissions.add('webNavigation');
+    const complete = await dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.resetExtensionLocalState, payload: {} },
+      sender
+    );
+    assert.equal(complete.ok, true, complete.error);
+    assert.equal(complete.reset.status, 'complete');
+    assert.equal(complete.reset.localStateResetComplete, true);
+    assert.equal(complete.reset.optionalFramePermission.verifiedAbsent, true);
+    assert.deepEqual(complete.reset.recoveryFailures, []);
+    assert.equal(chrome.__state.namedPermissions.has('webNavigation'), false);
+    assert.deepEqual(chrome.__state.local[STORAGE_KEYS.debugLog], []);
+
+    chrome.__state.namedPermissions.add('webNavigation');
+    const removePermission = chrome.permissions.remove;
+    chrome.permissions.remove = async () => false;
+    const partial = await dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.resetExtensionLocalState, payload: {} },
+      sender
+    );
+    assert.equal(partial.ok, true, partial.error);
+    assert.equal(partial.reset.status, 'partial');
+    assert.equal(partial.reset.localStateResetComplete, false);
+    assert.equal(partial.reset.dataCleared, true);
+    assert.equal(partial.reset.recoveryObligationsRetained, true);
+    assert.equal(partial.reset.optionalFramePermission.verifiedAbsent, false);
+    assert.deepEqual(partial.reset.recoveryFailures, []);
+    assert.match(partial.reset.note, /optional webNavigation access/);
+
+    const settingsReset = await dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.resetSettings, payload: {} },
+      sender
+    );
+    assert.equal(settingsReset.ok, true, settingsReset.error);
+    assert.equal(settingsReset.optionalFramePermission.verifiedAbsent, false);
+
+    chrome.permissions.remove = removePermission;
+    const setLocalState = chrome.storage.local.set;
+    let debugResetFailureInjected = false;
+    chrome.storage.local.set = async (values) => {
+      if (!debugResetFailureInjected && Object.hasOwn(values || {}, STORAGE_KEYS.debugLog)) {
+        debugResetFailureInjected = true;
+        throw new Error('Synthetic debug-log reset failure');
+      }
+      return setLocalState(values);
+    };
+    const failed = await dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.resetExtensionLocalState, payload: {} },
+      sender
+    );
+    assert.equal(failed.ok, true, failed.error);
+    assert.equal(failed.reset.status, 'failed');
+    assert.equal(failed.reset.localStateResetComplete, false);
+    assert.equal(failed.reset.dataCleared, false);
+    assert.equal(failed.reset.resetFailures.length, 1);
+    assert.equal(failed.reset.resetFailures[0].step, 'debug log');
+    assert.match(failed.reset.note, /debug log/);
+  } finally {
+    delete globalThis.chrome;
+  }
+});
+
+test('local-state reset remains partial when cleanup-review recovery inspection fails', async () => {
+  const chrome = await createChromeMock();
+  globalThis.chrome = chrome;
+  try {
+    await import(`../../src/background/service-worker.js?truthful-reset-recovery-failure=${Date.now()}`);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const sender = {
+      id: chrome.runtime.id,
+      documentUrl: chrome.runtime.getURL('options/options.html'),
+      documentId: 'options-reset-recovery-failure'
+    };
+    const originalGet = chrome.storage.session.get;
+    let cleanupReviewReads = 0;
+    chrome.storage.session.get = async (keys) => {
+      const requested = Array.isArray(keys) ? keys : [keys];
+      if (requested.includes(CLEANUP_REVIEW_STORAGE_KEY) && ++cleanupReviewReads === 2) {
+        throw new Error('Synthetic cleanup-review recovery inspection failure');
+      }
+      return originalGet(keys);
+    };
+
+    const response = await dispatchRuntimeMessage(
+      chrome,
+      { type: MESSAGE_TYPES.resetExtensionLocalState, payload: {} },
+      sender
+    );
+    assert.equal(response.ok, true, response.error);
+    assert.equal(response.reset.status, 'partial');
+    assert.equal(response.reset.dataCleared, true);
+    assert.equal(response.reset.localStateResetComplete, false);
+    assert.equal(response.reset.recoveryObligationsRetained, true);
+    assert.equal(response.reset.cleanupReviewRecoveryRetained, true);
+    assert.deepEqual(response.reset.recoveryFailures, [
+      {
+        step: 'cleanup-review recovery inspection',
+        message: 'Synthetic cleanup-review recovery inspection failure'
+      }
+    ]);
+    assert.match(response.reset.note, /target-access recovery obligation/i);
+    assert.match(response.reset.note, /one or more recovery checks/i);
+    assert.doesNotMatch(response.reset.note, /disprove\s+\./i);
+  } finally {
+    delete globalThis.chrome;
   }
 });
 

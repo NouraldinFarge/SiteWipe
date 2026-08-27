@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "status": "superseded_during_partial_full_check_after_post_transaction_truth_audit",
+  "validatedAt": "2026-08-26T05:48:41.9170058-05:00",
+  "releaseState": "Superseded local-only public-source prerelease history; not eligible for candidate completion or publication.",
+  "environment": {
+    "osDescription": "Microsoft Windows 10.0.26100",
+    "osArchitecture": "X64",
+    "processArchitecture": "X64",
+    "node": "v24.18.1",
+    "npm": "11.16.0",
+    "scope": "Exact local 1.12.6 locked installation and partial complete-check execution on the pinned Node/npm toolchain. The complete command passed formatting, exact-version, syntax, types, lint, HTML, CSS, manifest, remote-code/runtime-secret, and repository secret/private-path gates. It was intentionally interrupted immediately after the repository secret scan when a read-only post-transaction audit confirmed SW-103 stable-history defects. No later complete-check stage began, and the command has no complete candidate result."
+  },
+  "baseline": {
+    "beforeState": "The 1.12.5 record remains unchanged in automated-validation-2026-08-26-v1.12.5.json.",
+    "baselineVersion": "1.12.5",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-26-v1.12.5.json"
+  },
+  "supersession": {
+    "issue": "SW-103",
+    "reason": "The sealed 1.12.6 stable history still overclaimed that incomplete mutable decision histories explicitly denied the later 1.12.4 version check, called the defective 1.12.5 chronology truthful, and described separately counted accessibility-source validation as not run after a concurrent unit suite had begun.",
+    "nextAction": "Preserve exact 1.12.6 as interrupted, truth-defective local history; correct only the historical wording and required candidate metadata in a forward 1.12.7 transaction; then restart complete validation."
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "interrupted_no_valid_result",
+    "format": "passed",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.12.6",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "0545E7535C94466341F4B32FE5D1086A2ECB4380B07DB13B9913B3F386EC774F",
+      "stableReleaseInputFingerprintSha256": "151395F2A440DCC490D8B523BEFB81A9FC08A0FD4C2C5CF65AF906EACDA052C5",
+      "stableReleaseInputFiles": 312
+    },
+    "manifest": {
+      "status": "passed",
+      "version": "1.12.6",
+      "descriptionCharacters": 123,
+      "descriptionMaximum": 132,
+      "requiredNamedPermissions": 10,
+      "optionalNamedPermissions": 1,
+      "requiredHostPatterns": 0,
+      "optionalHostPatterns": 2
+    },
+    "syntaxModules": 219,
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "htmlValidation": "passed",
+    "cssValidation": "passed",
+    "remoteCodeAndRuntimeSecretScan": {
+      "status": "passed",
+      "runtimeFiles": 61
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 428
+    },
+    "developmentSbom": {
+      "status": "not_run"
+    },
+    "dependencyLicenseInventory": {
+      "status": "not_run"
+    },
+    "projectLicense": {
+      "status": "not_run"
+    },
+    "thirdPartyNoticeAndPslHash": "not_run",
+    "iconSourceAndPngProvenance": "not_run",
+    "documentation": {
+      "status": "not_run"
+    },
+    "githubActionPins": {
+      "status": "not_run"
+    },
+    "runtimeAllowlist": {
+      "status": "not_run"
+    },
+    "legacyReleaseSelfTest": "not_run",
+    "nodeTests": {
+      "status": "not_run"
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "status": "not_run"
+    },
+    "reason": "A post-transaction audit confirmed SW-103 immediately after the repository secret/private-path scan. The command was intentionally interrupted before the development SBOM stage. Partial ordered-gate observations do not constitute a complete candidate pass."
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "not_run",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    }
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "passed",
+    "installedPackages": 397,
+    "auditedPackagesIncludingRoot": null,
+    "lifecycleScriptsDisabled": true,
+    "deprecationWarnings": [
+      "prebuild-install@7.1.3 is no longer maintained.",
+      "glob@10.5.0 is deprecated and unsupported."
+    ]
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=low --json",
+    "status": "not_run",
+    "auditedAt": null,
+    "knownVulnerabilities": null,
+    "runtimeDependencies": null,
+    "lockedDevelopmentGraph": null,
+    "lockfileSha256": "AA8F8BEE777EAD1B48ABCE32BF3263BFB5DFFD5AF55ED3E4DEA4794FEBD00B2E"
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "not_run",
+    "redactionCanaries": "not_run",
+    "privateContextPersistenceRefusal": "not_run",
+    "deterministicThirtyMinuteExpiry": "not_run"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "not_run",
+    "installedChromeRun": "not_run",
+    "installedBraveRun": "not_run"
+  },
+  "gitInitialization": {
+    "status": "not_run",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "No exact 1.12.6 candidate commit, clean-checkout validation, push, or remote check was performed."
+  },
+  "artifacts": {
+    "status": "not_run",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.12.6.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.12.6-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "not_run",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.12.6.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.12.6.unsigned-provenance-input.json",
+    "remoteAttestation": "not_run",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "Exact 1.12.6 is superseded because its sealed stable history still contained overbroad and internally inconsistent descriptions of the preserved 1.12.4 and 1.12.5 validation boundaries.",
+      "The complete check was interrupted immediately after the repository secret/private-path scan and has no complete aggregate result. Every later complete-check gate, property testing, coverage, dependency audit, accessibility-source validation, artifacts, installed browsers, performance, media, independent review, commit, push, remote validation, and publication evaluation did not run."
+    ]
+  },
+  "limitations": [
+    "No automated, installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior.",
+    "Exact 1.12.6 passed its locked install and the ordered complete-check gates through the repository secret/private-path scan before intentional interruption. Those partial observations do not constitute a complete candidate pass.",
+    "No 1.12.6 complete unit, property, coverage, dependency-audit, accessibility-source, artifact, installed-browser, Git publication, remote, reviewer, publication, or supported-binary result exists."
+  ]
+}

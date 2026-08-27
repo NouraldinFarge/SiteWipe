@@ -1,0 +1,207 @@
+{
+  "schemaVersion": 1,
+  "status": "superseded_during_full_check_after_post_transaction_truth_audit",
+  "validatedAt": "2026-08-26T05:40:09.8826327-05:00",
+  "releaseState": "Superseded local-only public-source prerelease history; not eligible for candidate completion or publication.",
+  "environment": {
+    "osDescription": "Microsoft Windows 10.0.26100",
+    "osArchitecture": "X64",
+    "processArchitecture": "X64",
+    "node": "v24.18.1",
+    "npm": "11.16.0",
+    "scope": "Exact local 1.12.5 post-transaction checks on the pinned Node/npm toolchain. A locked install passed. Focused Windows process-identity validation passed 31/31. The complete npm run check passed every ordered safeguard through the legacy self-test and began the unit suite, but a read-only audit then found that stable 1.12.5 chronology contradicted the preserved 1.12.4 record by denying a direct post-format check:version attempt that had actually run and correctly failed. The still-running unit suite was intentionally interrupted. It has no complete total and the full command has no valid candidate result."
+  },
+  "baseline": {
+    "beforeState": "The 1.12.4 record remains unchanged in automated-validation-2026-08-26-v1.12.4.json.",
+    "baselineVersion": "1.12.4",
+    "baselineRecord": "docs/evidence/automated-validation-2026-08-26-v1.12.4.json"
+  },
+  "supersession": {
+    "issue": "SW-102",
+    "reason": "Stable 1.12.5 chronology contradicted the preserved 1.12.4 record by saying no exact-version check followed mechanical formatting, although a direct post-format npm run check:version did run and correctly refused the changed stable fingerprint.",
+    "nextAction": "Preserve exact 1.12.5 as interrupted, truth-defective local history; correct only the chronology and required candidate metadata in a forward 1.12.6 transaction; then restart complete validation."
+  },
+  "focusedChecks": {
+    "windowsProcessIdentity": {
+      "command": "node --test tests/browser/installed/runtime-executor.test.mjs",
+      "status": "passed",
+      "tests": 31,
+      "passed": 31,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "fullCheck": {
+    "command": "npm run check",
+    "status": "interrupted_no_valid_result",
+    "format": "passed",
+    "versionContract": {
+      "status": "passed",
+      "version": "1.12.5",
+      "runtimeFiles": 61,
+      "runtimeFingerprintSha256": "7459F96C61348B29931929507B9DA76919EAE23CA24AA8E38A00BA97FF407F3A",
+      "stableReleaseInputFingerprintSha256": "1A30D968E07C823D3571AA6064A207A3E3CFB3A5172BDB4C9CB7CB0828F6E2A7",
+      "stableReleaseInputFiles": 312
+    },
+    "manifest": {
+      "status": "passed",
+      "version": "1.12.5",
+      "descriptionCharacters": 123,
+      "descriptionMaximum": 132,
+      "requiredNamedPermissions": 10,
+      "optionalNamedPermissions": 1,
+      "requiredHostPatterns": 0,
+      "optionalHostPatterns": 2
+    },
+    "syntaxModules": 219,
+    "typeCheck": "passed",
+    "eslint": "passed",
+    "htmlValidation": "passed",
+    "cssValidation": "passed",
+    "remoteCodeAndRuntimeSecretScan": {
+      "status": "passed",
+      "runtimeFiles": 61
+    },
+    "repositorySecretAndPrivatePathScan": {
+      "status": "passed",
+      "repositoryFiles": 427
+    },
+    "developmentSbom": {
+      "status": "passed",
+      "components": 358,
+      "dependencyNodes": 417,
+      "sha256": "662C7FDAA39B28B642DEA2D1BD476C1C7221A2AACBBA2C33473C72B7A35837D9"
+    },
+    "dependencyLicenseInventory": {
+      "status": "passed",
+      "runtimeDependencies": 0,
+      "lockedDevelopmentGraph": 416,
+      "lockfileSha256": "11133ADCB2E5786A1AAF92F4F14DF34697C49F40E47BF13141B1D9AF494081ED",
+      "developmentSbomSha256": "662C7FDAA39B28B642DEA2D1BD476C1C7221A2AACBBA2C33473C72B7A35837D9",
+      "metadataExceptionsResolved": 1
+    },
+    "projectLicense": {
+      "status": "passed",
+      "spdxIdentifier": "MIT",
+      "licenseFileSha256": "86ECA68E8C1B0498315252BD01B6190F01500EE720C333D00793DD947F5B6511"
+    },
+    "thirdPartyNoticeAndPslHash": "passed",
+    "iconSourceAndPngProvenance": "passed",
+    "documentation": {
+      "status": "passed",
+      "markdownFiles": 49
+    },
+    "githubActionPins": {
+      "status": "passed",
+      "references": 11
+    },
+    "runtimeAllowlist": {
+      "status": "passed",
+      "runtimeFiles": 61,
+      "sourceOnlyFiles": 3
+    },
+    "legacyReleaseSelfTest": "passed",
+    "nodeTests": {
+      "status": "interrupted_no_valid_result",
+      "reason": "The unit suite was still running when the stable-document contradiction was confirmed. It was intentionally interrupted; partial passing test output is not a complete unit-suite result and no totals are claimed."
+    },
+    "propertyTests": {
+      "command": "npm run test:property",
+      "status": "not_run"
+    },
+    "reason": "A post-transaction audit found SW-102 while the unit suite was running: several stable 1.12.5 chronology statements falsely said no exact-version check followed the 1.12.4 format failure, although the preserved 1.12.4 machine record shows that a direct post-format npm run check:version did run and correctly refused the changed stable fingerprint. Exact 1.12.5 is superseded and must not be completed or repurposed as a passing candidate."
+  },
+  "coverage": {
+    "command": "npm run test:coverage",
+    "status": "not_run",
+    "enforcedMinimums": {
+      "statements": 80,
+      "branches": 55,
+      "functions": 70,
+      "lines": 80
+    }
+  },
+  "dependencyInstall": {
+    "command": "npm ci --ignore-scripts --no-audit --no-fund",
+    "status": "passed",
+    "installedPackages": 397,
+    "auditedPackagesIncludingRoot": null,
+    "lifecycleScriptsDisabled": true,
+    "deprecationWarnings": [
+      "prebuild-install@7.1.3 is no longer maintained.",
+      "glob@10.5.0 is deprecated and unsupported."
+    ]
+  },
+  "dependencyAudit": {
+    "command": "npm audit --audit-level=low --json",
+    "status": "not_run",
+    "auditedAt": null,
+    "knownVulnerabilities": null,
+    "runtimeDependencies": null,
+    "lockedDevelopmentGraph": null,
+    "lockfileSha256": null
+  },
+  "scopeAndPrivacyEvidence": {
+    "pslLedger": "docs/evidence/psl-source-ledger-2026-08-17.json",
+    "policyLedger": "docs/evidence/policy-source-ledger-2026-08-21-v1.11.42.json",
+    "directCleanupDecision": "docs/decisions/direct-cleanup-owner-decision.json",
+    "historicalBypassApprovalStatus": "not_applicable_retired",
+    "publicationGateDirectCleanupContract": "not_established_due_to_interrupted_unit_suite",
+    "redactionCanaries": "not_established_due_to_interrupted_unit_suite",
+    "privateContextPersistenceRefusal": "not_established_due_to_interrupted_unit_suite",
+    "deterministicThirtyMinuteExpiry": "not_established_due_to_interrupted_unit_suite"
+  },
+  "fixtureInfrastructure": {
+    "version": "sitewipe-synthetic-v1",
+    "serverContract": "not_established_due_to_interrupted_unit_suite",
+    "installedChromeRun": "not_run",
+    "installedBraveRun": "not_run"
+  },
+  "gitInitialization": {
+    "status": "not_run",
+    "branch": null,
+    "commitCount": null,
+    "remoteCount": null,
+    "tagCount": null,
+    "parentContainerIsGitRepository": null,
+    "ignoredLocalDirectoriesVerified": [],
+    "note": "No exact 1.12.5 candidate commit, clean-checkout validation, push, or remote check was performed."
+  },
+  "artifacts": {
+    "status": "not_run",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.12.5.zip",
+    "runtimeZipSha256": null,
+    "runtimeZipBytes": null,
+    "runtimeFiles": 61,
+    "sourceZip": "sitewipe-unreleased-candidate-1.12.5-source.zip",
+    "sourceZipSha256": null,
+    "sourceFiles": null,
+    "sourcePackageEquivalence": "not_run",
+    "checksumFilesVerified": 0,
+    "consecutiveBuildOutputsCompared": 0,
+    "byteIdenticalAcrossConsecutiveBuilds": false,
+    "runtimeSbom": "sitewipe-unreleased-candidate-1.12.5.runtime-sbom.cdx.json",
+    "unsignedProvenanceInput": "sitewipe-unreleased-candidate-1.12.5.unsigned-provenance-input.json",
+    "remoteAttestation": "not_run",
+    "sourceArchiveCompression": "stored",
+    "sourceArchiveCrossPlatformExactByteContract": "designed_not_two_host_validated",
+    "runtimeArchiveCrossPlatformSha256Claim": "not_claimed_without_two_host_evidence"
+  },
+  "publicationGate": {
+    "command": "npm run check:publication-gates",
+    "publicationRecommendation": "not_evaluated",
+    "blockerCount": null,
+    "originalBlockerCount": null,
+    "closedOriginalBlockers": [],
+    "remainingClasses": [
+      "Exact 1.12.5 is superseded because its sealed stable chronology contradicted the preserved 1.12.4 direct post-format version-check record.",
+      "The complete check was interrupted during unit testing and has no valid aggregate result. Coverage and dependency audit did not run; no complete, valid, separately counted accessibility-source result exists; artifacts, installed browsers, performance, media, independent review, commit, push, remote validation, and publication evaluation did not run."
+    ]
+  },
+  "limitations": [
+    "No automated, installed-browser, performance, accessibility, media, or remote result is inherited across a version transaction.",
+    "Automated tests do not prove complete erasure or installed-browser behavior.",
+    "Exact 1.12.5 passed its locked install, focused 31-test Windows process-identity suite, and the ordered complete-check safeguards through the legacy self-test before its unit suite was intentionally interrupted. Those partial observations do not constitute a complete candidate pass.",
+    "No 1.12.5 coverage, dependency audit, separately counted accessibility-source result, artifact, installed-browser result, Git publication, remote result, reviewer approval, publication result, or supported-binary claim exists."
+  ]
+}

@@ -11,6 +11,8 @@ test('abandoned permission-prompt rollback holds the sole lifecycle reservation 
   const releaseStarted = deferred();
   const releasePermissionRemoval = deferred();
   const originalPermissionRemove = chrome.permissions.remove;
+  const originalPermissionRemovedEmit = chrome.__events.permissionRemoved.emit;
+  const delayedSelfRemovalEvents = [];
   const originalGetWindow = chrome.windows.get;
   let reviewWindowInspections = 0;
   const startupRetryTimer = parkFirstLoadReadinessArmedCleanupRetry();
@@ -24,75 +26,19 @@ test('abandoned permission-prompt rollback holds the sole lifecycle reservation 
       'the settlement-reservation test must park the load-readiness armed-cleanup retry'
     );
     const initiatingSender = popupSender(chrome, 'popup-document-abandoned-prompt');
-    const prepared = await dispatchRuntimeMessageWithoutTimer(chrome, prepareReviewMessage(), initiatingSender);
-    assert.equal(prepared.ok, true, prepared.error);
-    const approvalTimer = suppressUndelayedTimeouts();
-    let armed;
-    try {
-      armed = await dispatchRuntimeMessageWithoutTimer(chrome, armPreparedReviewMessage(prepared), initiatingSender);
-    } finally {
-      approvalTimer.restore();
-    }
-    assert.equal(approvalTimer.suppressed(), true, 'the settlement-reservation test must hold the automatic arm wake');
-    assert.equal(armed.ok, true, armed.error);
-    const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, initiatingSender);
-    const intent = await dispatchRuntimeMessageWithoutTimer(
-      chrome,
-      { type: MESSAGE_TYPES.beginCleanupPermissionHandoff, payload: handoff.authority },
-      handoff.sender
-    );
-    assert.equal(intent.ok, true, intent.error);
-    const invocation = await dispatchRuntimeMessageWithoutTimer(
-      chrome,
-      { type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation, payload: handoff.authority },
-      handoff.sender
-    );
-    assert.equal(invocation.ok, true, invocation.error);
-    const armedRecord = chrome.__state.session['sitewipe.cleanupReview.v1'];
-    const recordedAtMs = Math.max(
-      Date.now(),
-      armedRecord.approvalHandoff.armedAtMs,
-      armedRecord.approvalHandoff.promptInvocation.recordedAtMs
-    );
-    const temporaryOrigins = [...armedRecord.hostPermissionInventory.requiredHostPermissionOrigins];
-    chrome.__state.session['sitewipe.cleanupReview.v1'] = {
-      ...armedRecord,
-      approvalHandoff: {
-        ...armedRecord.approvalHandoff,
-        updatedAtMs: recordedAtMs,
-        promptGrant: {
-          observedOrigins: temporaryOrigins,
-          complete: true,
-          recordedAtMs
-        },
-        promptGrantOutcome: {
-          popupContextId: handoff.contextId,
-          granted: true,
-          preRequestTemporaryOriginsAbsent: true,
-          recordedAtMs
-        }
-      }
-    };
-    const lease = chrome.__state.local[STORAGE_KEYS.permissionLease];
-    chrome.__state.local[STORAGE_KEYS.permissionLease] = {
-      ...lease,
-      ownershipProof: 'reviewed_prompt_grant',
-      ownershipRevokedAt: null,
-      updatedAt: new Date(recordedAtMs).toISOString()
-    };
-    assert.ok(
-      normalizeCleanupReviewRecord(chrome.__state.session['sitewipe.cleanupReview.v1']),
-      'the synthetic review must retain a valid complete prompt proof'
-    );
-    assert.ok(
-      await getPermissionLease(chrome.storage.local),
-      'the synthetic lease must retain valid reviewed-prompt ownership'
-    );
-    for (const origin of lease.temporaryOrigins) chrome.__state.originPermissions.add(origin);
+    const { handoff } = await establishSyntheticOwnedPromptGrant(chrome, initiatingSender);
     chrome.permissions.remove = async (...args) => {
       releaseStarted.resolve();
       await releasePermissionRemoval.promise;
-      return originalPermissionRemove(...args);
+      chrome.__events.permissionRemoved.emit = (...eventArgs) => {
+        delayedSelfRemovalEvents.push(structuredClone(eventArgs));
+        return [];
+      };
+      try {
+        return await originalPermissionRemove(...args);
+      } finally {
+        chrome.__events.permissionRemoved.emit = originalPermissionRemovedEmit;
+      }
     };
     chrome.windows.get = async (...args) => {
       reviewWindowInspections += 1;
@@ -123,14 +69,209 @@ test('abandoned permission-prompt rollback holds the sole lifecycle reservation 
     assert.equal(settled.settlement.released, true);
     assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
     assert.equal(chrome.__state.session['sitewipe.cleanupReview.v1'], undefined);
+    assert.equal(delayedSelfRemovalEvents.length, 1, 'the mock must retain exactly one delayed self-removal event');
+
+    const inventoriesBeforeDelayedEvent = permissionInventoryCallCount(chrome);
+    const [delayedRemoval] = delayedSelfRemovalEvents.shift();
+    chrome.__events.permissionRemoved.emit({
+      ...delayedRemoval,
+      origins: [...delayedRemoval.origins, 'https://unrelated.invalid/*']
+    });
+    await waitFor(
+      () => permissionInventoryCallCount(chrome) > inventoriesBeforeDelayedEvent,
+      'the delayed self-removal event to trigger exact inventory reconciliation'
+    );
+    await flushMicrotasks();
 
     const recovered = await dispatchRuntimeMessageWithoutTimer(chrome, prepareReviewMessage(), popupSender(chrome));
     assert.equal(recovered.ok, true, recovered.error);
     assert.equal(reviewWindowInspections, 1);
     assert.equal(cleanupMutationCallCount(chrome), 0);
+
+    const secondApprovalTimer = suppressUndelayedTimeouts();
+    let rearmed;
+    try {
+      rearmed = await dispatchRuntimeMessageWithoutTimer(
+        chrome,
+        armPreparedReviewMessage(recovered),
+        popupSender(chrome)
+      );
+    } finally {
+      secondApprovalTimer.restore();
+    }
+    assert.equal(rearmed.ok, true, rearmed.error);
+    const secondHandoff = await openAndClaimPersistentPermissionHandoff(chrome, recovered, popupSender(chrome));
+    const secondIntent = await dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      { type: MESSAGE_TYPES.beginCleanupPermissionHandoff, payload: secondHandoff.authority },
+      secondHandoff.sender
+    );
+    assert.equal(secondIntent.ok, true, secondIntent.error);
+
+    const secondOrigins = [...recovered.review.temporaryHostPermissionOrigins];
+    for (const origin of secondOrigins) chrome.__state.originPermissions.add(origin);
+    chrome.__events.permissionAdded.emit({ origins: secondOrigins });
+    const manuallyRemovedOrigin = secondOrigins[0];
+    chrome.__state.originPermissions.delete(manuallyRemovedOrigin);
+    chrome.__events.permissionRemoved.emit({ origins: [manuallyRemovedOrigin] });
+    await waitFor(
+      () => chrome.__state.session['sitewipe.cleanupReview.v1'] === undefined,
+      'a later manual removal to invalidate the new reviewed authority'
+    );
+    assert.equal(
+      chrome.__state.local[STORAGE_KEYS.permissionLease],
+      undefined,
+      'a later manual removal must be classified as external and discard its intersecting lease'
+    );
   } finally {
     startupRetryTimer.restore();
     releasePermissionRemoval.resolve();
+    chrome.__events.permissionRemoved.emit = originalPermissionRemovedEmit;
+    delete globalThis.chrome;
+  }
+});
+
+test('an undelivered self-removal event cannot absorb a later manual permission removal', async () => {
+  const chrome = await createReadyChromeMock();
+  globalThis.chrome = chrome;
+  const originalPermissionRemove = chrome.permissions.remove;
+  const originalPermissionRemovedEmit = chrome.__events.permissionRemoved.emit;
+  const delayedSelfRemovalEvents = [];
+  const startupRetryTimer = parkFirstLoadReadinessArmedCleanupRetry();
+  try {
+    await import(`../../src/background/service-worker.js?missing-self-removal-event=${uniqueImportKey()}`);
+    await withTimeout(startupRetryTimer.parked, 'load-readiness armed-cleanup retry to park');
+    startupRetryTimer.restore();
+    assert.equal(startupRetryTimer.suppressed(), true);
+
+    const initiatingSender = popupSender(chrome, 'popup-document-undelivered-self-removal');
+    const { handoff } = await establishSyntheticOwnedPromptGrant(chrome, initiatingSender);
+    chrome.permissions.remove = async (...args) => {
+      chrome.__events.permissionRemoved.emit = (...eventArgs) => {
+        delayedSelfRemovalEvents.push(structuredClone(eventArgs));
+        return [];
+      };
+      try {
+        return await originalPermissionRemove(...args);
+      } finally {
+        chrome.__events.permissionRemoved.emit = originalPermissionRemovedEmit;
+      }
+    };
+
+    const settled = await dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      {
+        type: MESSAGE_TYPES.settleCleanupPermissionHandoff,
+        payload: { ...handoff.authority, outcome: 'abandoned' }
+      },
+      handoff.sender
+    );
+    assert.equal(settled.ok, true, settled.error);
+    assert.equal(settled.settlement.released, true);
+    assert.equal(delayedSelfRemovalEvents.length, 1, 'the original self-removal event must remain undelivered');
+
+    const recovered = await dispatchRuntimeMessageWithoutTimer(chrome, prepareReviewMessage(), popupSender(chrome));
+    assert.equal(recovered.ok, true, recovered.error);
+    await armAndBeginPromptIntent(chrome, recovered, popupSender(chrome));
+
+    const secondOrigins = [...recovered.review.temporaryHostPermissionOrigins];
+    for (const origin of secondOrigins) chrome.__state.originPermissions.add(origin);
+    chrome.__events.permissionAdded.emit({ origins: secondOrigins });
+    const manuallyRemovedOrigin = secondOrigins[0];
+    chrome.__state.originPermissions.delete(manuallyRemovedOrigin);
+    chrome.__events.permissionRemoved.emit({ origins: [manuallyRemovedOrigin] });
+    await waitFor(
+      () => chrome.__state.session['sitewipe.cleanupReview.v1'] === undefined,
+      'the later manual removal to invalidate the newly armed review'
+    );
+    assert.equal(
+      chrome.__state.local[STORAGE_KEYS.permissionLease],
+      undefined,
+      'the later manual removal must be external even though the original self-removal event never arrived'
+    );
+    assert.equal(delayedSelfRemovalEvents.length, 1, 'the test must not consume the held self-removal event');
+  } finally {
+    startupRetryTimer.restore();
+    chrome.__events.permissionRemoved.emit = originalPermissionRemovedEmit;
+    delete globalThis.chrome;
+  }
+});
+
+test('an unresolved removal generation blocks a same-origin successor and cannot transfer its event', async () => {
+  const chrome = await createReadyChromeMock();
+  globalThis.chrome = chrome;
+  const originalPermissionRemove = chrome.permissions.remove;
+  const originalPermissionRemovedEmit = chrome.__events.permissionRemoved.emit;
+  const delayedSelfRemovalEvents = [];
+  const startupRetryTimer = parkFirstLoadReadinessArmedCleanupRetry();
+  try {
+    await import(`../../src/background/service-worker.js?overlapping-self-removal-generation=${uniqueImportKey()}`);
+    await withTimeout(startupRetryTimer.parked, 'load-readiness armed-cleanup retry to park');
+    startupRetryTimer.restore();
+    assert.equal(startupRetryTimer.suppressed(), true);
+
+    const initiatingSender = popupSender(chrome, 'popup-document-removal-generation-a');
+    const generationA = await establishSyntheticOwnedPromptGrant(chrome, initiatingSender);
+    chrome.permissions.remove = async (...args) => {
+      chrome.__events.permissionRemoved.emit = (...eventArgs) => {
+        delayedSelfRemovalEvents.push(structuredClone(eventArgs));
+        return [];
+      };
+      try {
+        return await originalPermissionRemove(...args);
+      } finally {
+        chrome.__events.permissionRemoved.emit = originalPermissionRemovedEmit;
+      }
+    };
+    const settledA = await dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      {
+        type: MESSAGE_TYPES.settleCleanupPermissionHandoff,
+        payload: { ...generationA.handoff.authority, outcome: 'abandoned' }
+      },
+      generationA.handoff.sender
+    );
+    assert.equal(settledA.ok, true, settledA.error);
+    assert.equal(settledA.settlement.released, true);
+    assert.equal(delayedSelfRemovalEvents.length, 1);
+
+    const recovered = await dispatchRuntimeMessageWithoutTimer(chrome, prepareReviewMessage(), popupSender(chrome));
+    assert.equal(recovered.ok, true, recovered.error);
+    const generationB = await establishSyntheticOwnedPromptGrant(chrome, popupSender(chrome), recovered);
+    const generationBOrigins = [...recovered.review.temporaryHostPermissionOrigins];
+    chrome.__events.permissionAdded.emit({ origins: generationBOrigins });
+    const removalsBeforeB = permissionRemovalCallCount(chrome);
+    const settledB = await dispatchRuntimeMessageWithoutTimer(
+      chrome,
+      {
+        type: MESSAGE_TYPES.settleCleanupPermissionHandoff,
+        payload: { ...generationB.handoff.authority, outcome: 'abandoned' }
+      },
+      generationB.handoff.sender
+    );
+    assert.equal(permissionRemovalCallCount(chrome), removalsBeforeB, 'generation B must not start browser removal');
+    assert.notEqual(settledB.settlement?.released, true);
+    assert.ok(
+      await getPermissionLease(chrome.storage.local),
+      'generation B must retain its unreleased recovery record'
+    );
+
+    chrome.__events.permissionRemoved.emit(...delayedSelfRemovalEvents.shift());
+    await waitFor(
+      () =>
+        chrome.__state.session['sitewipe.cleanupReview.v1'] === undefined &&
+        chrome.__state.local[STORAGE_KEYS.permissionLease] === undefined,
+      "generation A's delayed event to invalidate rather than transfer into generation B"
+    );
+    assert.equal(chrome.__state.local[STORAGE_KEYS.permissionLease], undefined);
+    assert.deepEqual(
+      chrome.__state.originPermissions,
+      new Set(generationBOrigins),
+      'an ambiguous old event must preserve the later externally regranted access'
+    );
+  } finally {
+    startupRetryTimer.restore();
+    chrome.__events.permissionRemoved.emit = originalPermissionRemovedEmit;
     delete globalThis.chrome;
   }
 });
@@ -146,6 +287,81 @@ async function createReadyChromeMock() {
 
 let nextPermissionHandoffTabId = 60_000;
 let nextPermissionHandoffContextId = 1;
+
+async function establishSyntheticOwnedPromptGrant(chrome, initiatingSender, existingPrepared = null) {
+  const prepared =
+    existingPrepared || (await dispatchRuntimeMessageWithoutTimer(chrome, prepareReviewMessage(), initiatingSender));
+  assert.equal(prepared.ok, true, prepared.error);
+  const { handoff } = await armAndBeginPromptIntent(chrome, prepared, initiatingSender);
+  const invocation = await dispatchRuntimeMessageWithoutTimer(
+    chrome,
+    { type: MESSAGE_TYPES.confirmCleanupPermissionHandoffInvocation, payload: handoff.authority },
+    handoff.sender
+  );
+  assert.equal(invocation.ok, true, invocation.error);
+  const armedRecord = chrome.__state.session['sitewipe.cleanupReview.v1'];
+  const recordedAtMs = Math.max(
+    Date.now(),
+    armedRecord.approvalHandoff.armedAtMs,
+    armedRecord.approvalHandoff.promptInvocation.recordedAtMs
+  );
+  const temporaryOrigins = [...armedRecord.hostPermissionInventory.requiredHostPermissionOrigins];
+  chrome.__state.session['sitewipe.cleanupReview.v1'] = {
+    ...armedRecord,
+    approvalHandoff: {
+      ...armedRecord.approvalHandoff,
+      updatedAtMs: recordedAtMs,
+      promptGrant: {
+        observedOrigins: temporaryOrigins,
+        complete: true,
+        recordedAtMs
+      },
+      promptGrantOutcome: {
+        popupContextId: handoff.contextId,
+        granted: true,
+        preRequestTemporaryOriginsAbsent: true,
+        recordedAtMs
+      }
+    }
+  };
+  const lease = chrome.__state.local[STORAGE_KEYS.permissionLease];
+  chrome.__state.local[STORAGE_KEYS.permissionLease] = {
+    ...lease,
+    ownershipProof: 'reviewed_prompt_grant',
+    ownershipRevokedAt: null,
+    updatedAt: new Date(recordedAtMs).toISOString()
+  };
+  assert.ok(
+    normalizeCleanupReviewRecord(chrome.__state.session['sitewipe.cleanupReview.v1']),
+    'the synthetic review must retain a valid complete prompt proof'
+  );
+  assert.ok(
+    await getPermissionLease(chrome.storage.local),
+    'the synthetic lease must retain valid reviewed-prompt ownership'
+  );
+  for (const origin of lease.temporaryOrigins) chrome.__state.originPermissions.add(origin);
+  return { prepared, handoff, lease };
+}
+
+async function armAndBeginPromptIntent(chrome, prepared, initiatingSender) {
+  const approvalTimer = suppressUndelayedTimeouts();
+  let armed;
+  try {
+    armed = await dispatchRuntimeMessageWithoutTimer(chrome, armPreparedReviewMessage(prepared), initiatingSender);
+  } finally {
+    approvalTimer.restore();
+  }
+  assert.equal(approvalTimer.suppressed(), true, 'the settlement-reservation test must hold the automatic arm wake');
+  assert.equal(armed.ok, true, armed.error);
+  const handoff = await openAndClaimPersistentPermissionHandoff(chrome, prepared, initiatingSender);
+  const intent = await dispatchRuntimeMessageWithoutTimer(
+    chrome,
+    { type: MESSAGE_TYPES.beginCleanupPermissionHandoff, payload: handoff.authority },
+    handoff.sender
+  );
+  assert.equal(intent.ok, true, intent.error);
+  return { armed, handoff };
+}
 
 function installPersistentPermissionHandoffTabSupport(chrome) {
   chrome.tabs.onRemoved ||= createEvent();
@@ -307,6 +523,14 @@ function cleanupMutationCallCount(chrome) {
   ).length;
 }
 
+function permissionInventoryCallCount(chrome) {
+  return chrome.__calls.filter((call) => call.api === 'permissions.getAll').length;
+}
+
+function permissionRemovalCallCount(chrome) {
+  return chrome.__calls.filter((call) => call.api === 'permissions.remove').length;
+}
+
 function deferred() {
   let resolve;
   const promise = new Promise((settle) => {
@@ -327,6 +551,19 @@ async function withTimeout(promise, label, timeoutMs = 10_000) {
   } finally {
     if (timerId !== undefined) clearTimeout(timerId);
   }
+}
+
+async function waitFor(predicate, label, timeoutMs = 3_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error(`Timed out waiting for ${label}.`);
+}
+
+async function flushMicrotasks(turns = 20) {
+  for (let index = 0; index < turns; index += 1) await Promise.resolve();
 }
 
 function suppressUndelayedTimeouts() {

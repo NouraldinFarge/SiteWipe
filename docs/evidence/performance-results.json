@@ -1,57 +1,19 @@
 {
   "schemaVersion": 1,
-  "status": "passed",
-  "measuredAt": "2026-08-23T22:13:12.188Z",
-  "environment": {
-    "browser": "Google Chrome 151.0.7922.172",
-    "operatingSystem": "Microsoft Windows 11 Pro 10.0.26100, 64-bit",
-    "profile": "disposable normal profile; Sync disabled",
-    "windowBounds": "1281,0 at 1279x720, normal",
-    "fixture": "sitewipe-synthetic-v1 small example.com fixture",
-    "cleanupMode": "Standard detailed review with the two-activation missing-access handoff",
-    "incognito": false,
-    "downloadedFileDeletionEnabled": false
-  },
+  "status": "pending",
+  "measuredAt": null,
+  "environment": {},
   "artifact": {
-    "version": "1.11.67",
-    "runtimeZip": "sitewipe-unreleased-candidate-1.11.67.zip",
-    "sha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6"
+    "version": "1.12.22",
+    "runtimeZip": "sitewipe-unreleased-candidate-1.12.22.zip",
+    "sha256": null
   },
-  "fixtures": [
-    {
-      "id": "chrome-standard-small-reviewed-handoff-2026-08-23",
-      "status": "passed",
-      "browser": "Google Chrome 151.0.7922.172",
-      "scale": "small",
-      "sourceAssertionId": "chrome-1.11.67-standard-reviewed-synthetic-cleanup-2026-08-23",
-      "observedAt": "2026-08-23T22:13:12.188Z",
-      "artifactSha256": "BEE06350411B0ECDC5DB1076918C92D67BB32F54C80090AFEA4C04FAAC7AA7A6",
-      "sampleCount": 1,
-      "samples": [
-        {
-          "id": "chrome-standard-small-run-1",
-          "status": "passed",
-          "cleanupStartedAt": "2026-08-23T22:13:11.284Z",
-          "cleanupFinishedAt": "2026-08-23T22:13:12.188Z",
-          "totalDurationMs": 904,
-          "phaseTimingsMs": {
-            "installedCleanupTotal": 904
-          }
-        }
-      ],
-      "summary": {
-        "medianMs": 904,
-        "p95Ms": 904,
-        "maximumMs": 904
-      }
-    }
-  ],
+  "fixtures": [],
   "limitations": [
-    "The retained 712 ms Chrome observation belongs only to the historical exact SiteWipe 1.11.63 artifact; it is not current 1.11.67 performance evidence, a representative benchmark, or a cleanup-speed claim.",
-    "The current 904 ms result is one narrow exact-artifact Standard small-fixture Chrome observation retained only to prove that the installed cleanup completed and emitted a finite duration; it is not a representative benchmark or cleanup-speed claim.",
-    "Brave cleanup timing, larger fixtures, repeated distributions, cold-worker starts, private mode, Expert mode, and adverse browser-load conditions remain deferred.",
-    "The current runtime report exposed only the 904 ms end-to-end installed cleanup duration without a separately instrumented internal phase breakdown, so the single phase value deliberately represents the same whole installed cleanup.",
-    "Node test duration is not used as browser cleanup performance."
+    "No performance observation is inherited across a version transaction or rebound to the current artifact.",
+    "Fresh exact-artifact Chrome and Brave measurements are required before any performance or cleanup-speed claim.",
+    "Required coverage includes repeated small, medium, and large fixtures; Standard and Expert modes; cold-worker starts; private mode where separately authorized; and adverse browser-load conditions.",
+    "Node test duration and prior-version installed observations are not current browser cleanup performance evidence."
   ],
-  "reviewerApproval": true
+  "reviewerApproval": false
 }

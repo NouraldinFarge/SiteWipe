@@ -25,6 +25,26 @@ test('verified zero requires every required category to complete with zero', () 
   });
 });
 
+test('a zero count with explicitly incomplete discovery can never become verified zero', () => {
+  const categories = Object.fromEntries(REQUIRED.map((name) => [name, verificationFromCount(0)]));
+  categories.history = {
+    ...verificationFromCount(0),
+    complete: false,
+    reason: 'The bounded history query reached its discovery cap.'
+  };
+  const summary = summarizeVerification(categories, REQUIRED);
+  assert.equal(summary.status, 'incomplete');
+  assert.equal(summary.allRequiredChecksSucceeded, false);
+  assert.equal(summary.noExposedResidueFound, false);
+  assert.deepEqual(summary.incomplete, [
+    {
+      name: 'history',
+      state: 'verified_zero',
+      reason: 'The bounded history query reached its discovery cap.'
+    }
+  ]);
+});
+
 test('verified residue remains distinct from incomplete verification', () => {
   const categories = Object.fromEntries(REQUIRED.map((name) => [name, verificationFromCount(0)]));
   categories.cookies = verificationFromCount(3);
